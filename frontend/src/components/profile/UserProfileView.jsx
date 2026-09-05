@@ -17,12 +17,10 @@ import {
   Globe,
   Lock,
   Battery,
-  Zap,
   HeartPulse,
   Award,
   ChevronRight,
   CheckCircle2,
-  Clock3,
   FileText,
 } from "lucide-react";
 
@@ -190,10 +188,6 @@ export const UserProfileView = () => {
               {profile.email || "N/A"}
             </span>
             <span className="flex items-center gap-1.5">
-              <Building2 className="w-4 h-4 text-[#8A7A4A]" />
-              {profile.company || "MaxSpace Fleet"}
-            </span>
-            <span className="flex items-center gap-1.5">
               <MapPin className="w-4 h-4 text-[#8A7A4A]" />
               {profile.location || "N/A"}
             </span>
@@ -305,14 +299,6 @@ export const UserProfileView = () => {
               value={profile.phone || "Not available"}
             />
 
-            <InfoRow
-              icon={Building2}
-              label="Organization"
-              value={
-                profile.company ||
-                "Not available"
-              }
-            />
 
             <InfoRow
               icon={MapPin}

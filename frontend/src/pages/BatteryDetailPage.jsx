@@ -15,7 +15,6 @@ import {
   Wrench,
   CheckCircle2,
   AlertTriangle,
-  Clock,
 } from "lucide-react";
 import { useBattery } from "../context/BatteryContext";
 
@@ -75,7 +74,6 @@ export default function BatteryDetailPage() {
   const soc = Number(battery.stateOfCharge) || 0;
   const cycles = Number(battery.cycleCount) || 0;
   const maxCycles = Number(battery.maxRatedCycles) || 0;
-  const cyclePercent = maxCycles > 0 ? Math.round((cycles / maxCycles) * 100) : 0;
 
   const sohColor =
     soh >= 90 ? "text-green-600" : soh >= 80 ? "text-yellow-600" : "text-red-500";

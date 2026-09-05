@@ -9,6 +9,8 @@ import ServiceAnalytics from "../components/analytics/ServiceAnalytics";
 import BatteryPerformance from "../components/analytics/BatteryPerformance";
 import AnalyticsTable from "../components/analytics/AnalyticsTable";
 
+const EMPTY_SERVICES = [];
+
 const SAMPLE_BATTERIES = [
   {
     id: "BAT-001",
@@ -47,7 +49,7 @@ const AnalyticsPage = () => {
       ? batteryContext.batteries
       : SAMPLE_BATTERIES;
 
-  const bookings = batteryContext?.services || [];
+  const bookings = batteryContext?.services ?? EMPTY_SERVICES;
 
   const stats = useMemo(() => {
     const totalBatteries = batteries.length;

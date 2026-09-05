@@ -2,7 +2,6 @@
 import { useBattery } from "../../context/BatteryContext";
 
 import {
-  BatteryCharging,
   LayoutDashboard,
   Wrench,
   User,
@@ -12,7 +11,6 @@ import {
   Zap,
   Activity,
   X,
-  Menu,
   BarChart3,
   ChevronRight,
   Settings,

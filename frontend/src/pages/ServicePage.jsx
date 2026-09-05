@@ -1,4 +1,5 @@
 import React, {
+  useCallback,
   useMemo,
   useState,
 } from "react";
@@ -86,6 +87,7 @@ const ServicePage = () => {
       chemistry: "LFP",
       cells: 4,
       status: "FG PENDING",
+      serviceCount: 0,
       manufacturingDate: "16 Apr 2026",
       location: "Warehouse",
     },
@@ -122,74 +124,44 @@ const ServicePage = () => {
      HELPERS
   ========================================================== */
 
-  const getBatteryId = (battery) =>
-    battery?.id ||
-    battery?.batteryId ||
-    battery?.serialNumber ||
-    "";
-
-
-  /*
-   * Get service count for one battery.
-   */
-  const getServiceCount = (battery) => {
-
-    const batteryId =
-      getBatteryId(battery);
-
-    /*
-     * Count previous bookings.
-     */
-    const bookingCount =
-      bookings.filter(
-        (booking) =>
-          booking.batteryId === batteryId &&
-          booking.status !== "Cancelled"
-      ).length;
-
-    /*
-     * If your BatteryContext already has
-     * serviceCount, use it as the base count.
-     */
-    const existingCount =
-      Number(battery?.serviceCount) || 0;
-
-    /*
-     * We use the larger value to avoid
-     * accidentally decreasing existing history.
-     */
-    return Math.max(
-      existingCount,
-      bookingCount
-    );
-  };
+  const getBatteryId = useCallback(
+    (battery) =>
+      battery?.id ||
+      battery?.batteryId ||
+      battery?.serialNumber ||
+      "",
+    []
+  );
 
 
   /*
    * Service status.
    */
-  const getServiceStatus = (battery) => {
+  const getServiceStatus = useCallback(
+    (battery) => {
 
-    const batteryId =
-      getBatteryId(battery);
+      const batteryId =
+        getBatteryId(battery);
 
-    const hasBooking =
-      bookings.some(
-        (booking) =>
-          booking.batteryId === batteryId &&
-          booking.status === "Booked"
+      const hasBooking =
+        bookings.some(
+          (booking) =>
+            booking.batteryId === batteryId &&
+            booking.status === "Booked"
+        );
+
+      if (hasBooking) {
+        return "Booked";
+      }
+
+      return (
+        battery?.serviceStatus ||
+        battery?.status ||
+        "Pending"
       );
-
-    if (hasBooking) {
-      return "Booked";
-    }
-
-    return (
-      battery?.serviceStatus ||
-      battery?.status ||
-      "Pending"
-    );
-  };
+    },
+    [bookings, getBatteryId]
+  );
 
 
   /*
@@ -263,7 +235,8 @@ const ServicePage = () => {
     serviceBatteries,
     search,
     statusFilter,
-    bookings,
+    getBatteryId,
+    getServiceStatus,
   ]);
 
 
@@ -331,6 +304,7 @@ const ServicePage = () => {
   }, [
     serviceBatteries,
     bookings,
+    getServiceStatus,
   ]);
 
 
@@ -395,6 +369,7 @@ const ServicePage = () => {
         "Regular Maintenance",
       date: "",
       time: "",
+      mobileNumber: "",
       notes: "",
     });
 

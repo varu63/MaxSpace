@@ -81,3 +81,123 @@
 .animate-scan-laser {
   animation: scanLaserYellow 2.2s ease-in-out infinite;
 }
+
+/* =========================================================
+   DARK MODE
+   Applied when <html class="dark"> is present (toggle from
+   the Settings page or persisted "appSettings" in storage).
+   The overrides target the arbitrary-value light palette so
+   the dark toggle meaningfully changes the whole app.
+========================================================= */
+
+html.dark body {
+  background-color: #0b1220;
+  color: #e2e8f0;
+}
+
+html.dark [class*="bg-[#F8F2DE]"] {
+  background-color: #0b1220 !important;
+}
+
+html.dark [class*="bg-[#FFFDF8]"] {
+  background-color: #111b2e !important;
+}
+
+html.dark [class*="bg-white"] {
+  background-color: #16233a !important;
+}
+
+html.dark [class*="bg-slate-50"] {
+  background-color: #182741 !important;
+}
+
+html.dark [class*="bg-slate-100"] {
+  background-color: #1d2c48 !important;
+}
+
+html.dark [class*="bg-slate-200"] {
+  background-color: #25365a !important;
+}
+
+html.dark [class*="bg-slate-300"] {
+  background-color: #33466e !important;
+}
+
+html.dark [class*="bg-[#F5F1E7]"],
+html.dark [class*="bg-[#F7F7F7]"] {
+  background-color: #1a2942 !important;
+}
+
+html.dark [class*="text-[#16263A]"],
+html.dark [class*="text-slate-900"],
+html.dark [class*="text-slate-800"] {
+  color: #e2e8f0 !important;
+}
+
+html.dark [class*="text-slate-700"],
+html.dark [class*="text-[#8A7A4A]"] {
+  color: #c4b48a !important;
+}
+
+html.dark [class*="text-slate-600"],
+html.dark [class*="text-slate-500"],
+html.dark [class*="text-slate-400"],
+html.dark [class*="text-[#747B83]"] {
+  color: #93a4c2 !important;
+}
+
+html.dark [class*="border-[#EEE9DA]"],
+html.dark [class*="border-[#ECE7DA]"],
+html.dark [class*="border-[#E9E4D7]"],
+html.dark [class*="border-slate-100"],
+html.dark [class*="border-slate-200"] {
+  border-color: #263a5f !important;
+}
+
+html.dark [class*="bg-yellow-50"] {
+  background-color: #2a2a14 !important;
+  border-color: #6b5d1e !important;
+}
+
+html.dark [class*="bg-yellow-100"] {
+  background-color: #3a3512 !important;
+}
+
+html.dark [class*="bg-emerald-50"] {
+  background-color: #0f2a22 !important;
+}
+
+html.dark [class*="border-emerald-200"] {
+  border-color: #1f7a5f !important;
+}
+
+html.dark [class*="text-emerald-800"] {
+  color: #6ee7b7 !important;
+}
+
+html.dark [class*="bg-red-50"] {
+  background-color: #2d1518 !important;
+}
+
+html.dark [class*="border-red-200"] {
+  border-color: #8b3a42 !important;
+}
+
+html.dark [class*="shadow-sm"],
+html.dark [class*="shadow-2xl"] {
+  box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.6) !important;
+}
+
+html.dark input[type="text"],
+html.dark input[type="email"],
+html.dark input[type="tel"],
+html.dark input[type="password"] {
+  background-color: #16233a;
+  color: #e2e8f0;
+}
+
+html.dark select,
+html.dark textarea {
+  background-color: #16233a;
+  color: #e2e8f0;
+}

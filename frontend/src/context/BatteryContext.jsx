@@ -39,6 +39,71 @@ const loadFromStorage = (key, fallback) => {
 
 export const BatteryProvider = ({ children }) => {
   /* =======================================================
+     AUTH
+  ======================================================= */
+
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    () =>
+      loadFromStorage("maxspace_auth", null) ===
+      "authenticated"
+  );
+
+  const signIn = (credentials = {}) => {
+    const profile = loadFromStorage(
+      "maxspace_user_profile",
+      initialUserProfile
+    );
+
+    if (credentials && credentials.name) {
+      setUserProfile({
+        ...(profile || {}),
+        name: credentials.name,
+        email:
+          credentials.email ||
+          profile?.email ||
+          "",
+      });
+    }
+
+    setIsAuthenticated(true);
+    localStorage.setItem(
+      "maxspace_auth",
+      "authenticated"
+    );
+
+    return true;
+  };
+
+  const signUp = (credentials = {}) => {
+    setUserProfile((previous) => ({
+      ...(previous || {}),
+      name:
+        credentials.name || previous?.name || "",
+      email:
+        credentials.email ||
+        previous?.email ||
+        "",
+      company:
+        credentials.company ||
+        previous?.company ||
+        "",
+    }));
+
+    setIsAuthenticated(true);
+    localStorage.setItem(
+      "maxspace_auth",
+      "authenticated"
+    );
+
+    return true;
+  };
+
+  const signOut = () => {
+    setIsAuthenticated(false);
+    localStorage.removeItem("maxspace_auth");
+  };
+
+  /* =======================================================
      MAIN DATA
   ======================================================= */
 
@@ -767,79 +832,68 @@ export const BatteryProvider = ({ children }) => {
      CONTEXT VALUE
   ======================================================= */
 
-  const contextValue = useMemo(
-    () => ({
-      /* Navigation */
+  const contextValue = {
+    /* Auth */
+    isAuthenticated,
+    signIn,
+    signUp,
+    signOut,
 
-      /* Main Data */
-      batteries,
-      setBatteries,
+    /* Main Data */
+    batteries,
+    setBatteries,
 
-      services,
-      setServices,
+    services,
+    setServices,
 
-      userProfile,
-      setUserProfile,
+    userProfile,
+    setUserProfile,
 
-      stats,
+    stats,
 
-      /* Toast */
-      toasts,
-      addToast,
-      removeToast,
+    /* Toast */
+    toasts,
+    addToast,
+    removeToast,
 
-      /* Battery */
-      addBattery,
-      updateBattery,
-      deleteBattery,
-      findBatteryByBarcode,
+    /* Battery */
+    addBattery,
+    updateBattery,
+    deleteBattery,
+    findBatteryByBarcode,
 
-      /* Services */
-      bookService,
+    /* Services */
+    bookService,
 
-      /* Profile */
-      updateProfile,
+    /* Profile */
+    updateProfile,
 
-      /* Scanner */
-      isScannerOpen,
-      scannerPrefillCode,
-      openScanner,
-      closeScanner,
+    /* Scanner */
+    isScannerOpen,
+    scannerPrefillCode,
+    openScanner,
+    closeScanner,
 
-      /* Passport */
-      selectedPassportBattery,
-      openPassport,
-      closePassport,
+    /* Passport */
+    selectedPassportBattery,
+    openPassport,
+    closePassport,
 
-      /* Add Battery */
-      isAddBatteryOpen,
-      addBatteryPrefill,
-      openAddBattery,
-      closeAddBattery,
+    /* Add Battery */
+    isAddBatteryOpen,
+    addBatteryPrefill,
+    openAddBattery,
+    closeAddBattery,
 
-      /* Sidebar */
-      isSidebarOpen,
-      setIsSidebarOpen,
-      toggleSidebar,
-      closeSidebar,
+    /* Sidebar */
+    isSidebarOpen,
+    setIsSidebarOpen,
+    toggleSidebar,
+    closeSidebar,
 
-      /* Reset */
-      resetToSampleData,
-    }),
-    [
-      batteries,
-      services,
-      userProfile,
-      stats,
-      toasts,
-      isScannerOpen,
-      scannerPrefillCode,
-      selectedPassportBattery,
-      isAddBatteryOpen,
-      addBatteryPrefill,
-      isSidebarOpen,
-    ]
-  );
+    /* Reset */
+    resetToSampleData,
+  };
 
   return (
     <BatteryContext.Provider

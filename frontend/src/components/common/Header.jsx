@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   QrCode,
   Bell,
   Menu,
+  LogOut,
 } from "lucide-react";
 
 import { useBattery } from "../../context/BatteryContext";
@@ -12,7 +14,15 @@ const Header = () => {
     openScanner,
     userProfile,
     setIsSidebarOpen,
+    signOut,
   } = useBattery();
+
+  const navigate = useNavigate();
+
+  const handleSignOut = () => {
+    signOut();
+    navigate("/signin");
+  };
 
   const [hidden, setHidden] = useState(false);
   const lastScrollY = useRef(0);
@@ -140,6 +150,28 @@ const Header = () => {
                   : "U"}
               </div>
             </div>
+
+            {/* Sign Out */}
+            <button
+              onClick={handleSignOut}
+              className="
+                flex items-center justify-center gap-1.5
+                h-10 px-3
+                rounded-xl
+                bg-slate-100
+                border border-slate-200
+                text-slate-600
+                hover:bg-red-50 hover:text-red-700 hover:border-red-200
+                transition
+              "
+              title="Sign out"
+              aria-label="Sign out"
+            >
+              <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="hidden lg:inline text-xs font-bold">
+                Sign Out
+              </span>
+            </button>
           </div>
         </div>
       </header>

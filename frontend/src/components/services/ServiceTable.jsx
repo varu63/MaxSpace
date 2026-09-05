@@ -8,8 +8,6 @@ const ServiceTable = ({
   batteries,
   bookings,
   getBatteryId,
-  getServiceStatus,
-  getStatusStyle,
   onSelectBattery,
 }) => {
   return (
@@ -57,9 +55,6 @@ const ServiceTable = ({
 
             const batteryId =
               getBatteryId(battery);
-
-            const serviceStatus =
-              getServiceStatus(battery);
 
             /*
              * Count ALL services for this battery.
