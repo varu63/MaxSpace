@@ -105,11 +105,10 @@ export const Sidebar = () => {
             className="flex items-center space-x-3 cursor-pointer group"
             onClick={() => handleNavClick("/home")}
           >
-            <div className="relative flex items-center justify-center w-11 h-11 rounded-full bg-[#F5F1E7]  from-yellow-400 via-amber-300 to-yellow-200 p-0.5 shadow-md group-hover:scale-105 transition-transform">
-
-              <div className="w-full h-full bg-[#F5F1E7] rounded-[14px] flex items-center justify-center">
+            <div className="relative flex items-center justify-center w-11 h-11 rounded-full bg-white dark:bg-white  from-yellow-400 via-amber-300 to-yellow-200 p-0.5 shadow-md group-hover:scale-105 transition-transform">
+              <div className="w-full h-full bg-white dark:bg-white rounded-[14px] flex items-center justify-center">
                 <img
-                  src="/Logo.jpeg"
+                  src="/Logo.png"
                   alt="logo"
                   className="w-full h-full object-scale-down"
                 />
@@ -215,8 +214,7 @@ export const Sidebar = () => {
           })}
 
         </div>
-
-
+    
         {/* =====================================================
             QUICK ACTIONS
         ====================================================== */}

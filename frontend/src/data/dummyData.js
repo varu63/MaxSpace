@@ -45,10 +45,10 @@ export const batteries = [
     },
     warranty: {
       status: "Active",
-      startDate: "2024-03-15",
-      endDate: "2032-03-15",
-      remainingDays: 2020,
-      terms: "8 Years / 160,000 km (Guaranteed >=70% SoH)",
+      startDate: "2023-03-15",
+      endDate: "2026-03-15",
+      remainingDays: 0,
+      terms: "3 Years / 160,000 km (Guaranteed >=70% SoH)",
       provider: "EcoVolt Global Warranty Direct",
       certificateNumber: "WAR-2024-EV-9941"
     },

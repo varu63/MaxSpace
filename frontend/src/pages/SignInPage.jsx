@@ -60,9 +60,9 @@ const SignInPage = () => {
       <div className="w-full max-w-md">
         {/* Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#FFFDF8] border border-[#EEE9DA] shadow-sm overflow-hidden mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white dark:bg-white border border-[#EEE9DA] shadow-sm overflow-hidden mb-4">
             <img
-              src="/Logo.jpeg"
+              src="/Logo.png"
               alt=""
               className="w-full h-full object-scale-down"
             />

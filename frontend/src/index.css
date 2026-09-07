@@ -182,7 +182,7 @@ html.dark .bg-surface {
   background-color: #111b2e !important;
 }
 
-html.dark [class*="bg-white"] {
+html.dark [class*="bg-white"]:not([class*="dark:bg-white"]) {
   background-color: #16233a !important;
 }
 

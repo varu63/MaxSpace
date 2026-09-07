@@ -1,29 +1,16 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  QrCode,
-  Bell,
-  Menu,
-  LogOut,
-} from "lucide-react";
+import { QrCode, Bell, Menu, LogOut } from "lucide-react";
 
 import { useBattery } from "../../context/BatteryContext";
 import DownloadAppButton from "./DownloadAppButton";
 
 const Header = () => {
-  const {
-    openScanner,
-    userProfile,
-    setIsSidebarOpen,
-    signOut,
-  } = useBattery();
+  const { openScanner, userProfile, setIsSidebarOpen, signOut } = useBattery();
 
   const navigate = useNavigate();
 
-  const handleSignOut = () => {
-    signOut();
-    navigate("/signin");
-  };
+  
 
   const [hidden, setHidden] = useState(false);
   const lastScrollY = useRef(0);
@@ -80,18 +67,16 @@ const Header = () => {
 
             {/* Logo */}
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-full bg-[#F5F1E7] flex items-center justify-center border-[#16263A] border overflow-hidden">
+              <div className="w-12 h-12 rounded-full bg-white dark:bg-white flex items-center justify-center  border overflow-hidden p-1">
                 <img
-                  src="/Logo.jpeg"
+                  src="/Logo.png"
                   alt="logo"
-                  className="w-full h-full object-scale-down"
+                  className="w-full h-full object-contain scale-175"
                 />
               </div>
 
               <div className="hidden sm:block">
-                <h1 className="font-bold text-base text-[#16263A]">
-                  MaxSpace
-                </h1>
+                <h1 className="font-bold text-base text-[#16263A]">MaxSpace</h1>
 
                 <p className="text-[9px] text-[#747B83]">
                   Digital Product Passport
@@ -155,29 +140,12 @@ const Header = () => {
               className="flex items-center justify-center gap-1.5 h-10 px-3 rounded-xl bg-[#173B5C] text-white border border-[#173B5C] hover:bg-[#102F4A] transition"
               iconClassName="w-4 h-4 sm:w-5 sm:h-5"
             >
-              <span className="hidden lg:inline text-xs font-bold">Download</span>
+              <span className="hidden lg:inline text-xs font-bold">
+                Download
+              </span>
             </DownloadAppButton>
 
-            <button
-              onClick={handleSignOut}
-              className="
-                flex items-center justify-center gap-1.5
-                h-10 px-3
-                rounded-xl
-                bg-[#F5F1E7]
-                border border-[#E7E1D3]
-                text-[#747B83]
-                hover:bg-red-50 hover:text-red-700 hover:border-red-200
-                transition
-              "
-              title="Sign out"
-              aria-label="Sign out"
-            >
-              <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span className="hidden lg:inline text-xs font-bold">
-                Sign Out
-              </span>
-            </button>
+            
           </div>
         </div>
       </header>

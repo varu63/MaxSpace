@@ -14,12 +14,12 @@ const FloatingDownloadButton = () => {
         Get App
       </span>
 
-      <span className="relative flex items-center justify-center w-16 h-16 rounded-full bg-[#F5F1E7] border border-[#E7E1D3] shadow-[0_10px_30px_-8px_rgba(22,38,58,0.35)] transition-all duration-300 ease-out group-hover:-translate-y-1 group-hover:shadow-[0_18px_40px_-12px_rgba(22,38,58,0.45)] group-hover:border-yellow-300 group-active:scale-95">
-        <span className="relative w-10 h-10 rounded-full overflow-hidden">
+      <span className="relative flex items-center justify-center w-16 h-16 rounded-full  bg-white dark:bg-white border border-[#E7E1D3] shadow-[0_10px_30px_-8px_rgba(22,38,58,0.35)] transition-all duration-300 ease-out group-hover:-translate-y-1 group-hover:shadow-[0_18px_40px_-12px_rgba(22,38,58,0.45)] group-hover:border-yellow-300 group-active:scale-95">
+        <span className="relative w-10 h-10 rounded-full overflow-hidden  bg-white dark:bg-white  transition-all duration-300 ease-out group-hover:shadow-[0_18px_40px_-12px_rgba(22,38,58,0.45)] ">
           <img
-            src="/Logo.jpeg"
+            src="/Logo.png"
             alt="MaxSpace"
-            className="w-full h-full object-scale-down"
+            className="w-full h-full object-contain"
           />
         </span>
 
