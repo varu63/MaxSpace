@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { lazy, Suspense, useState, useEffect } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ChevronUp } from "lucide-react";
 
@@ -9,16 +9,23 @@ import Header from "./components/common/Header";
 import Footer from "./components/common/Footer";
 import { NotificationToast } from "./components/common/NotificationToast";
 import { QRBarcodeScannerModal } from "./components/scanner/QRBarcodeScannerModal";
+import FloatingDownloadButton from "./components/common/FloatingDownloadButton";
 
-import HomePage from "./pages/HomePage";
-import ServicePage from "./pages/ServicePage";
-import AnalyticsPage from "./pages/AnalyticsPage";
-import ProfilePage from "./pages/ProfilePage";
-import SettingsPage from "./pages/SettingPage";
-import BatteryDetailPage from "./pages/BatteryDetailPage";
-import BatteryPassportPage from "./pages/BatteryPassportPage";
-import SignInPage from "./pages/SignInPage";
-import SignUpPage from "./pages/SignUpPage";
+const HomePage = lazy(() => import("./pages/HomePage"));
+const ServicePage = lazy(() => import("./pages/ServicePage"));
+const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const SettingsPage = lazy(() => import("./pages/SettingPage"));
+const BatteryDetailPage = lazy(() => import("./pages/BatteryDetailPage"));
+const BatteryPassportPage = lazy(() => import("./pages/BatteryPassportPage"));
+const SignInPage = lazy(() => import("./pages/SignInPage"));
+const SignUpPage = lazy(() => import("./pages/SignUpPage"));
+
+const PageLoader = () => (
+  <div className="flex items-center justify-center min-h-[50vh]">
+    <div className="w-8 h-8 border-2 border-[#E7E1D3] border-t-[#173B5C] rounded-full animate-spin" />
+  </div>
+);
 
 const ThemeSync = () => {
   useEffect(() => {
@@ -26,11 +33,7 @@ const ThemeSync = () => {
       try {
         const saved = localStorage.getItem("appSettings");
         const settings = saved ? JSON.parse(saved) : {};
-
-        document.documentElement.classList.toggle(
-          "dark",
-          Boolean(settings.darkMode)
-        );
+        document.documentElement.classList.toggle("dark", Boolean(settings.darkMode));
       } catch {
         document.documentElement.classList.remove("dark");
       }
@@ -48,9 +51,7 @@ const ScrollToTopButton = () => {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setShow(window.scrollY > 300);
-    };
+    const handleScroll = () => setShow(window.scrollY > 300);
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
@@ -100,86 +101,81 @@ const PublicOnlyRoute = ({ children }) => {
 
 const MainLayout = () => {
   const location = useLocation();
-  const isFullScreenPage = /^\/battery\/[^/]+(\/passport)?$/.test(location.pathname);
+  const isFullScreenPage = /^\/battery\/[^/]+\/passport$/.test(location.pathname);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F8F2DE] text-[#16263A]">
-      {/* Sidebar */}
       {!isFullScreenPage && <Sidebar />}
-
-      {/* Header */}
       {!isFullScreenPage && <Header />}
 
-      {/* Page Content */}
       <main className={`flex-1 w-full ${isFullScreenPage ? "px-4 sm:px-6 lg:px-8 py-6" : "max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-12"}`}>
-        <Routes>
-          <Route
-            path="/home"
-            element={
-              <ProtectedRoute>
-                <HomePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/battery/:id"
-            element={
-              <ProtectedRoute>
-                <BatteryDetailPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/battery/:id/passport"
-            element={
-              <ProtectedRoute>
-                <BatteryPassportPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/services"
-            element={
-              <ProtectedRoute>
-                <ServicePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/analytics"
-            element={
-              <ProtectedRoute>
-                <AnalyticsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute>
-                <ProfilePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute>
-                <SettingsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="*" element={<Navigate to="/home" replace />} />
-        </Routes>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route
+              path="/home"
+              element={
+                <ProtectedRoute>
+                  <HomePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/battery/:id"
+              element={
+                <ProtectedRoute>
+                  <BatteryDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/battery/:id/passport"
+              element={
+                <ProtectedRoute>
+                  <BatteryPassportPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/services"
+              element={
+                <ProtectedRoute>
+                  <ServicePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/analytics"
+              element={
+                <ProtectedRoute>
+                  <AnalyticsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <SettingsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="*" element={<Navigate to="/home" replace />} />
+          </Routes>
+        </Suspense>
       </main>
 
-      {/* Footer */}
       {!isFullScreenPage && <Footer />}
-
-      {/* Scroll to Top */}
       {!isFullScreenPage && <ScrollToTopButton />}
+      {!isFullScreenPage && <FloatingDownloadButton />}
 
-      {/* Scanner Modal */}
       <QRBarcodeScannerModal />
     </div>
   );
@@ -189,28 +185,27 @@ const App = () => {
   return (
     <BatteryProvider>
       <ThemeSync />
-      <Routes>
-        {/* Auth pages - no dashboard layout */}
-        <Route
-          path="/signin"
-          element={
-            <PublicOnlyRoute>
-              <SignInPage />
-            </PublicOnlyRoute>
-          }
-        />
-        <Route
-          path="/signup"
-          element={
-            <PublicOnlyRoute>
-              <SignUpPage />
-            </PublicOnlyRoute>
-          }
-        />
-
-        {/* Dashboard */}
-        <Route path="/*" element={<MainLayout />} />
-      </Routes>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route
+            path="/signin"
+            element={
+              <PublicOnlyRoute>
+                <SignInPage />
+              </PublicOnlyRoute>
+            }
+          />
+          <Route
+            path="/signup"
+            element={
+              <PublicOnlyRoute>
+                <SignUpPage />
+              </PublicOnlyRoute>
+            }
+          />
+          <Route path="/*" element={<MainLayout />} />
+        </Routes>
+      </Suspense>
       <NotificationToast />
     </BatteryProvider>
   );

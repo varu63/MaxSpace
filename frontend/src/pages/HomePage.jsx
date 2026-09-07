@@ -1,196 +1,137 @@
+import { useMemo } from "react";
 import {
   Battery,
   Wrench,
   ShieldCheck,
   ChevronRight,
-  Activity,
-  AlertTriangle,
   CheckCircle2,
+  AlertTriangle,
   Clock3,
+  Home,
 } from "lucide-react";
 import BatteryCard from "../components/home/BatteryCard";
-import StatCard from "../components/home/StatCards";
-
-const batteries = [
-  {
-    id: "MVBE0000871",
-    model: "ESS",
-    chemistry: "LFP",
-    cells: 4,
-    status: "FG PENDING",
-    statusType: "pending",
-    health: 0,
-  },
-  {
-    id: "MVAE0014036",
-    model: "ESS",
-    chemistry: "LFP",
-    cells: 4,
-    status: "FG PENDING",
-    statusType: "pending",
-    health: 0,
-  },
-  {
-    id: "MVAE0014037",
-    model: "ESS",
-    chemistry: "LFP",
-    cells: 4,
-    status: "FG PENDING",
-    statusType: "pending",
-    health: 0,
-  },
-  {
-    id: "MVAE0014038",
-    model: "ESS",
-    chemistry: "LFP",
-    cells: 4,
-    status: "FG PENDING",
-    statusType: "pending",
-    health: 0,
-  },
-];
-
-
-
-
+import {
+  PageHeader,
+  StatCard,
+  Card,
+  SectionHeader,
+  IconBox,
+} from "../components/common";
+import { useBattery } from "../context/BatteryContext";
 
 export default function HomePage() {
+  const {
+    batteries,
+    stats,
+    getBatteryServiceStatus,
+  } = useBattery();
+
+  const { activeServiceCount, pendingCount, healthyCount, needsAttention } = useMemo(() => {
+    let active = 0;
+    let pending = 0;
+    let healthy = 0;
+    let attention = 0;
+
+    for (const b of batteries) {
+      const health = Number(b.stateOfHealth);
+      if (health >= 80) healthy += 1;
+      else attention += 1;
+
+      const status = getBatteryServiceStatus(b);
+      if (status === "Active") active += 1;
+      else if (status === "Pending") pending += 1;
+    }
+
+    return {
+      activeServiceCount: active,
+      pendingCount: pending,
+      healthyCount: healthy,
+      needsAttention: attention,
+    };
+  }, [batteries, getBatteryServiceStatus]);
+
+  const fleetStats = useMemo(
+    () => [
+      { icon: CheckCircle2, label: "Healthy", value: healthyCount, iconTone: "primary" },
+      { icon: Clock3, label: "Pending Service", value: pendingCount, iconTone: "accent" },
+      { icon: Wrench, label: "Under Service", value: activeServiceCount, iconTone: "primary" },
+    ],
+    [healthyCount, pendingCount, activeServiceCount]
+  );
+
   return (
     <div className="w-full space-y-8">
-          {/* Welcome */}
-          <section className="mb-8">
-            <div className="flex items-end justify-between">
+      <PageHeader
+        icon={Home}
+        title="Good Morning"
+        subtitle="Here's an overview of your battery fleet."
+        actions={
+          <span className="hidden md:inline-flex items-center gap-2 text-sm text-[#747B83]">
+            <span className="w-2 h-2 rounded-full bg-green-500" />
+            Live
+          </span>
+        }
+      />
+
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+        <StatCard icon={Battery} value={stats.totalBatteries} label="Total Batteries" />
+        <StatCard icon={Wrench} value={activeServiceCount} label="Active Service" />
+        <StatCard icon={ShieldCheck} value={stats.activeWarranties} label="Warranty Active" />
+        <StatCard icon={AlertTriangle} value={needsAttention} label="Needs Attention" tone="accent" />
+      </section>
+
+      <Card>
+        <SectionHeader
+          icon={Battery}
+          title="Fleet Status"
+          subtitle="Current condition of your battery fleet"
+          right={
+            <button className="flex items-center gap-2 text-sm font-semibold text-[#173B5C] hover:text-[#102F4A] transition">
+              View Analytics
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          }
+        />
+
+        <div className="p-6 lg:p-7 grid grid-cols-1 md:grid-cols-3 gap-5">
+          {fleetStats.map((stat) => (
+            <div
+              key={stat.label}
+              className="flex items-center gap-4 rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3] p-5"
+            >
+              <IconBox icon={stat.icon} tone={stat.iconTone} />
               <div>
-                <p className="text-sm font-medium text-[#8A7A4A] mb-2">
-                  Dashboard Overview
-                </p>
-
-                <h2 className="text-3xl lg:text-4xl font-bold tracking-tight">
-                  Good Morning
-                </h2>
-
-                <p className="mt-2 text-[#69717A]">
-                  Here's an overview of your battery fleet.
-                </p>
-              </div>
-
-              <div className="hidden md:flex items-center gap-2 text-sm text-[#69717A]">
-                <Activity className="w-4 h-4" />
-                Last updated just now
+                <p className="text-xs text-[#747B83]">{stat.label}</p>
+                <p className="text-xl font-bold text-[#16263A]">{stat.value}</p>
               </div>
             </div>
-          </section>
+          ))}
+        </div>
+      </Card>
 
-          {/* Statistics */}
-          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-8">
-            <StatCard
-              icon={Battery}
-              value="5"
-              label="Total Batteries"
-            />
+      <section>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-2xl lg:text-3xl font-bold text-[#16263A]">
+              Your Batteries
+            </h2>
+            <p className="mt-1 text-sm text-[#747B83]">
+              Manage and monitor your registered batteries
+            </p>
+          </div>
 
-            <StatCard
-              icon={Wrench}
-              value="0"
-              label="Active Service"
-            />
+          <button className="flex items-center gap-1 text-sm font-bold text-[#747B83] hover:text-[#173B5C] transition">
+            See All
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
 
-            <StatCard
-              icon={ShieldCheck}
-              value="0"
-              label="Warranty Active"
-            />
-
-            <StatCard
-              icon={AlertTriangle}
-              value="5"
-              label="Needs Attention"
-              iconClass="bg-[#B48611]"
-            />
-          </section>
-
-          {/* Fleet Status */}
-          <section className="rounded-3xl bg-[#FFFDF8] border border-[#EEE9DA] p-6 lg:p-7 mb-10 shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
-              <div>
-                <h3 className="text-xl font-bold">
-                  Fleet Status
-                </h3>
-                <p className="text-sm text-[#737983] mt-1">
-                  Current condition of your battery fleet
-                </p>
-              </div>
-
-              <button className="flex items-center gap-2 text-sm font-semibold text-[#173B5C]">
-                View Analytics
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-6">
-              <div className="flex items-center gap-4 rounded-2xl bg-[#F5F1E7] p-5">
-                <div className="w-11 h-11 rounded-xl bg-white flex items-center justify-center">
-                  <CheckCircle2 className="w-5 h-5 text-[#173B5C]" />
-                </div>
-
-                <div>
-                  <p className="text-xs text-[#777D83]">Healthy</p>
-                  <p className="text-xl font-bold">0</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 rounded-2xl bg-[#F5F1E7] p-5">
-                <div className="w-11 h-11 rounded-xl bg-white flex items-center justify-center">
-                  <Clock3 className="w-5 h-5 text-[#B48611]" />
-                </div>
-
-                <div>
-                  <p className="text-xs text-[#777D83]">Pending</p>
-                  <p className="text-xl font-bold">5</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 rounded-2xl bg-[#F5F1E7] p-5">
-                <div className="w-11 h-11 rounded-xl bg-white flex items-center justify-center">
-                  <Wrench className="w-5 h-5 text-[#173B5C]" />
-                </div>
-
-                <div>
-                  <p className="text-xs text-[#777D83]">Under Service</p>
-                  <p className="text-xl font-bold">0</p>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* Batteries */}
-          <section>
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-2xl lg:text-3xl font-bold">
-                  Your Batteries
-                </h2>
-                <p className="mt-1 text-sm text-[#737983]">
-                  Manage and monitor your registered batteries
-                </p>
-              </div>
-
-              <button className="flex items-center gap-1 text-sm font-bold text-[#59616A] hover:text-[#173B5C]">
-                See All
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {batteries.map((battery) => (
-                <BatteryCard
-                  key={battery.id}
-                  battery={battery}
-                />
-
-              ))}
-            </div>
-          </section>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {batteries.map((battery) => (
+            <BatteryCard key={battery.id} battery={battery} />
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

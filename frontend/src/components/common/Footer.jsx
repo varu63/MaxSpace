@@ -1,9 +1,9 @@
 import React from 'react';
 import { ShieldCheck, Cpu, Leaf, Globe } from 'lucide-react';
 
-export default function Footer(){
+function Footer(){
   return (
-    <footer className="mt-auto border-t border-[#E9E4D7] text-[#F8F2DE] bg-[#16263A] text-xs">
+    <footer className="mt-auto border-t border-[#EEE9DA] text-[#F8F2DE] bg-[#16263A] text-xs">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           
@@ -28,7 +28,7 @@ export default function Footer(){
           </div>
 
         </div>
-        <div className="mt-4 pt-4 border-t border-[#ECE7DA] flex flex-col sm:flex-row items-center justify-between text-[11px] text-[#8A7A4A]">
+        <div className="mt-4 pt-4 border-t border-[#EEE9DA] flex flex-col sm:flex-row items-center justify-between text-[11px] text-[#8A7A4A]">
           <p>© {new Date().getFullYear()} MaxSpace Battery Passport Systems Inc. All rights reserved.</p>
           <p className="font-mono mt-2 sm:mt-0 text-[#747B83]">Encrypted Ledger Node: <span className="text-[#B48611] font-bold">EU-CENTRAL-01</span> (Active)</p>
         </div>
@@ -36,3 +36,5 @@ export default function Footer(){
     </footer>
   );
 };
+
+export default React.memo(Footer);

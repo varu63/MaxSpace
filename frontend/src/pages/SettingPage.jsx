@@ -51,7 +51,7 @@ const Toggle = ({ enabled, onClick }) => (
     type="button"
     onClick={onClick}
     className={`relative w-12 h-6 rounded-full transition-colors ${
-      enabled ? "bg-[#173B5C]" : "bg-slate-300"
+      enabled ? "bg-[#173B5C]" : "bg-[#E7E1D3]"
     }`}
   >
     <span
@@ -104,7 +104,7 @@ const Field = ({
       value={value}
       onChange={onChange}
       placeholder={placeholder}
-      className="w-full px-4 py-2.5 rounded-2xl border border-[#EEE9DA] bg-white text-[#16263A] text-sm focus:outline-none focus:ring-2 focus:ring-[#173B5C] focus:border-transparent transition"
+      className="w-full px-4 py-2.5 rounded-2xl border border-[#EEE9DA] bg-[#FFFDF8] text-[#16263A] text-sm focus:outline-none focus:ring-2 focus:ring-[#173B5C] focus:border-transparent transition"
     />
   </div>
 );
@@ -447,7 +447,7 @@ const SettingsPage = () => {
           <button
             type="button"
             onClick={handleSave}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-[#173B5C] text-white font-semibold hover:bg-[#122e49] shadow-sm transition"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-[#173B5C] text-white font-semibold hover:bg-[#102F4A] shadow-sm transition"
           >
             <Save className="w-4 h-4" />
             Save Changes
@@ -501,7 +501,7 @@ const SettingsPage = () => {
             })}
           </div>
 
-          <div className="mt-6 px-4 py-4 rounded-2xl bg-[#F5F1E7] border border-[#ECE7DA] text-xs text-[#747B83]">
+          <div className="mt-6 px-4 py-4 rounded-2xl bg-[#F5F1E7] border border-[#EEE9DA] text-xs text-[#747B83]">
             <p className="font-semibold text-[#8A7A4A] mb-1">
               💡 Tip
             </p>
@@ -519,7 +519,7 @@ const SettingsPage = () => {
           {activeSection === "general" && (
             <>
               <section className="bg-[#FFFDF8] rounded-3xl border border-[#EEE9DA] shadow-sm overflow-hidden">
-                <div className="px-6 py-5 border-b border-[#ECE7DA]">
+                <div className="px-6 py-5 border-b border-[#EEE9DA]">
                   <div className="flex items-center gap-3">
                     <Settings className="w-5 h-5 text-[#8A7A4A]" />
 
@@ -535,7 +535,7 @@ const SettingsPage = () => {
                   </div>
                 </div>
 
-                <div className="divide-y divide-[#ECE7DA]">
+                <div className="divide-y divide-[#EEE9DA]">
                   <SettingRow
                     icon={Database}
                     title="Automatic Backup"
@@ -565,55 +565,6 @@ const SettingsPage = () => {
                   />
                 </div>
               </section>
-
-              <section className="bg-[#FFFDF8] rounded-3xl border border-[#EEE9DA] shadow-sm overflow-hidden">
-                <div className="px-6 py-5 border-b border-[#ECE7DA]">
-                  <div className="flex items-center gap-3">
-                    <Palette className="w-5 h-5 text-[#8A7A4A]" />
-
-                    <div>
-                      <h2 className="font-bold text-lg text-[#16263A]">
-                        Accent Color
-                      </h2>
-
-                      <p className="text-sm text-[#747B83]">
-                        Choose the primary accent used across the
-                        interface
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="px-6 py-5">
-                  <div className="flex flex-wrap gap-3">
-                    {ACCENT_COLORS.map((color) => (
-                      <button
-                        key={color.key}
-                        type="button"
-                        onClick={() =>
-                          handleAccentChange(color.key)
-                        }
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl border font-semibold text-sm transition ${
-                          settings.accentColor === color.key
-                            ? "border-transparent text-white shadow-sm"
-                            : "border-[#EEE9DA] bg-white text-[#16263A] hover:bg-[#F5F1E7]"
-                        }`}
-                        style={
-                          settings.accentColor === color.key
-                            ? { backgroundColor: color.value }
-                            : undefined
-                        }
-                      >
-                        <span
-                          className="w-4 h-4 rounded-full"
-                          style={{ backgroundColor: color.value }}
-                        />
-                        {color.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </section>
             </>
           )}
 
@@ -622,7 +573,7 @@ const SettingsPage = () => {
           ============================================== */}
           {activeSection === "account" && (
             <section className="bg-[#FFFDF8] rounded-3xl border border-[#EEE9DA] shadow-sm overflow-hidden">
-              <div className="px-6 py-5 border-b border-[#ECE7DA] flex items-center justify-between flex-wrap gap-3">
+              <div className="px-6 py-5 border-b border-[#EEE9DA] flex items-center justify-between flex-wrap gap-3">
                 <div className="flex items-center gap-3">
                   <User className="w-5 h-5 text-[#8A7A4A]" />
 
@@ -695,14 +646,14 @@ const SettingsPage = () => {
                   <button
                     type="button"
                     onClick={handleProfileSave}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-[#173B5C] text-white font-semibold hover:bg-[#122e49] shadow-sm transition"
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-[#173B5C] text-white font-semibold hover:bg-[#102F4A] shadow-sm transition"
                   >
                     <Save className="w-4 h-4" />
                     Update Account
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-[#ECE7DA]">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-[#EEE9DA]">
                   <div className="flex items-center gap-2 text-sm text-[#747B83]">
                     <Building2 className="w-4 h-4 text-[#8A7A4A]" />
                     {userProfile?.fleetType}
@@ -727,7 +678,7 @@ const SettingsPage = () => {
           ============================================== */}
           {activeSection === "notifications" && (
             <section className="bg-[#FFFDF8] rounded-3xl border border-[#EEE9DA] shadow-sm overflow-hidden">
-              <div className="px-6 py-5 border-b border-[#ECE7DA]">
+              <div className="px-6 py-5 border-b border-[#EEE9DA]">
                 <div className="flex items-center gap-3">
                   <Bell className="w-5 h-5 text-[#8A7A4A]" />
 
@@ -744,7 +695,7 @@ const SettingsPage = () => {
                 </div>
               </div>
 
-              <div className="divide-y divide-[#ECE7DA]">
+              <div className="divide-y divide-[#EEE9DA]">
                 <SettingRow
                   icon={Mail}
                   title="Email Notifications"
@@ -809,7 +760,7 @@ const SettingsPage = () => {
           ============================================== */}
           {activeSection === "security" && (
             <section className="bg-[#FFFDF8] rounded-3xl border border-[#EEE9DA] shadow-sm overflow-hidden">
-              <div className="px-6 py-5 border-b border-[#ECE7DA]">
+              <div className="px-6 py-5 border-b border-[#EEE9DA]">
                 <div className="flex items-center gap-3">
                   <Shield className="w-5 h-5 text-[#8A7A4A]" />
 
@@ -825,7 +776,7 @@ const SettingsPage = () => {
                 </div>
               </div>
 
-              <div className="divide-y divide-[#ECE7DA]">
+              <div className="divide-y divide-[#EEE9DA]">
                 <SettingRow
                   icon={Lock}
                   title="Two-Factor Authentication"
@@ -859,7 +810,7 @@ const SettingsPage = () => {
                   <button
                     type="button"
                     onClick={openPasswordModal}
-                    className="px-5 py-2.5 rounded-2xl border border-[#EEE9DA] bg-white text-[#16263A] font-semibold hover:bg-[#F5F1E7] transition shadow-sm"
+                    className="px-5 py-2.5 rounded-2xl border border-[#EEE9DA] bg-[#FFFDF8] text-[#16263A] font-semibold hover:bg-[#F5F1E7] transition shadow-sm"
                   >
                     Change Password
                   </button>
@@ -874,7 +825,7 @@ const SettingsPage = () => {
           {activeSection === "appearance" && (
             <>
               <section className="bg-[#FFFDF8] rounded-3xl border border-[#EEE9DA] shadow-sm overflow-hidden">
-                <div className="px-6 py-5 border-b border-[#ECE7DA]">
+                <div className="px-6 py-5 border-b border-[#EEE9DA]">
                   <div className="flex items-center gap-3">
                     <Palette className="w-5 h-5 text-[#8A7A4A]" />
 
@@ -902,10 +853,10 @@ const SettingsPage = () => {
                       className={`flex items-center gap-3 p-4 rounded-2xl border transition ${
                         !settings.darkMode
                           ? "border-[#173B5C] bg-[#F5F1E7] shadow-sm"
-                          : "border-[#EEE9DA] bg-white hover:bg-[#F5F1E7]"
+                          : "border-[#EEE9DA] bg-[#FFFDF8] hover:bg-[#F5F1E7]"
                       }`}
                     >
-                      <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center shadow-sm">
+                      <div className="w-10 h-10 rounded-xl bg-[#FFFDF8] border border-[#E7E1D3] flex items-center justify-center shadow-sm">
                         <Sun className="w-5 h-5 text-[#8A7A4A]" />
                       </div>
                       <div className="text-left">
@@ -928,10 +879,10 @@ const SettingsPage = () => {
                       className={`flex items-center gap-3 p-4 rounded-2xl border transition ${
                         settings.darkMode
                           ? "border-[#173B5C] bg-[#F5F1E7] shadow-sm"
-                          : "border-[#EEE9DA] bg-white hover:bg-[#F5F1E7]"
+                          : "border-[#EEE9DA] bg-[#FFFDF8] hover:bg-[#F5F1E7]"
                       }`}
                     >
-                      <div className="w-10 h-10 rounded-xl bg-[#0F172A] border border-slate-700 flex items-center justify-center shadow-sm">
+                      <div className="w-10 h-10 rounded-xl bg-[#16263A] border border-[#102F4A] flex items-center justify-center shadow-sm">
                         <Moon className="w-5 h-5 text-yellow-300" />
                       </div>
                       <div className="text-left">
@@ -948,7 +899,7 @@ const SettingsPage = () => {
               </section>
 
               <section className="bg-[#FFFDF8] rounded-3xl border border-[#EEE9DA] shadow-sm overflow-hidden">
-                <div className="px-6 py-5 border-b border-[#ECE7DA]">
+                <div className="px-6 py-5 border-b border-[#EEE9DA]">
                   <div className="flex items-center gap-3">
                     <Settings className="w-5 h-5 text-[#8A7A4A]" />
 
@@ -977,7 +928,7 @@ const SettingsPage = () => {
                         className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl border font-semibold text-sm transition ${
                           settings.accentColor === color.key
                             ? "border-transparent text-white shadow-sm"
-                            : "border-[#EEE9DA] bg-white text-[#16263A] hover:bg-[#F5F1E7]"
+                            : "border-[#EEE9DA] bg-[#FFFDF8] text-[#16263A] hover:bg-[#F5F1E7]"
                         }`}
                         style={
                           settings.accentColor === color.key
@@ -1004,7 +955,7 @@ const SettingsPage = () => {
           {activeSection === "data" && (
             <>
               <section className="bg-[#FFFDF8] rounded-3xl border border-[#EEE9DA] shadow-sm overflow-hidden">
-                <div className="px-6 py-5 border-b border-[#ECE7DA]">
+                <div className="px-6 py-5 border-b border-[#EEE9DA]">
                   <div className="flex items-center gap-3">
                     <Database className="w-5 h-5 text-[#8A7A4A]" />
 
@@ -1021,7 +972,7 @@ const SettingsPage = () => {
                   </div>
                 </div>
 
-                <div className="divide-y divide-[#ECE7DA]">
+                <div className="divide-y divide-[#EEE9DA]">
                   <SettingRow
                     icon={Database}
                     title="Automatic Backup"
@@ -1057,7 +1008,7 @@ const SettingsPage = () => {
               </section>
 
               <section className="bg-[#FFFDF8] rounded-3xl border border-[#EEE9DA] shadow-sm overflow-hidden">
-                <div className="px-6 py-5 border-b border-[#ECE7DA]">
+                <div className="px-6 py-5 border-b border-[#EEE9DA]">
                   <div className="flex items-center gap-3">
                     <Download className="w-5 h-5 text-[#8A7A4A]" />
 
@@ -1078,7 +1029,7 @@ const SettingsPage = () => {
                   <button
                     type="button"
                     onClick={handleExportData}
-                    className="flex flex-col items-start gap-2 p-5 rounded-2xl border border-[#EEE9DA] bg-white hover:bg-[#F5F1E7] transition shadow-sm text-left"
+                    className="flex flex-col items-start gap-2 p-5 rounded-2xl border border-[#EEE9DA] bg-[#FFFDF8] hover:bg-[#F5F1E7] transition shadow-sm text-left"
                   >
                     <div className="w-10 h-10 rounded-xl bg-[#173B5C] text-white flex items-center justify-center">
                       <Download className="w-5 h-5" />
@@ -1123,7 +1074,7 @@ const SettingsPage = () => {
       {isPasswordModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
-            className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+            className="absolute inset-0 bg-[#16263A]/60 backdrop-blur-sm"
             onClick={closePasswordModal}
           />
 
@@ -1194,7 +1145,7 @@ const SettingsPage = () => {
 
                 <button
                   type="submit"
-                  className="flex-1 px-5 py-2.5 rounded-2xl bg-[#173B5C] text-white font-semibold hover:bg-[#122e49] transition"
+                  className="flex-1 px-5 py-2.5 rounded-2xl bg-[#173B5C] text-white font-semibold hover:bg-[#102F4A] transition"
                 >
                   Update Password
                 </button>
@@ -1208,7 +1159,7 @@ const SettingsPage = () => {
       {isResetModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
-            className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+            className="absolute inset-0 bg-[#16263A]/60 backdrop-blur-sm"
             onClick={closeResetModal}
           />
 

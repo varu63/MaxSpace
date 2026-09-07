@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useBattery } from '../../context/BatteryContext';
-import { samplePresetBarcodes } from '../../data/mockData';
+import { samplePresetBarcodes } from '../../data/dummyData';
+import { Modal } from '../common/Modal';
 import { 
   X, 
   Camera, 
@@ -108,22 +109,21 @@ export const QRBarcodeScannerModal = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div 
-        className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-slate-900"
-        onClick={(e) => e.stopPropagation()}
+    <Modal isOpen={isScannerOpen} onClose={closeScanner} z={50}>
+      <div
+        className="relative w-full max-w-2xl bg-[#FFFDF8] border border-[#EEE9DA] rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-[#16263A]"
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200 bg-slate-50">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-[#EEE9DA] bg-[#F5F1E7]">
           <div className="flex items-center space-x-3">
-            <div className="p-2.5 rounded-xl bg-yellow-100 border border-yellow-300 text-yellow-800">
+            <div className="p-2.5 rounded-xl bg-[#FBF1C9] border border-[#F0E6C8] text-[#A77A08]">
               <QrCode className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+              <h3 className="text-lg font-extrabold text-[#16263A] flex items-center gap-2">
                 Battery Barcode & QR Scanner
               </h3>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-[#747B83]">
                 Scan or enter battery serial to inspect passport or register new unit
               </p>
             </div>
@@ -131,14 +131,14 @@ export const QRBarcodeScannerModal = () => {
 
           <button
             onClick={closeScanner}
-            className="p-2 text-slate-400 hover:text-slate-800 rounded-xl hover:bg-slate-200 transition-colors"
+            className="p-2 text-[#8A9096] hover:text-[#16263A] rounded-xl hover:bg-[#E7E1D3] transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex border-b border-slate-200 bg-slate-50 px-6 pt-3 gap-2 overflow-x-auto">
+        <div className="flex border-b border-[#EEE9DA] bg-[#F5F1E7] px-6 pt-3 gap-2 overflow-x-auto">
           <button
             onClick={() => {
               setActiveTab('camera');
@@ -146,11 +146,11 @@ export const QRBarcodeScannerModal = () => {
             }}
             className={`flex items-center space-x-2 px-4 py-2.5 rounded-t-xl text-xs font-bold border-b-2 transition-all ${
               activeTab === 'camera'
-                ? 'border-yellow-500 text-slate-900 bg-white font-black'
-                : 'border-transparent text-slate-500 hover:text-slate-900 hover:bg-white/50'
+                ? 'border-[#B48611] text-[#16263A] bg-[#FFFDF8] font-black'
+                : 'border-transparent text-[#747B83] hover:text-[#16263A] hover:bg-[#F0E6C8]/50'
             }`}
           >
-            <Camera className="w-4 h-4 text-yellow-600" />
+            <Camera className="w-4 h-4 text-[#B48611]" />
             <span>Live Camera / HUD</span>
           </button>
 
@@ -161,11 +161,11 @@ export const QRBarcodeScannerModal = () => {
             }}
             className={`flex items-center space-x-2 px-4 py-2.5 rounded-t-xl text-xs font-bold border-b-2 transition-all ${
               activeTab === 'presets'
-                ? 'border-yellow-500 text-slate-900 bg-white font-black'
-                : 'border-transparent text-slate-500 hover:text-slate-900 hover:bg-white/50'
+                ? 'border-[#B48611] text-[#16263A] bg-[#FFFDF8] font-black'
+                : 'border-transparent text-[#747B83] hover:text-[#16263A] hover:bg-[#F0E6C8]/50'
             }`}
           >
-            <Sparkles className="w-4 h-4 text-yellow-600" />
+            <Sparkles className="w-4 h-4 text-[#B48611]" />
             <span>Quick Sample Barcodes</span>
           </button>
 
@@ -176,11 +176,11 @@ export const QRBarcodeScannerModal = () => {
             }}
             className={`flex items-center space-x-2 px-4 py-2.5 rounded-t-xl text-xs font-bold border-b-2 transition-all ${
               activeTab === 'manual'
-                ? 'border-yellow-500 text-slate-900 bg-white font-black'
-                : 'border-transparent text-slate-500 hover:text-slate-900 hover:bg-white/50'
+                ? 'border-[#B48611] text-[#16263A] bg-[#FFFDF8] font-black'
+                : 'border-transparent text-[#747B83] hover:text-[#16263A] hover:bg-[#F0E6C8]/50'
             }`}
           >
-            <Barcode className="w-4 h-4 text-yellow-600" />
+            <Barcode className="w-4 h-4 text-[#B48611]" />
             <span>Manual Code Entry</span>
           </button>
 
@@ -191,11 +191,11 @@ export const QRBarcodeScannerModal = () => {
             }}
             className={`flex items-center space-x-2 px-4 py-2.5 rounded-t-xl text-xs font-bold border-b-2 transition-all ${
               activeTab === 'upload'
-                ? 'border-yellow-500 text-slate-900 bg-white font-black'
-                : 'border-transparent text-slate-500 hover:text-slate-900 hover:bg-white/50'
+                ? 'border-[#B48611] text-[#16263A] bg-[#FFFDF8] font-black'
+                : 'border-transparent text-[#747B83] hover:text-[#16263A] hover:bg-[#F0E6C8]/50'
             }`}
           >
-            <UploadCloud className="w-4 h-4 text-yellow-600" />
+            <UploadCloud className="w-4 h-4 text-[#B48611]" />
             <span>Upload Image</span>
           </button>
         </div>
@@ -206,7 +206,7 @@ export const QRBarcodeScannerModal = () => {
           {/* 1. Camera / HUD Scanner View */}
           {activeTab === 'camera' && (
             <div className="space-y-4">
-              <div className="relative w-full h-72 sm:h-80 bg-slate-900 rounded-2xl overflow-hidden border border-slate-200 flex items-center justify-center">
+              <div className="relative w-full h-72 sm:h-80 bg-[#16263A] rounded-2xl overflow-hidden border border-[#16263A] flex items-center justify-center">
                 
                 {/* Live Video Feed (if webcam allowed) */}
                 <video
@@ -232,7 +232,7 @@ export const QRBarcodeScannerModal = () => {
                     {/* Center QR/Barcode Crosshair */}
                     <div className="flex flex-col items-center justify-center text-center p-4">
                       <Barcode className="w-16 h-16 text-yellow-400/60" />
-                      <span className="text-[11px] font-mono text-yellow-300 font-bold mt-2 bg-slate-900/90 px-3 py-1 rounded-full border border-yellow-400/30">
+                      <span className="text-[11px] font-mono text-yellow-300 font-bold mt-2 bg-[#173B5C]/90 px-3 py-1 rounded-full border border-yellow-400/30">
                         Align Barcode or QR within Frame
                       </span>
                     </div>
@@ -240,7 +240,7 @@ export const QRBarcodeScannerModal = () => {
                 </div>
 
                 {/* Camera Status Badge */}
-                <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-[11px] text-slate-200 bg-slate-950/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700">
+                <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-[11px] text-[#E7E1D3] bg-[#173B5C]/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-[#102F4A]">
                   <span className="flex items-center gap-1.5 font-medium">
                     <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></span>
                     {cameraActive ? 'Optical Sensor Online (60 FPS)' : 'Simulated Scanner HUD Active'}
@@ -250,20 +250,20 @@ export const QRBarcodeScannerModal = () => {
               </div>
 
               {/* Quick simulation buttons below camera */}
-              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs text-slate-700 font-semibold">
+              <div className="bg-[#F5F1E7] p-3 rounded-2xl border border-[#F0E6C8] flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs text-[#747B83] font-semibold">
                   Simulate scanning battery:
                 </span>
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => handleProcessBarcode('BATT-EV-9823-LFP')}
-                    className="px-3 py-1.5 rounded-lg bg-yellow-100 hover:bg-yellow-400 hover:text-slate-950 text-yellow-900 text-xs font-mono font-bold border border-yellow-300 transition-colors"
+                    className="px-3 py-1.5 rounded-lg bg-[#FBF1C9] hover:bg-[#B48611] hover:text-white text-[#A77A08] text-xs font-mono font-bold border border-[#F0E6C8] transition-colors"
                   >
                     ⚡ Scan EV Pack (Existing)
                   </button>
                   <button
                     onClick={() => handleProcessBarcode('BATT-CATL-LFP-9901')}
-                    className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-800 text-xs font-mono font-bold border border-slate-300 transition-colors shadow-sm"
+                    className="px-3 py-1.5 rounded-lg bg-[#FFFDF8] hover:bg-[#E7E1D3] text-[#16263A] text-xs font-mono font-bold border border-[#E7E1D3] transition-colors shadow-sm"
                   >
                     ✨ Scan New CATL 100kWh
                   </button>
@@ -275,7 +275,7 @@ export const QRBarcodeScannerModal = () => {
           {/* 2. Presets Tab */}
           {activeTab === 'presets' && (
             <div className="space-y-3">
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-[#747B83]">
                 Click any of the pre-configured hardware barcodes below to simulate an instant scan:
               </p>
               
@@ -284,32 +284,32 @@ export const QRBarcodeScannerModal = () => {
                   <div
                     key={item.code}
                     onClick={() => handleProcessBarcode(item.code)}
-                    className="group p-4 rounded-2xl bg-slate-50 border border-slate-200 hover:border-yellow-400 hover:bg-white cursor-pointer transition-all duration-200 flex items-center justify-between shadow-sm"
+                    className="group p-4 rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3] hover:border-[#B48611] hover:bg-[#FFFDF8] cursor-pointer transition-all duration-200 flex items-center justify-between shadow-sm"
                   >
                     <div className="flex items-center space-x-3.5">
-                      <div className="p-2.5 rounded-xl bg-white border border-slate-200 group-hover:border-yellow-400 text-yellow-700 transition-colors shadow-sm">
+                      <div className="p-2.5 rounded-xl bg-[#FFFDF8] border border-[#E7E1D3] group-hover:border-[#B48611] text-[#A77A08] transition-colors shadow-sm">
                         <Barcode className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="flex items-center space-x-2">
-                          <h4 className="text-sm font-bold text-slate-900 group-hover:text-yellow-800 transition-colors">
+                          <h4 className="text-sm font-bold text-[#16263A] group-hover:text-[#8A7A4A] transition-colors">
                             {item.name}
                           </h4>
                           <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                             item.badge.includes('Existing')
                               ? 'bg-yellow-100 text-yellow-900 border border-yellow-300'
-                              : 'bg-slate-200 text-slate-700'
+                              : 'bg-[#E7E1D3] text-[#747B83]'
                           }`}>
                             {item.badge}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          {item.model} • <span className="font-mono text-slate-800 font-bold">{item.code}</span>
+                        <p className="text-xs text-[#747B83] mt-0.5">
+                          {item.model} • <span className="font-mono text-[#16263A] font-bold">{item.code}</span>
                         </p>
                       </div>
                     </div>
 
-                    <button className="px-3 py-1.5 rounded-xl bg-white group-hover:bg-yellow-400 group-hover:text-slate-950 text-xs font-bold text-slate-700 border border-slate-200 transition-colors shadow-sm">
+                    <button className="px-3 py-1.5 rounded-xl bg-[#FFFDF8] group-hover:bg-[#B48611] group-hover:text-white text-xs font-bold text-[#16263A] border border-[#E7E1D3] transition-colors shadow-sm">
                       Scan Code →
                     </button>
                   </div>
@@ -322,7 +322,7 @@ export const QRBarcodeScannerModal = () => {
           {activeTab === 'manual' && (
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-2">
+                <label className="block text-xs font-bold text-[#16263A] mb-2">
                   Enter Barcode String, QR Payload or Serial Number:
                 </label>
                 <div className="relative">
@@ -331,21 +331,21 @@ export const QRBarcodeScannerModal = () => {
                     value={manualCode}
                     onChange={(e) => setManualCode(e.target.value)}
                     placeholder="e.g. BATT-EV-9823-LFP or SN-2024-EV-88390"
-                    className="w-full px-4 py-3.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-yellow-500 focus:bg-white font-mono text-sm"
+                    className="w-full px-4 py-3.5 rounded-xl bg-[#F5F1E7] border border-[#E7E1D3] text-[#16263A] placeholder:text-[#8A9096] focus:outline-none focus:border-[#B48611] focus:bg-[#FFFDF8] font-mono text-sm"
                   />
                   <button
                     onClick={() => handleProcessBarcode(manualCode)}
                     disabled={!manualCode.trim()}
-                    className="absolute right-2 top-2 bottom-2 px-4 rounded-lg bg-yellow-400 text-slate-950 font-black text-xs hover:bg-yellow-300 disabled:opacity-40 disabled:hover:bg-yellow-400 transition-colors shadow-sm"
+                    className="absolute right-2 top-2 bottom-2 px-4 rounded-lg bg-[#173B5C] text-white font-black text-xs hover:bg-[#102F4A] disabled:opacity-40 disabled:hover:bg-[#173B5C] transition-colors shadow-sm"
                   >
                     Process Code
                   </button>
                 </div>
               </div>
 
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-1.5">
-                <p className="font-bold text-slate-900">Supported Formats:</p>
-                <ul className="list-disc list-inside space-y-1 text-slate-600">
+              <div className="p-4 rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3] text-xs text-[#747B83] space-y-1.5">
+                <p className="font-bold text-[#16263A]">Supported Formats:</p>
+                <ul className="list-disc list-inside space-y-1 text-[#747B83]">
                   <li>Standard 1D Barcode (Code-128, Code-39)</li>
                   <li>2D Matrix / QR Code compliant with EU Battery DPP URI schema</li>
                   <li>Manufacturer Serial Number (SN-YYYY-*)</li>
@@ -357,12 +357,12 @@ export const QRBarcodeScannerModal = () => {
           {/* 4. Upload Image Tab */}
           {activeTab === 'upload' && (
             <div className="space-y-4">
-              <label className="border-2 border-dashed border-slate-300 hover:border-yellow-400 rounded-3xl p-8 flex flex-col items-center justify-center cursor-pointer bg-slate-50 hover:bg-yellow-50/50 transition-all text-center">
-                <UploadCloud className="w-12 h-12 text-yellow-600 mb-3" />
-                <span className="text-sm font-bold text-slate-900">
+              <label className="border-2 border-dashed border-[#E7E1D3] hover:border-[#B48611] rounded-3xl p-8 flex flex-col items-center justify-center cursor-pointer bg-[#F5F1E7] hover:bg-[#FBF1C9]/40 transition-all text-center">
+                <UploadCloud className="w-12 h-12 text-[#B48611] mb-3" />
+                <span className="text-sm font-bold text-[#16263A]">
                   Click or drag battery barcode image here
                 </span>
-                <span className="text-xs text-slate-500 mt-1">
+                <span className="text-xs text-[#747B83] mt-1">
                   Supports PNG, JPG, WEBP photos of battery nameplates or QR stickers
                 </span>
                 <input
@@ -377,38 +377,38 @@ export const QRBarcodeScannerModal = () => {
 
           {/* Scan Result Feedback Card */}
           {recentScanResult && (
-            <div className="p-4 rounded-2xl bg-yellow-50 border border-yellow-300 animate-in zoom-in-95 duration-200 shadow-sm">
+            <div className="p-4 rounded-2xl bg-[#FBF1C9] border border-[#F0E6C8] animate-in zoom-in-95 duration-200 shadow-sm">
               <div className="flex items-start justify-between">
                 <div className="flex items-start space-x-3">
                   {recentScanResult.status === 'found' ? (
-                    <div className="p-2 rounded-xl bg-yellow-200 text-yellow-900">
+                    <div className="p-2 rounded-xl bg-[#173B5C] text-white">
                       <CheckCircle2 className="w-6 h-6" />
                     </div>
                   ) : (
-                    <div className="p-2 rounded-xl bg-slate-200 text-slate-800">
+                    <div className="p-2 rounded-xl bg-[#E7E1D3] text-[#8A7A4A]">
                       <PlusCircle className="w-6 h-6" />
                     </div>
                   )}
 
                   <div>
                     <div className="flex items-center space-x-2">
-                      <span className="text-xs font-extrabold uppercase tracking-wider text-yellow-800">
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-[#A77A08]">
                         {recentScanResult.status === 'found' ? 'Passport Found in Fleet' : 'Unregistered Battery Detected'}
                       </span>
                     </div>
 
-                    <h4 className="text-base font-bold text-slate-900 mt-0.5">
+                    <h4 className="text-base font-bold text-[#16263A] mt-0.5">
                       {recentScanResult.status === 'found'
                         ? recentScanResult.battery.modelName
                         : `Ready to Register: ${recentScanResult.code}`}
                     </h4>
 
-                    <p className="text-xs text-slate-600 mt-1 font-medium">
+                    <p className="text-xs text-[#747B83] mt-1 font-medium">
                       {recentScanResult.status === 'found' ? (
                         <>
-                          Capacity: <span className="text-slate-900 font-mono font-bold">{recentScanResult.battery.capacityKwh} kWh</span> • 
-                          Health: <span className="text-yellow-800 font-mono font-bold">{recentScanResult.battery.stateOfHealth}%</span> • 
-                          Serial: <span className="text-slate-900 font-mono font-bold">{recentScanResult.battery.serialNumber}</span>
+                          Capacity: <span className="text-[#16263A] font-mono font-bold">{recentScanResult.battery.capacityKwh} kWh</span> • 
+                          Health: <span className="text-[#A77A08] font-mono font-bold">{recentScanResult.battery.stateOfHealth}%</span> • 
+                          Serial: <span className="text-[#16263A] font-mono font-bold">{recentScanResult.battery.serialNumber}</span>
                         </>
                       ) : (
                         'This battery is not yet in your account. You can create a new EU Digital Battery Passport for it.'
@@ -418,16 +418,16 @@ export const QRBarcodeScannerModal = () => {
                 </div>
               </div>
 
-              <div className="mt-4 flex items-center justify-end space-x-3 pt-3 border-t border-yellow-200">
+              <div className="mt-4 flex items-center justify-end space-x-3 pt-3 border-t border-[#F0E6C8]">
                 <button
                   onClick={() => setRecentScanResult(null)}
-                  className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-100 transition-colors shadow-sm"
+                  className="px-4 py-2 rounded-xl bg-[#FFFDF8] border border-[#E7E1D3] text-[#16263A] text-xs font-bold hover:bg-[#F5F1E7] transition-colors shadow-sm"
                 >
                   Scan Another
                 </button>
                 <button
                   onClick={handleConfirmAction}
-                  className="px-5 py-2 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-slate-950 text-xs font-black shadow-md shadow-yellow-400/25 transition-all"
+                  className="px-5 py-2 rounded-xl bg-[#173B5C] hover:bg-[#102F4A] text-white text-xs font-black shadow-sm transition-all"
                 >
                   {recentScanResult.status === 'found' ? 'Open Battery Passport →' : 'Create & Mint Passport →'}
                 </button>
@@ -438,20 +438,19 @@ export const QRBarcodeScannerModal = () => {
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+        <div className="px-6 py-4 bg-[#F5F1E7] border-t border-[#EEE9DA] flex items-center justify-between text-xs text-[#747B83]">
           <div className="flex items-center space-x-2">
-            <ShieldCheck className="w-4 h-4 text-yellow-600" />
+            <ShieldCheck className="w-4 h-4 text-[#B48611]" />
             <span>Encrypted barcode parsing & ISO 26262 verification</span>
           </div>
           <button
             onClick={closeScanner}
-            className="text-slate-500 hover:text-slate-900 transition-colors"
+            className="text-[#747B83] hover:text-[#16263A] transition-colors"
           >
             Cancel
           </button>
         </div>
-
       </div>
-    </div>
+    </Modal>
   );
 };

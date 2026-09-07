@@ -1,4 +1,6 @@
 import React from "react";
+import { BarChart3 } from "lucide-react";
+import { Card, SectionHeader } from "../common";
 
 const getHealthStyle = (health) => {
   if (health >= 80) {
@@ -6,7 +8,7 @@ const getHealthStyle = (health) => {
   }
 
   if (health >= 50) {
-    return "bg-yellow-100 text-yellow-700";
+    return "bg-[#FBF1C9] text-[#A77A08]";
   }
 
   return "bg-red-100 text-red-700";
@@ -14,44 +16,40 @@ const getHealthStyle = (health) => {
 
 const AnalyticsTable = ({ batteries }) => {
   return (
-    <div className="bg-[#FFFDF8] border border-[#EEE9DA] rounded-3xl shadow-sm overflow-hidden">
-      <div className="p-6 border-b border-[#ECE7DA]">
-        <h2 className="text-lg font-bold text-[#16263A]">
-          Battery Analysis
-        </h2>
-
-        <p className="text-sm text-[#747B83]">
-          Detailed battery statistics
-        </p>
-      </div>
+    <Card padded={false}>
+      <SectionHeader
+        icon={BarChart3}
+        title="Battery Analysis"
+        subtitle="Detailed battery statistics"
+      />
 
       <div className="overflow-x-auto">
         <table className="w-full text-left">
-          <thead className="bg-[#F7F3E9]">
+          <thead className="bg-[#F5F1E7]">
             <tr>
-              <th className="px-5 py-4 text-xs font-semibold text-[#747B83] uppercase">
+              <th className="px-6 py-4 text-xs font-semibold text-[#747B83] uppercase">
                 Battery
               </th>
 
-              <th className="px-5 py-4 text-xs font-semibold text-slate-500 uppercase">
+              <th className="px-6 py-4 text-xs font-semibold text-[#747B83] uppercase">
                 Health
               </th>
 
-              <th className="px-5 py-4 text-xs font-semibold text-slate-500 uppercase">
+              <th className="px-6 py-4 text-xs font-semibold text-[#747B83] uppercase">
                 Voltage
               </th>
 
-              <th className="px-5 py-4 text-xs font-semibold text-slate-500 uppercase">
+              <th className="px-6 py-4 text-xs font-semibold text-[#747B83] uppercase">
                 Capacity
               </th>
 
-              <th className="px-5 py-4 text-xs font-semibold text-slate-500 uppercase">
+              <th className="px-6 py-4 text-xs font-semibold text-[#747B83] uppercase">
                 Services
               </th>
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-[#EEE9DA]">
             {batteries.map((battery, index) => {
               const health = Number(
                 battery.stateOfHealth ??
@@ -63,23 +61,25 @@ const AnalyticsTable = ({ batteries }) => {
               return (
                 <tr
                   key={battery.id || battery.batteryId || index}
-                  className="hover:bg-slate-50"
+                  className="hover:bg-[#F5F1E7] transition"
                 >
-                  <td className="px-5 py-4">
-                    <div className="font-semibold text-slate-900">
+                  <td className="px-6 py-4">
+                    <div className="font-semibold text-[#16263A]">
                       {battery.name ||
+                        battery.modelName ||
                         battery.batteryName ||
                         `Battery ${index + 1}`}
                     </div>
 
-                    <div className="text-xs text-slate-400">
+                    <div className="text-xs text-[#8A9096]">
                       {battery.serialNumber ||
                         battery.batteryId ||
+                        battery.id ||
                         "--"}
                     </div>
                   </td>
 
-                  <td className="px-5 py-4">
+                  <td className="px-6 py-4">
                     <span
                       className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${getHealthStyle(
                         health
@@ -89,15 +89,15 @@ const AnalyticsTable = ({ batteries }) => {
                     </span>
                   </td>
 
-                  <td className="px-5 py-4 text-sm text-slate-700">
+                  <td className="px-6 py-4 text-sm text-[#747B83]">
                     {battery.voltage ?? "--"}
                   </td>
 
-                  <td className="px-5 py-4 text-sm text-slate-700">
+                  <td className="px-6 py-4 text-sm text-[#747B83]">
                     {battery.capacity ?? "--"}
                   </td>
 
-                  <td className="px-5 py-4 text-sm font-semibold text-slate-900">
+                  <td className="px-6 py-4 text-sm font-semibold text-[#16263A]">
                     {battery.serviceCount ?? 0}
                   </td>
                 </tr>
@@ -106,8 +106,9 @@ const AnalyticsTable = ({ batteries }) => {
           </tbody>
         </table>
       </div>
-    </div>
+    </Card>
   );
 };
 
-export default AnalyticsTable;
+export default React.memo(AnalyticsTable);
+

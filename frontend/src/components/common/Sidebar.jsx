@@ -1,4 +1,3 @@
-
 import { useBattery } from "../../context/BatteryContext";
 
 import {
@@ -92,7 +91,7 @@ export const Sidebar = () => {
   };
 
   const sidebarContent = (
-    <div className="flex flex-col h-full justify-between bg-white text-slate-900 select-none">
+    <div className="flex flex-col h-full justify-between bg-[#FFFDF8] text-[#16263A] select-none">
 
       {/* =====================================================
           TOP SECTION
@@ -100,15 +99,15 @@ export const Sidebar = () => {
       <div>
 
         {/* Logo */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-100">
+        <div className="flex items-center justify-between p-6 border-b border-[#EEE9DA]">
 
           <div
             className="flex items-center space-x-3 cursor-pointer group"
             onClick={() => handleNavClick("/home")}
           >
-            <div className="relative flex items-center justify-center w-11 h-11 rounded-full bg-[#F7F7F7]  from-yellow-400 via-amber-300 to-yellow-200 p-0.5 shadow-md group-hover:scale-105 transition-transform">
+            <div className="relative flex items-center justify-center w-11 h-11 rounded-full bg-[#F5F1E7]  from-yellow-400 via-amber-300 to-yellow-200 p-0.5 shadow-md group-hover:scale-105 transition-transform">
 
-              <div className="w-full h-full bg-[#F7F7F7] rounded-[14px] flex items-center justify-center">
+              <div className="w-full h-full bg-[#F5F1E7] rounded-[14px] flex items-center justify-center">
                 <img
                   src="/Logo.jpeg"
                   alt="logo"
@@ -121,12 +120,12 @@ export const Sidebar = () => {
             <div>
               <div className="flex items-center space-x-1.5">
 
-                <span className="font-black text-xl tracking-tight text-slate-900">
+                <span className="font-black text-xl tracking-tight text-[#16263A]">
                   MaxSpace
                 </span>
               </div>
 
-              <p className="text-[11px] text-slate-500 font-medium">
+              <p className="text-[11px] text-[#747B83] font-medium">
                 Battery Passport System
               </p>
             </div>
@@ -136,7 +135,7 @@ export const Sidebar = () => {
           <button
             type="button"
             onClick={() => setIsSidebarOpen(false)}
-            className="p-2 text-slate-400 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors"
+            className="p-2 text-[#8A9096] hover:text-[#16263A] rounded-xl hover:bg-[#F5F1E7] transition-colors"
             aria-label="Close sidebar"
           >
             <X className="w-5 h-5" />
@@ -150,7 +149,7 @@ export const Sidebar = () => {
         ====================================================== */}
         <div className="p-4 space-y-1.5">
 
-          <p className="px-3 pt-2 pb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+          <p className="px-3 pt-2 pb-1 text-[11px] font-bold uppercase tracking-wider text-[#8A9096]">
             Main Menu
           </p>
 
@@ -164,8 +163,8 @@ export const Sidebar = () => {
                 type="button"
                 onClick={() => handleNavClick(item.path)}
                 className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-left transition-all duration-200 group ${isActive
-                  ? "bg-[#F8F2DE] text-slate-950 font-extrabold shadow-sm shadow-yellow-400/20"
-                  : "text-slate-700 hover:text-slate-950 hover:bg-slate-100/80 font-semibold"
+                  ? "bg-[#F8F2DE] text-[#16263A] font-extrabold shadow-sm shadow-[#B48611]/20"
+                  : "text-[#747B83] hover:text-[#16263A] hover:bg-[#F5F1E7] font-semibold"
                   }`}
               >
 
@@ -173,8 +172,8 @@ export const Sidebar = () => {
 
                   <div
                     className={`p-2 rounded-xl transition-colors ${isActive
-                      ? "bg-slate-950 text-yellow-400"
-                      : "bg-slate-100 text-slate-600 group-hover:bg-[#F8F2DE] group-hover:text-yellow-900"
+                      ? "bg-[#173B5C] text-[#FBF1C9]"
+                      : "bg-[#F5F1E7] text-[#8A7A4A] group-hover:bg-[#F8F2DE] group-hover:text-[#B48611]"
                       }`}
                   >
                     <Icon className="w-4 h-4" />
@@ -188,8 +187,8 @@ export const Sidebar = () => {
 
                     <span
                       className={`text-[10px] block font-normal mt-0.5 ${isActive
-                        ? "text-slate-900/80"
-                        : "text-slate-400"
+                        ? "text-[#16263A]/70"
+                        : "text-[#8A9096]"
                         }`}
                     >
                       {item.description}
@@ -203,7 +202,7 @@ export const Sidebar = () => {
                   item.badge !== undefined && (
                     <span
                       className={`text-[11px] px-2 py-0.5 rounded-full font-mono font-bold border ${isActive
-                        ? "bg-slate-950/20 text-slate-950 border-slate-950/30"
+                        ? "bg-[#16263A]/10 text-[#16263A] border-[#16263A]/20"
                         : item.badgeColor
                         }`}
                     >
@@ -223,7 +222,7 @@ export const Sidebar = () => {
         ====================================================== */}
         <div className="px-4 py-2 space-y-2">
 
-          <p className="px-3 pt-2 pb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+          <p className="px-3 pt-2 pb-1 text-[11px] font-bold uppercase tracking-wider text-[#8A9096]">
             Quick Actions
           </p>
 
@@ -234,15 +233,15 @@ export const Sidebar = () => {
               setIsSidebarOpen(false);
               openScanner();
             }}
-            className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-yellow-50 hover:bg-yellow-100 text-yellow-900 border border-yellow-300 font-bold text-xs transition-all group shadow-sm"
+            className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-[#FBF1C9] hover:bg-[#F0E6C8] text-[#A77A08] border border-[#F0E6C8] font-bold text-xs transition-all group shadow-sm"
           >
 
             <div className="flex items-center space-x-2.5">
-              <QrCode className="w-4 h-4 text-yellow-700 group-hover:rotate-12 transition-transform" />
+              <QrCode className="w-4 h-4 text-[#B48611] group-hover:rotate-12 transition-transform" />
               <span>Scan QR / Barcode</span>
             </div>
 
-            <span className="font-mono text-[10px] bg-yellow-200/80 px-1.5 py-0.5 rounded text-yellow-900">
+            <span className="font-mono text-[10px] bg-[#F0E6C8] px-1.5 py-0.5 rounded text-[#8A7A4A]">
               ⌘K
             </span>
 
@@ -256,9 +255,9 @@ export const Sidebar = () => {
               setIsSidebarOpen(false);
               openAddBattery();
             }}
-            className="w-full flex items-center justify-start space-x-2.5 px-3.5 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-bold text-xs transition-all shadow-sm"
+            className="w-full flex items-center justify-start space-x-2.5 px-3.5 py-2.5 rounded-2xl bg-[#F5F1E7] hover:bg-[#E7E1D3] text-[#16263A] border border-[#E7E1D3] font-bold text-xs transition-all shadow-sm"
           >
-            <PlusCircle className="w-4 h-4 text-yellow-600" />
+            <PlusCircle className="w-4 h-4 text-[#B48611]" />
             <span>Register New Battery</span>
           </button>
 
@@ -270,19 +269,19 @@ export const Sidebar = () => {
       {/* =====================================================
           BOTTOM SECTION
       ====================================================== */}
-      <div className="p-4 space-y-3 border-t border-slate-100">
+      <div className="p-4 space-y-3 border-t border-[#EEE9DA]">
 
         {/* Fleet Metrics */}
-        <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2">
+        <div className="p-3 rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3] text-xs space-y-2">
 
           <div className="flex items-center justify-between">
 
-            <span className="text-[11px] text-slate-500 font-semibold flex items-center gap-1">
-              <Zap className="w-3.5 h-3.5 text-yellow-600" />
+            <span className="text-[11px] text-[#747B83] font-semibold flex items-center gap-1">
+              <Zap className="w-3.5 h-3.5 text-[#B48611]" />
               Total Storage
             </span>
 
-            <span className="font-mono font-black text-slate-900">
+            <span className="font-mono font-black text-[#16263A]">
               {stats.totalCapacityKwh} kWh
             </span>
 
@@ -291,26 +290,26 @@ export const Sidebar = () => {
 
           <div className="flex items-center justify-between">
 
-            <span className="text-[11px] text-slate-500 font-semibold flex items-center gap-1">
-              <Activity className="w-3.5 h-3.5 text-yellow-600" />
+            <span className="text-[11px] text-[#747B83] font-semibold flex items-center gap-1">
+              <Activity className="w-3.5 h-3.5 text-[#B48611]" />
               Avg Fleet Health
             </span>
 
-            <span className="font-mono font-black text-yellow-800">
+            <span className="font-mono font-black text-[#A77A08]">
               {stats.avgHealth}% SoH
             </span>
 
           </div>
 
 
-          <div className="pt-1.5 border-t border-slate-200/80 flex items-center justify-between text-[10px] text-slate-500">
+          <div className="pt-1.5 border-t border-[#E7E1D3]/80 flex items-center justify-between text-[10px] text-[#747B83]">
 
             <span className="flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3 text-yellow-600" />
+              <ShieldCheck className="w-3 h-3 text-[#B48611]" />
               EU DPP 2023/1542
             </span>
 
-            <span className="font-bold text-yellow-700">
+            <span className="font-bold text-[#B48611]">
               Online
             </span>
 
@@ -322,7 +321,7 @@ export const Sidebar = () => {
         {/* User Profile */}
         <div
           onClick={() => handleNavClick("/profile")}
-          className="flex items-center justify-between p-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200 cursor-pointer transition-all"
+          className="flex items-center justify-between p-2.5 rounded-2xl bg-[#F5F1E7] hover:bg-[#E7E1D3]/70 border border-[#E7E1D3] cursor-pointer transition-all"
         >
 
           <div className="flex items-center space-x-2.5 min-w-0">
@@ -335,11 +334,11 @@ export const Sidebar = () => {
 
             <div className="truncate">
 
-              <p className="text-xs font-bold text-slate-900 truncate leading-tight">
+              <p className="text-xs font-bold text-[#16263A] truncate leading-tight">
                 {userProfile.name}
               </p>
 
-              <p className="text-[10px] text-yellow-700 font-medium truncate leading-tight">
+              <p className="text-[10px] text-[#8A7A4A] font-medium truncate leading-tight">
                 {userProfile.company}
               </p>
 
@@ -347,7 +346,7 @@ export const Sidebar = () => {
 
           </div>
 
-          <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+          <ChevronRight className="w-4 h-4 text-[#8A9096] shrink-0" />
 
         </div>
 
@@ -370,12 +369,12 @@ export const Sidebar = () => {
 
           {/* Background */}
           <div
-            className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm"
+            className="fixed inset-0 bg-[#16263A]/60 backdrop-blur-sm"
             onClick={() => setIsSidebarOpen(false)}
           />
 
           {/* Sidebar */}
-          <aside className="relative w-72 max-w-[85vw] bg-white h-full shadow-2xl z-10 animate-in slide-in-from-left duration-300">
+          <aside className="relative w-72 max-w-[85vw] bg-[#FFFDF8] h-full shadow-2xl z-10 animate-in slide-in-from-left duration-300">
             {sidebarContent}
           </aside>
 
@@ -386,4 +385,3 @@ export const Sidebar = () => {
 };
 
 export default Sidebar;
-

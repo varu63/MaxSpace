@@ -1,19 +1,35 @@
-export const initialBatteries = [
+/* ============================================================
+   SHARED DUMMY DATA - Single source of truth for the whole app.
+   Home, Service, Analytics, and all other pages MUST read from
+   this dataset so totals, IDs, statuses, and dates stay
+   consistent everywhere.
+ ============================================================ */
+
+/* ------------------------------------------------------------
+   BATTERIES
+------------------------------------------------------------ */
+export const batteries = [
   {
     id: "batt-1",
     barcode: "BATT-EV-9823-LFP",
     qrCode: "https://passport.battery-eu.org/passports/BATT-EV-9823-LFP",
+    name: "MaxVolt UltraPack 820",
     modelName: "MaxVolt UltraPack 820",
+    model: "MaxVolt UltraPack 820",
     type: "Electric Vehicle (EV)",
     manufacturer: "EcoVolt CellTech GmbH",
     serialNumber: "SN-2024-EV-88390",
     chemistry: "LFP (Lithium Iron Phosphate)",
     capacityKwh: 82.5,
+    capacity: "82.5 kWh",
     nominalVoltage: "400 V",
+    voltage: "400 V",
     weightKg: 465,
     dimensionsMm: "2150 x 1420 x 145",
     manufactureDate: "2024-03-15",
     assemblyLocation: "Salzgitter, Germany",
+    location: "Salzgitter, Germany",
+    cells: 4,
     stateOfHealth: 96.8,
     stateOfCharge: 84,
     cycleCount: 342,
@@ -55,17 +71,23 @@ export const initialBatteries = [
     id: "batt-2",
     barcode: "BATT-ESS-4410-NMC",
     qrCode: "https://passport.battery-eu.org/passports/BATT-ESS-4410-NMC",
+    name: "SolarStorage PowerCell 15k",
     modelName: "SolarStorage PowerCell 15k",
+    model: "SolarStorage PowerCell 15k",
     type: "Stationary Storage (ESS)",
     manufacturer: "Nordic Volt Energy",
     serialNumber: "SN-2023-ESS-10928",
     chemistry: "NMC 811 (Nickel Manganese Cobalt)",
     capacityKwh: 15.0,
+    capacity: "15.0 kWh",
     nominalVoltage: "48 V",
+    voltage: "48 V",
     weightKg: 124,
     dimensionsMm: "850 x 520 x 220",
     manufactureDate: "2023-11-20",
     assemblyLocation: "Katowice, Poland",
+    location: "Katowice, Poland",
+    cells: 4,
     stateOfHealth: 92.4,
     stateOfCharge: 95,
     cycleCount: 610,
@@ -108,17 +130,23 @@ export const initialBatteries = [
     id: "batt-3",
     barcode: "BATT-EBIKE-201-LIFEPO4",
     qrCode: "https://passport.battery-eu.org/passports/BATT-EBIKE-201-LIFEPO4",
+    name: "UrbanMoto Sprint Pack 3.2",
     modelName: "UrbanMoto Sprint Pack 3.2",
+    model: "UrbanMoto Sprint Pack 3.2",
     type: "Light Electric Vehicle (LEV)",
     manufacturer: "AmpereDrive Systems",
     serialNumber: "SN-2024-LEV-44912",
     chemistry: "LiFePO4",
     capacityKwh: 3.2,
+    capacity: "3.2 kWh",
     nominalVoltage: "52 V",
+    voltage: "52 V",
     weightKg: 14.8,
     dimensionsMm: "380 x 140 x 95",
     manufactureDate: "2024-06-02",
     assemblyLocation: "Lyon, France",
+    location: "Lyon, France",
+    cells: 4,
     stateOfHealth: 88.5,
     stateOfCharge: 62,
     cycleCount: 890,
@@ -159,17 +187,23 @@ export const initialBatteries = [
     id: "batt-4",
     barcode: "BATT-FLEET-500-NCA",
     qrCode: "https://passport.battery-eu.org/passports/BATT-FLEET-500-NCA",
+    name: "FleetHauler HeavyPack 120",
     modelName: "FleetHauler HeavyPack 120",
+    model: "FleetHauler HeavyPack 120",
     type: "Commercial Transport",
     manufacturer: "Apex Battery Solutions",
     serialNumber: "SN-2022-FLEET-00431",
     chemistry: "NCA (Nickel Cobalt Aluminum)",
     capacityKwh: 120.0,
+    capacity: "120.0 kWh",
     nominalVoltage: "800 V",
+    voltage: "800 V",
     weightKg: 785,
     dimensionsMm: "2400 x 1600 x 210",
     manufactureDate: "2022-09-10",
     assemblyLocation: "Gothenburg, Sweden",
+    location: "Gothenburg, Sweden",
+    cells: 4,
     stateOfHealth: 76.2,
     stateOfCharge: 45,
     cycleCount: 1420,
@@ -208,40 +242,10 @@ export const initialBatteries = [
   }
 ];
 
-export const samplePresetBarcodes = [
-  {
-    code: "BATT-EV-9823-LFP",
-    name: "MaxVolt UltraPack 820 (Registered)",
-    model: "MaxVolt 82.5 kWh",
-    badge: "Existing in Fleet"
-  },
-  {
-    code: "BATT-ESS-4410-NMC",
-    name: "SolarStorage PowerCell 15k (Registered)",
-    model: "PowerCell 15 kWh",
-    badge: "Existing in Fleet"
-  },
-  {
-    code: "BATT-CATL-LFP-9901",
-    name: "CATL Shenxing Supercharge (New Demo)",
-    model: "100.0 kWh 4C Fast Charging",
-    badge: "New Battery Discovery"
-  },
-  {
-    code: "BATT-PANASONIC-2170-EV",
-    name: "Panasonic GigaPack Gen-5 (New Demo)",
-    model: "75.0 kWh High-Density",
-    badge: "New Battery Discovery"
-  },
-  {
-    code: "BATT-BYD-BLADE-882",
-    name: "BYD Blade Cell Pack (New Demo)",
-    model: "60.0 kWh Structural LFP",
-    badge: "New Battery Discovery"
-  }
-];
-
-export const initialServices = [
+/* ------------------------------------------------------------
+   SERVICES
+------------------------------------------------------------ */
+export const services = [
   {
     id: "srv-101",
     ticketNumber: "SRV-2026-9012",
@@ -308,6 +312,32 @@ export const initialServices = [
   }
 ];
 
+/* ------------------------------------------------------------
+   SERVICE STATUSES (used by filters + derived per-battery status)
+------------------------------------------------------------ */
+export const serviceStatuses = [
+  "Confirmed",
+  "In Progress",
+  "Completed",
+  "Cancelled",
+];
+
+/* ------------------------------------------------------------
+   LOCATIONS (assembly + service centers, derived from data)
+------------------------------------------------------------ */
+export const locations = [
+  "Salzgitter, Germany",
+  "Katowice, Poland",
+  "Lyon, France",
+  "Gothenburg, Sweden",
+  "EcoVolt Certified Hub - Central Berlin",
+  "Ampere Mobility Care - Paris/Lyon",
+  "Nordic Circular Energy Labs - Gothenburg",
+];
+
+/* ------------------------------------------------------------
+   USER PROFILE
+------------------------------------------------------------ */
 export const initialUserProfile = {
   name: "Alex Rivera",
   title: "Clean Mobility & Energy Fleet Director",
@@ -357,4 +387,120 @@ export const initialUserProfile = {
       type: "warranty"
     }
   ]
+};
+
+/* ------------------------------------------------------------
+   PRESET BARCODES (used by QR scanner presets)
+------------------------------------------------------------ */
+export const samplePresetBarcodes = [
+  {
+    code: "BATT-EV-9823-LFP",
+    name: "MaxVolt UltraPack 820 (Registered)",
+    model: "MaxVolt 82.5 kWh",
+    badge: "Existing in Fleet"
+  },
+  {
+    code: "BATT-ESS-4410-NMC",
+    name: "SolarStorage PowerCell 15k (Registered)",
+    model: "PowerCell 15 kWh",
+    badge: "Existing in Fleet"
+  },
+  {
+    code: "BATT-CATL-LFP-9901",
+    name: "CATL Shenxing Supercharge (New Demo)",
+    model: "100.0 kWh 4C Fast Charging",
+    badge: "New Battery Discovery"
+  },
+  {
+    code: "BATT-PANASONIC-2170-EV",
+    name: "Panasonic GigaPack Gen-5 (New Demo)",
+    model: "75.0 kWh High-Density",
+    badge: "New Battery Discovery"
+  },
+  {
+    code: "BATT-BYD-BLADE-882",
+    name: "BYD Blade Cell Pack (New Demo)",
+    model: "60.0 kWh Structural LFP",
+    badge: "New Battery Discovery"
+  }
+];
+
+/* ------------------------------------------------------------
+   DERIVED DATA UTILITIES
+   These helper functions keep totals/statuses consistent across
+   Home, Service, and Analytics regardless of which page reads them.
+------------------------------------------------------------ */
+
+/* Return the effective service status for a battery based on its
+   service records. Priority: In Progress > Confirmed > (none).
+   Values are normalized to the set used across Home / Service /
+   Analytics: "Pending" | "Active" | "Booked" | "Completed". */
+export const getBatteryServiceStatus = (
+  battery,
+  serviceRecords = services
+) => {
+  const batteryId = battery?.id || battery?.batteryId;
+
+  const records = serviceRecords.filter(
+    (service) =>
+      service.batteryId === batteryId &&
+      service.status !== "Cancelled"
+  );
+
+  if (records.length === 0) {
+    return "Pending";
+  }
+
+  if (records.some((s) => s.status === "In Progress")) {
+    return "Active";
+  }
+
+  if (records.some((s) => s.status === "Confirmed")) {
+    return "Booked";
+  }
+
+  return "Completed";
+};
+
+/* Map a raw service record into the booking shape used by the
+   Service / Analytics views. "Confirmed" is shown as "Booked". */
+export const serviceToBooking = (service) => ({
+  id: service.id,
+  ticketNumber: service.ticketNumber,
+  batteryId: service.batteryId,
+  batteryName: service.batteryName,
+  serviceType: service.serviceType,
+  center: service.center,
+date: service.scheduledDate,
+  time: service.scheduledTime,
+  mobileNumber: service.mobileNumber,
+  notes: service.notes,
+  cost: service.cost,
+  priority: service.priority,
+  technician: service.technician,
+  status:
+    service.status === "Confirmed"
+      ? "Booked"
+      : service.status === "In Progress"
+        ? "In Progress"
+        : service.status,
+});
+
+/* Convert a list of service records to booking records. */
+export const bookingsFromServices = (
+  serviceRecords = services
+) => serviceRecords.map(serviceToBooking);
+
+/* Number of non-cancelled services for a given battery. */
+export const getBatteryServiceCount = (
+  battery,
+  serviceRecords = services
+) => {
+  const batteryId = battery?.id || battery?.batteryId;
+
+  return serviceRecords.filter(
+    (service) =>
+      service.batteryId === batteryId &&
+      service.status !== "Cancelled"
+  ).length;
 };

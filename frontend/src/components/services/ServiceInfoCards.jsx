@@ -4,6 +4,7 @@ import {
   Wrench,
   FileText,
 } from "lucide-react";
+import { Card, IconBox } from "../common";
 
 const ServiceInfoCards = () => {
   const cards = [
@@ -29,45 +30,26 @@ const ServiceInfoCards = () => {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-8">
-
       {cards.map((card) => {
         const Icon = card.icon;
 
         return (
-          <div
-            key={card.title}
-            className="
-              bg-[#FFFDF8]
-              border border-[#EEE8D8]
-              rounded-2xl
-              p-6
-            "
-          >
+          <Card key={card.title}>
+            <IconBox icon={Icon} size="lg" />
 
-            <div className="
-              w-11 h-11
-              rounded-xl
-              bg-[#F0EDF5]
-              flex items-center
-              justify-center
-            ">
-              <Icon className="w-5 h-5 text-[#173B5C]" />
-            </div>
-
-            <h3 className="mt-4 font-bold">
+            <h3 className="mt-4 font-bold text-lg text-[#16263A]">
               {card.title}
             </h3>
 
             <p className="mt-1 text-sm text-[#747B83]">
               {card.description}
             </p>
-
-          </div>
+          </Card>
         );
       })}
-
     </div>
   );
 };
 
-export default ServiceInfoCards;
+export default React.memo(ServiceInfoCards);
+

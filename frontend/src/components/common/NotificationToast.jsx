@@ -12,28 +12,28 @@ export const NotificationToast = () => {
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className="pointer-events-auto flex items-start space-x-3 p-4 rounded-2xl bg-white border border-yellow-400 shadow-2xl backdrop-blur-md text-slate-900 animate-in slide-in-from-bottom-5 fade-in duration-300"
+          className="pointer-events-auto flex items-start space-x-3 p-4 rounded-2xl bg-[#FFFDF8] border border-[#F0E6C8] shadow-2xl backdrop-blur-md text-[#16263A] animate-in slide-in-from-bottom-5 fade-in duration-300"
         >
           <div className="flex-shrink-0 mt-0.5">
             {toast.type === 'success' && (
-              <CheckCircle2 className="w-5 h-5 text-yellow-600" />
+              <CheckCircle2 className="w-5 h-5 text-[#B48611]" />
             )}
             {toast.type === 'warning' && (
               <AlertCircle className="w-5 h-5 text-amber-600" />
             )}
             {toast.type === 'info' && (
-              <Info className="w-5 h-5 text-slate-700" />
+              <Info className="w-5 h-5 text-[#8A9096]" />
             )}
           </div>
 
           <div className="flex-1 min-w-0">
-            <h5 className="text-sm font-bold text-slate-900">{toast.title}</h5>
-            <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">{toast.message}</p>
+            <h5 className="text-sm font-bold text-[#16263A]">{toast.title}</h5>
+            <p className="text-xs text-[#747B83] mt-0.5 leading-relaxed">{toast.message}</p>
           </div>
 
           <button
             onClick={() => removeToast(toast.id)}
-            className="flex-shrink-0 p-1 text-slate-400 hover:text-slate-800 rounded-lg hover:bg-slate-100 transition-colors"
+            className="flex-shrink-0 p-1 text-[#8A9096] hover:text-[#16263A] rounded-lg hover:bg-[#F5F1E7] transition-colors"
           >
             <X className="w-4 h-4" />
           </button>

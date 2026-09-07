@@ -7,7 +7,6 @@ import {
   User,
   Mail,
   Phone,
-  Building2,
   MapPin,
   ShieldCheck,
   Bell,
@@ -156,7 +155,7 @@ export const UserProfileView = () => {
             />
             <button
               onClick={() => setIsEditModalOpen(true)}
-              className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-[#173B5C] text-white flex items-center justify-center shadow hover:bg-[#122e49] transition"
+              className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-[#173B5C] text-white flex items-center justify-center shadow hover:bg-[#102F4A] transition"
               title="Edit Profile"
             >
               <Edit3 className="w-4 h-4" />
@@ -168,7 +167,7 @@ export const UserProfileView = () => {
             <h1 className="text-2xl sm:text-3xl font-bold text-[#16263A]">
               {profile.name || "admin"}
             </h1>
-            <span className="px-3 py-1 rounded-full bg-yellow-400/20 text-[#8A7A4A] border border-yellow-400/30 text-[11px] font-black">
+            <span className="px-3 py-1 rounded-full bg-[#FBF1C9] text-[#A77A08] border border-[#F0E6C8] text-[11px] font-black">
               DPP OPERATOR
             </span>
           </div>
@@ -203,7 +202,7 @@ export const UserProfileView = () => {
 
             <button
               onClick={() => setIsEditModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#173B5C] text-white font-semibold text-xs shadow-sm hover:bg-[#122e49] transition"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#173B5C] text-white font-semibold text-xs shadow-sm hover:bg-[#102F4A] transition"
             >
               <Edit3 className="w-3.5 h-3.5" />
               Edit Profile
@@ -219,7 +218,7 @@ export const UserProfileView = () => {
           </div>
 
           {/* Fleet Summary Mini Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full mt-6 pt-6 border-t border-[#ECE7DA]">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full mt-6 pt-6 border-t border-[#EEE9DA]">
             <div className="rounded-2xl bg-[#F5F1E7] border border-[#EEE9DA] p-4 text-center">
               <Battery className="w-5 h-5 text-[#173B5C] mx-auto" />
               <p className="mt-2 text-xs text-[#747B83]">Registered Batteries</p>
@@ -255,14 +254,14 @@ export const UserProfileView = () => {
         <section className="
           rounded-3xl
           bg-[#FFFDF8]
-          border border-[#EEE8D8]
+          border border-[#EEE9DA]
           shadow-sm
           overflow-hidden
         ">
 
           <div className="
             p-6
-            border-b border-[#ECE7DA]
+            border-b border-[#EEE9DA]
             flex items-center gap-3
           ">
             <div className="
@@ -362,23 +361,23 @@ export const UserProfileView = () => {
         <section className="
           rounded-3xl
           bg-[#FFFDF8]
-          border border-[#EEE8D8]
+          border border-[#EEE9DA]
           shadow-sm
           overflow-hidden
         ">
 
           <div className="
             p-6
-            border-b border-[#ECE7DA]
+            border-b border-[#EEE9DA]
             flex items-center gap-3
           ">
             <div className="
               w-11 h-11
               rounded-xl
-              bg-yellow-400
+              bg-[#B48611]
               flex items-center justify-center
             ">
-              <Bell className="w-5 h-5 text-[#16263A]" />
+              <Bell className="w-5 h-5 text-white" />
             </div>
 
             <div>
@@ -436,15 +435,15 @@ export const UserProfileView = () => {
                         notificationSettings[
                           item.key
                         ]
-                          ? "bg-yellow-400 justify-end"
-                          : "bg-slate-300 justify-start"
+                          ? "bg-[#173B5C] justify-end"
+                          : "bg-[#E7E1D3] justify-start"
                       }
                     `}
                   >
                     <span className="
                       w-4 h-4
                       rounded-full
-                      bg-[#16263A]
+                      bg-white
                       shadow"
                     />
                   </button>
@@ -463,7 +462,7 @@ export const UserProfileView = () => {
       <section className="
         rounded-3xl
         bg-[#FFFDF8]
-        border border-[#EEE8D8]
+        border border-[#EEE9DA]
         shadow-sm
         p-6 md:p-7
       ">
@@ -545,14 +544,14 @@ export const UserProfileView = () => {
       <section className="
         rounded-3xl
         bg-[#FFFDF8]
-        border border-[#EEE8D8]
+        border border-[#EEE9DA]
         shadow-sm
         overflow-hidden
       ">
 
         <div className="
           p-6 md:p-7
-          border-b border-[#ECE7DA]
+          border-b border-[#EEE9DA]
           flex flex-col sm:flex-row
           sm:items-center
           sm:justify-between
@@ -624,7 +623,7 @@ export const UserProfileView = () => {
                       <div className="
                         w-9 h-9
                         rounded-lg
-                        bg-white
+                        bg-[#FFFDF8]
                         border border-[#E7E1D3]
                         flex items-center justify-center
                         shrink-0
@@ -648,7 +647,7 @@ export const UserProfileView = () => {
                       shrink-0
                       text-[10px]
                       font-mono
-                      text-[#858C92]
+                      text-[#8A9096]
                     ">
                       {log.timestamp}
                     </span>
@@ -667,7 +666,7 @@ export const UserProfileView = () => {
               <History className="
                 w-8 h-8
                 mx-auto
-                text-[#A0A5AA]
+                text-[#8A9096]
               " />
 
               <p className="mt-3 font-semibold">
@@ -723,14 +722,14 @@ const InfoRow = ({
         <div className="
           w-9 h-9
           rounded-lg
-          bg-white
+          bg-[#FFFDF8]
           border border-[#E7E1D3]
           flex items-center justify-center
         ">
           <Icon className="w-4 h-4 text-[#173B5C]" />
         </div>
 
-        <span className="text-sm text-[#69717A]">
+        <span className="text-sm text-[#747B83]">
           {label}
         </span>
 
@@ -784,7 +783,7 @@ const ComplianceItem = ({
 
         <ChevronRight className="
           w-4 h-4
-          text-[#A0A5AA]
+          text-[#8A9096]
         " />
 
       </div>

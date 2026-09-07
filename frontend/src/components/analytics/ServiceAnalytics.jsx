@@ -4,7 +4,9 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
+  Activity,
 } from "lucide-react";
+import { Card, SectionHeader } from "../common";
 
 const ServiceAnalytics = ({ bookings }) => {
   const total = bookings.length;
@@ -32,36 +34,37 @@ const ServiceAnalytics = ({ bookings }) => {
       title: "Total Services",
       value: total,
       icon: Wrench,
+      tone: "primary",
     },
     {
       title: "Booked",
       value: booked,
       icon: Clock,
+      tone: "accent",
     },
     {
       title: "Completed",
       value: completed,
       icon: CheckCircle2,
+      tone: "primary",
     },
     {
       title: "Cancelled",
       value: cancelled,
       icon: XCircle,
+      tone: "accent",
     },
   ];
 
   return (
-    <div className="bg-[#FFFDF8] border border-[#EEE9DA] rounded-3xl p-6 shadow-sm">
-      <div className="mb-6">
-        <h2 className="text-lg font-bold text-[#16263A]">
-          Service Analytics
-        </h2>
+    <Card padded={false}>
+      <SectionHeader
+        icon={Activity}
+        title="Service Analytics"
+        subtitle="Overview of your battery services"
+      />
 
-        <p className="text-sm text-[#747B83]">
-          Overview of your battery services
-        </p>
-      </div>
-
+      <div className="p-6">
       <div className="grid grid-cols-2 gap-4">
         {stats.map((item) => {
           const Icon = item.icon;
@@ -69,22 +72,26 @@ const ServiceAnalytics = ({ bookings }) => {
           return (
             <div
               key={item.title}
-              className="rounded-2xl bg-[#F5F1E7] p-4"
+              className="flex items-center gap-3 rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3] p-4"
             >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#173B5C] flex items-center justify-center shadow-sm">
-                  <Icon className="w-5 h-5 text-white" />
-                </div>
+              <div
+                className={`w-10 h-10 rounded-xl ${
+                  item.tone === "accent"
+                    ? "bg-[#B48611]"
+                    : "bg-[#173B5C]"
+                } flex items-center justify-center shadow-sm shrink-0`}
+              >
+                <Icon className="w-5 h-5 text-white" />
+              </div>
 
-                <div>
-                  <p className="text-xs text-[#747B83]">
-                    {item.title}
-                  </p>
+              <div className="min-w-0">
+                <p className="text-xs text-[#747B83]">
+                  {item.title}
+                </p>
 
-                  <p className="text-xl font-bold text-[#16263A]">
-                    {item.value}
-                  </p>
-                </div>
+                <p className="text-xl font-bold text-[#16263A]">
+                  {item.value}
+                </p>
               </div>
             </div>
           );
@@ -93,18 +100,18 @@ const ServiceAnalytics = ({ bookings }) => {
 
       <div className="mt-6">
         <div className="flex justify-between text-sm mb-2">
-          <span className="text-slate-500">
+          <span className="text-[#747B83]">
             Pending / Active
           </span>
 
-          <span className="font-semibold text-slate-900">
+          <span className="font-semibold text-[#16263A]">
             {pending}
           </span>
         </div>
 
-        <div className="h-2 bg-slate-100 rounded-full">
+        <div className="h-2 bg-[#F5F1E7] rounded-full">
           <div
-            className="h-full bg-[#F4C430] rounded-full"
+            className="h-full bg-[#B48611] rounded-full"
             style={{
               width:
                 total > 0
@@ -114,8 +121,10 @@ const ServiceAnalytics = ({ bookings }) => {
           />
         </div>
       </div>
-    </div>
+      </div>
+    </Card>
   );
 };
 
-export default ServiceAnalytics;
+export default React.memo(ServiceAnalytics);
+

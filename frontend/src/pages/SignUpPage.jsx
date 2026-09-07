@@ -3,7 +3,6 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   User,
   Mail,
-  Building2,
   Lock,
   Eye,
   EyeOff,
@@ -101,7 +100,7 @@ const SignUpPage = () => {
       <div className="w-full max-w-md">
         {/* Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white border border-[#E9E4D7] shadow-sm overflow-hidden mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#FFFDF8] border border-[#EEE9DA] shadow-sm overflow-hidden mb-4">
             <img
               src="/Logo.jpeg"
               alt="MaxSpace"
@@ -113,7 +112,7 @@ const SignUpPage = () => {
             Create your MaxSpace account
           </h1>
 
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-sm text-[#747B83] mt-1">
             Start managing your battery fleet &amp; passports
           </p>
         </div>
@@ -131,13 +130,13 @@ const SignUpPage = () => {
               </label>
 
               <div
-                className={`flex items-center gap-2.5 px-3.5 rounded-xl bg-slate-100 border transition-colors ${
+                className={`flex items-center gap-2.5 px-3.5 rounded-xl bg-[#F5F1E7] border transition-colors ${
                   errors.name
                     ? "border-red-400"
-                    : "border-transparent focus-within:border-yellow-400"
+                    : "border-[#E7E1D3] focus-within:border-[#173B5C]"
                 }`}
               >
-                <User className="w-4 h-4 text-slate-400 shrink-0" />
+                <User className="w-4 h-4 text-[#8A9096] shrink-0" />
                 <input
                   id="name"
                   type="text"
@@ -147,7 +146,7 @@ const SignUpPage = () => {
                   }
                   placeholder="Alex Rivera"
                   autoComplete="name"
-                  className="w-full py-3 bg-transparent text-sm text-[#16263A] placeholder:text-slate-400 focus:outline-none"
+                  className="w-full py-3 bg-transparent text-sm text-[#16263A] placeholder:text-[#8A9096] focus:outline-none"
                 />
               </div>
 
@@ -166,13 +165,13 @@ const SignUpPage = () => {
               </label>
 
               <div
-                className={`flex items-center gap-2.5 px-3.5 rounded-xl bg-slate-100 border transition-colors ${
+                className={`flex items-center gap-2.5 px-3.5 rounded-xl bg-[#F5F1E7] border transition-colors ${
                   errors.email
                     ? "border-red-400"
-                    : "border-transparent focus-within:border-yellow-400"
+                    : "border-[#E7E1D3] focus-within:border-[#173B5C]"
                 }`}
               >
-                <Mail className="w-4 h-4 text-slate-400 shrink-0" />
+                <Mail className="w-4 h-4 text-[#8A9096] shrink-0" />
                 <input
                   id="email"
                   type="email"
@@ -182,7 +181,7 @@ const SignUpPage = () => {
                   }
                   placeholder="you@gmail.com"
                   autoComplete="email"
-                  className="w-full py-3 bg-transparent text-sm text-[#16263A] placeholder:text-slate-400 focus:outline-none"
+                  className="w-full py-3 bg-transparent text-sm text-[#16263A] placeholder:text-[#8A9096] focus:outline-none"
                 />
               </div>
 
@@ -202,13 +201,13 @@ const SignUpPage = () => {
               </label>
 
               <div
-                className={`flex items-center gap-2.5 px-3.5 rounded-xl bg-slate-100 border transition-colors ${
+                className={`flex items-center gap-2.5 px-3.5 rounded-xl bg-[#F5F1E7] border transition-colors ${
                   errors.password
                     ? "border-red-400"
-                    : "border-transparent focus-within:border-yellow-400"
+                    : "border-[#E7E1D3] focus-within:border-[#173B5C]"
                 }`}
               >
-                <Lock className="w-4 h-4 text-slate-400 shrink-0" />
+                <Lock className="w-4 h-4 text-[#8A9096] shrink-0" />
                 <input
                   id="password"
                   type={showPassword ? "text" : "password"}
@@ -218,13 +217,13 @@ const SignUpPage = () => {
                   }
                   placeholder="At least 6 characters"
                   autoComplete="new-password"
-                  className="w-full py-3 bg-transparent text-sm text-[#16263A] placeholder:text-slate-400 focus:outline-none"
+                  className="w-full py-3 bg-transparent text-sm text-[#16263A] placeholder:text-[#8A9096] focus:outline-none"
                 />
 
                 <button
                   type="button"
                   onClick={() => setShowPassword((previous) => !previous)}
-                  className="text-slate-400 hover:text-slate-600 transition-colors"
+                  className="text-[#8A9096] hover:text-[#16263A] transition-colors"
                   title={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? (
@@ -250,13 +249,13 @@ const SignUpPage = () => {
               </label>
 
               <div
-                className={`flex items-center gap-2.5 px-3.5 rounded-xl bg-slate-100 border transition-colors ${
+                className={`flex items-center gap-2.5 px-3.5 rounded-xl bg-[#F5F1E7] border transition-colors ${
                   errors.confirmPassword
                     ? "border-red-400"
-                    : "border-transparent focus-within:border-yellow-400"
+                    : "border-[#E7E1D3] focus-within:border-[#173B5C]"
                 }`}
               >
-                <Lock className="w-4 h-4 text-slate-400 shrink-0" />
+                <Lock className="w-4 h-4 text-[#8A9096] shrink-0" />
                 <input
                   id="confirmPassword"
                   type={showConfirmPassword ? "text" : "password"}
@@ -266,7 +265,7 @@ const SignUpPage = () => {
                   }
                   placeholder="Re-enter your password"
                   autoComplete="new-password"
-                  className="w-full py-3 bg-transparent text-sm text-[#16263A] placeholder:text-slate-400 focus:outline-none"
+                  className="w-full py-3 bg-transparent text-sm text-[#16263A] placeholder:text-[#8A9096] focus:outline-none"
                 />
 
                 <button
@@ -274,7 +273,7 @@ const SignUpPage = () => {
                   onClick={() =>
                     setShowConfirmPassword((previous) => !previous)
                   }
-                  className="text-slate-400 hover:text-slate-600 transition-colors"
+                  className="text-[#8A9096] hover:text-[#16263A] transition-colors"
                   title={
                     showConfirmPassword ? "Hide password" : "Show password"
                   }
@@ -312,13 +311,13 @@ const SignUpPage = () => {
                   className="mt-0.5 w-4 h-4 accent-[#173B5C]"
                 />
 
-                <span className="text-xs text-slate-500 leading-relaxed">
+                <span className="text-xs text-[#747B83] leading-relaxed">
                   I agree to the{" "}
-                  <span className="text-yellow-700 font-semibold">
+                  <span className="text-[#B48611] font-semibold">
                     Terms of Service
                   </span>{" "}
                   and{" "}
-                  <span className="text-yellow-700 font-semibold">
+                  <span className="text-[#B48611] font-semibold">
                     Privacy Policy
                   </span>
                 </span>
@@ -360,20 +359,20 @@ const SignUpPage = () => {
 
           {/* Divider */}
           <div className="flex items-center gap-3 my-6">
-            <div className="flex-1 h-px bg-slate-200" />
-            <span className="text-[11px] font-semibold text-slate-400 uppercase">
+            <div className="flex-1 h-px bg-[#E7E1D3]" />
+            <span className="text-[11px] font-semibold text-[#8A9096] uppercase">
               or
             </span>
-            <div className="flex-1 h-px bg-slate-200" />
+            <div className="flex-1 h-px bg-[#E7E1D3]" />
           </div>
 
           {/* Sign in link */}
           <div className="text-center">
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-[#747B83]">
               Already have an account?{" "}
               <Link
                 to="/signin"
-                className="font-bold text-yellow-700 hover:text-yellow-900"
+                className="font-bold text-[#B48611] hover:text-[#8A7A4A]"
               >
                 Sign in
               </Link>
@@ -382,19 +381,19 @@ const SignUpPage = () => {
         </div>
 
         {/* Trust badges */}
-        <div className="mt-6 flex items-center justify-center gap-6 text-[11px] text-slate-500">
+        <div className="mt-6 flex items-center justify-center gap-6 text-[11px] text-[#747B83]">
           <span className="flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-yellow-700" />
+            <ShieldCheck className="w-3.5 h-3.5 text-[#B48611]" />
             EU DPP 2023/1542
           </span>
 
           <span className="flex items-center gap-1.5">
-            <BatteryCharging className="w-3.5 h-3.5 text-yellow-700" />
+            <BatteryCharging className="w-3.5 h-3.5 text-[#B48611]" />
             ISO 26262 ASIL-D
           </span>
 
           <span className="flex items-center gap-1.5">
-            <Zap className="w-3.5 h-3.5 text-yellow-700" />
+            <Zap className="w-3.5 h-3.5 text-[#B48611]" />
             Real-time Telemetry
           </span>
         </div>

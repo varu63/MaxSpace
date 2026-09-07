@@ -1,12 +1,13 @@
 import React from "react";
 import {
   Battery,
-  Calendar,
   CalendarDays,
   Timer,
   MapPin,
   Check,
+  CalendarCheck,
 } from "lucide-react";
+import { Card, SectionHeader } from "../common";
 
 const BookedServices = ({
   bookings,
@@ -22,59 +23,26 @@ const BookedServices = ({
   }
 
   return (
-    <section className="
-      mb-8
-      bg-[#FFFDF8]
-      border border-[#EEE8D8]
-      rounded-3xl
-      shadow-sm
-      overflow-hidden
-  
-    ">
+    <Card padded={false} className="overflow-hidden">
+      <SectionHeader
+        icon={CalendarCheck}
+        title="Booked Services"
+        subtitle="Scheduled battery service appointments."
+      />
 
-      <div className="p-6 lg:p-7 border-b border-[#ECE7DA] h-full w-full">
-
-        <div className="flex items-center justify-between gap-4">
-
-          <div>
-            <h2 className="text-xl lg:text-2xl font-bold">
-              Booked Services
-            </h2>
-
-            <p className="mt-1 text-sm text-[#747B83]">
-              Scheduled battery service appointments.
-            </p>
-          </div>
-
-          <div className="
-            w-11 h-11
-            rounded-xl
-            bg-purple-100
-            flex items-center justify-center
-          ">
-            <Calendar className="w-5 h-5 text-purple-700" />
-          </div>
-
-        </div>
-      </div>
-
-      <div className="divide-y divide-[#EEEAE0]">
-
+      <div className="divide-y divide-[#EEE9DA]">
         {activeBookings.map((booking) => (
           <div
             key={booking.id}
-            className="p-6 hover:bg-[#FCFAF4] transition"
+            className="p-6 hover:bg-[#F5F1E7] transition"
           >
-
             <div className="
               flex flex-col lg:flex-row
               lg:items-center
               lg:justify-between
               gap-5
             ">
-
               <div className="flex items-start gap-4">
-
                 <div className="
                   w-12 h-12
                   rounded-xl
@@ -86,9 +54,7 @@ const BookedServices = ({
                 </div>
 
                 <div>
-
                   <div className="flex flex-wrap items-center gap-2">
-
                     <span className="
                       inline-flex
                       px-3 py-1.5
@@ -112,10 +78,9 @@ const BookedServices = ({
                     ">
                       BOOKED
                     </span>
-
                   </div>
 
-                  <h3 className="mt-2 font-bold text-lg">
+                  <h3 className="mt-2 font-bold text-lg text-[#16263A]">
                     {booking.serviceType}
                   </h3>
 
@@ -124,9 +89,8 @@ const BookedServices = ({
                     gap-4
                     mt-2
                     text-sm
-                    text-[#69717A]
+                    text-[#747B83]
                   ">
-
                     <span className="flex items-center gap-1.5">
                       <CalendarDays className="w-4 h-4" />
                       {booking.date}
@@ -141,7 +105,6 @@ const BookedServices = ({
                       <MapPin className="w-4 h-4" />
                       {booking.mobileNumber}
                     </span>
-
                   </div>
 
                   {booking.notes && (
@@ -149,12 +112,10 @@ const BookedServices = ({
                       {booking.notes}
                     </p>
                   )}
-
                 </div>
               </div>
 
               <div className="flex flex-wrap gap-2">
-
                 <button
                   onClick={() => onComplete(booking.id)}
                   className="
@@ -181,7 +142,7 @@ const BookedServices = ({
                   className="
                     px-4 py-2.5
                     rounded-xl
-                    bg-red-50
+                    bg-[#FFFDF8]
                     text-red-600
                     border border-red-100
                     text-sm
@@ -192,16 +153,14 @@ const BookedServices = ({
                 >
                   Cancel
                 </button>
-
               </div>
-
             </div>
           </div>
         ))}
-
       </div>
-    </section>
+    </Card>
   );
 };
 
-export default BookedServices;
+export default React.memo(BookedServices);
+

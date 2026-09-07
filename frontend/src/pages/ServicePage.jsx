@@ -1,12 +1,10 @@
-import React, {
-  useCallback,
-  useMemo,
-  useState,
-} from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { Battery } from "lucide-react";
 
 import { useBattery } from "../context/BatteryContext";
+import { bookingsFromServices } from "../data/dummyData";
+import { PageHeader, Card, EmptyState } from "../components/common";
 import ServiceStats from "../components/services/ServiceStats";
 import BookedServices from "../components/services/BookedServices";
 import ServiceFilters from "../components/services/ServiceFilters";
@@ -16,357 +14,105 @@ import ServiceInfoCards from "../components/services/ServiceInfoCards";
 import BatteryServiceModal from "../components/services/BatteryServiceModal";
 import BookServiceModal from "../components/services/BookServiceModal";
 
-
-
 const ServicePage = () => {
-
   const {
     batteries = [],
+    services,
+    setServices,
+    bookService,
     openScanner,
+    getBatteryServiceStatus,
   } = useBattery();
 
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [selectedBattery, setSelectedBattery] = useState(null);
+  const [showBookingModal, setShowBookingModal] = useState(false);
 
-  /* ==========================================================
-     STATE
-  ========================================================== */
+  const [bookingForm, setBookingForm] = useState({
+    serviceType: "Regular Maintenance",
+    date: "",
+    time: "",
+    mobileNumber: "",
+    notes: "",
+  });
 
-  const [search, setSearch] =
-    useState("");
-
-  const [statusFilter, setStatusFilter] =
-    useState("All");
-
-  const [selectedBattery, setSelectedBattery] =
-    useState(null);
-
-  const [showBookingModal, setShowBookingModal] =
-    useState(false);
-
-  const [bookings, setBookings] =
-    useState([]);
-
-
-  const [bookingForm, setBookingForm] =
-    useState({
-      serviceType: "Regular Maintenance",
-      date: "",
-      time: "",
-      mobileNumber:"",
-      notes: "",
-    });
-
-
-  /* ==========================================================
-     SAMPLE BATTERIES
-  ========================================================== */
-
-  const sampleBatteries = [
-    {
-      id: "MVBE0000871",
-      model: "ESS",
-      chemistry: "LFP",
-      cells: 4,
-      status: "FG PENDING",
-      serviceCount: 0,
-      manufacturingDate: "16 Apr 2026",
-      location: "Warehouse",
-    },
-    {
-      id: "MVAE0014036",
-      model: "ESS",
-      chemistry: "LFP",
-      cells: 4,
-      status: "FG PENDING",
-      serviceCount: 0,
-      manufacturingDate: "16 Apr 2026",
-      location: "Warehouse",
-    },
-    {
-      id: "MVAE0014037",
-      model: "ESS",
-      chemistry: "LFP",
-      cells: 4,
-      status: "FG PENDING",
-      serviceCount: 0,
-      manufacturingDate: "16 Apr 2026",
-      location: "Warehouse",
-    },
-    {
-      id: "MVAE0014038",
-      model: "ESS",
-      chemistry: "LFP",
-      cells: 4,
-      status: "FG PENDING",
-      serviceCount: 0,
-      manufacturingDate: "16 Apr 2026",
-      location: "Warehouse",
-    },
-    {
-      id: "MVAE0014039",
-      model: "ESS",
-      chemistry: "LFP",
-      cells: 4,
-      status: "FG PENDING",
-      serviceCount: 0,
-      manufacturingDate: "16 Apr 2026",
-      location: "Warehouse",
-    },
-  ];
-
-
-  const serviceBatteries =
-    batteries.length > 0
-      ? batteries
-      : sampleBatteries;
-
-
-  /* ==========================================================
-     HELPERS
-  ========================================================== */
+  const bookings = useMemo(() => bookingsFromServices(services), [services]);
 
   const getBatteryId = useCallback(
-    (battery) =>
-      battery?.id ||
-      battery?.batteryId ||
-      battery?.serialNumber ||
-      "",
+    (battery) => battery?.id || battery?.batteryId || battery?.serialNumber || "",
     []
   );
 
-
-  /*
-   * Service status.
-   */
   const getServiceStatus = useCallback(
+    (battery) => getBatteryServiceStatus(battery),
+    [getBatteryServiceStatus]
+  );
+
+  const isBatteryBooked = useCallback(
     (battery) => {
-
-      const batteryId =
-        getBatteryId(battery);
-
-      const hasBooking =
-        bookings.some(
-          (booking) =>
-            booking.batteryId === batteryId &&
-            booking.status === "Booked"
-        );
-
-      if (hasBooking) {
-        return "Booked";
-      }
-
-      return (
-        battery?.serviceStatus ||
-        battery?.status ||
-        "Pending"
+      const batteryId = getBatteryId(battery);
+      return bookings.some(
+        (booking) =>
+          booking.batteryId === batteryId &&
+          (booking.status === "Booked" || booking.status === "In Progress")
       );
     },
     [bookings, getBatteryId]
   );
 
-
-  /*
-   * Is currently booked?
-   */
-  const isBatteryBooked = (battery) => {
-
-    const batteryId =
-      getBatteryId(battery);
-
-    return bookings.some(
-      (booking) =>
-        booking.batteryId === batteryId &&
-        booking.status === "Booked"
-    );
-  };
-
-
-  /*
-   * Find current booking.
-   */
-  const getBatteryBooking = (battery) => {
-
-    const batteryId =
-      getBatteryId(battery);
-
-    return bookings.find(
-      (booking) =>
-        booking.batteryId === batteryId &&
-        booking.status === "Booked"
-    );
-  };
-
-
-  /* ==========================================================
-     FILTER
-  ========================================================== */
+  const getBatteryBooking = useCallback(
+    (battery) => {
+      const batteryId = getBatteryId(battery);
+      return bookings.find(
+        (booking) =>
+          booking.batteryId === batteryId &&
+          (booking.status === "Booked" || booking.status === "In Progress")
+      );
+    },
+    [bookings, getBatteryId]
+  );
 
   const filteredBatteries = useMemo(() => {
+    const query = search.trim().toLowerCase();
 
-    return serviceBatteries.filter(
-      (battery) => {
+    return batteries.filter((battery) => {
+      const batteryId = getBatteryId(battery);
+      const serviceStatus = getServiceStatus(battery);
 
-        const batteryId =
-          getBatteryId(battery);
+      const matchesSearch = !query || batteryId.toLowerCase().includes(query);
+      const matchesStatus =
+        statusFilter === "All" || serviceStatus.toLowerCase() === statusFilter.toLowerCase();
 
-        const serviceStatus =
-          getServiceStatus(battery);
-
-        const matchesSearch =
-          batteryId
-            .toLowerCase()
-            .includes(
-              search.toLowerCase()
-            );
-
-        const matchesStatus =
-          statusFilter === "All" ||
-          serviceStatus
-            .toLowerCase() ===
-            statusFilter.toLowerCase();
-
-        return (
-          matchesSearch &&
-          matchesStatus
-        );
-      }
-    );
-
-  }, [
-    serviceBatteries,
-    search,
-    statusFilter,
-    getBatteryId,
-    getServiceStatus,
-  ]);
-
-
-  /* ==========================================================
-     SERVICE STATS
-  ========================================================== */
+      return matchesSearch && matchesStatus;
+    });
+  }, [batteries, search, statusFilter, getBatteryId, getServiceStatus]);
 
   const serviceStats = useMemo(() => {
+    let active = 0;
+    let pending = 0;
 
-    const active =
-      serviceBatteries.filter(
-        (battery) => {
-
-          const status =
-            getServiceStatus(
-              battery
-            ).toLowerCase();
-
-          return (
-            status === "active" ||
-            status === "in progress"
-          );
-        }
-      ).length;
-
-
-    const pending =
-      serviceBatteries.filter(
-        (battery) => {
-
-          const status =
-            getServiceStatus(
-              battery
-            ).toLowerCase();
-
-          return (
-            status === "pending" ||
-            status === "fg pending"
-          );
-        }
-      ).length;
-
-
-    const booked =
-      bookings.filter(
-        (booking) =>
-          booking.status === "Booked"
-      ).length;
-
-
-    const completed =
-      bookings.filter(
-        (booking) =>
-          booking.status === "Completed"
-      ).length;
-
-
-    return {
-      active,
-      pending,
-      booked,
-      completed,
-    };
-
-  }, [
-    serviceBatteries,
-    bookings,
-    getServiceStatus,
-  ]);
-
-
-  /* ==========================================================
-     STATUS STYLE
-  ========================================================== */
-
-  const getStatusStyle = (status) => {
-
-    const value =
-      status?.toLowerCase();
-
-    if (
-      value === "completed" ||
-      value === "complete"
-    ) {
-      return "bg-green-100 text-green-700";
+    for (const battery of batteries) {
+      const status = getServiceStatus(battery);
+      if (status === "Active") active += 1;
+      else if (status === "Pending") pending += 1;
     }
 
-    if (
-      value === "in progress" ||
-      value === "active"
-    ) {
-      return "bg-blue-100 text-blue-700";
+    let booked = 0;
+    let completed = 0;
+    for (const booking of bookings) {
+      if (booking.status === "Booked") booked += 1;
+      else if (booking.status === "Completed") completed += 1;
     }
 
-    if (value === "booked") {
-      return "bg-purple-100 text-purple-700";
-    }
+    return { active, pending, booked, completed };
+  }, [batteries, bookings, getServiceStatus]);
 
-    if (
-      value === "pending" ||
-      value === "fg pending"
-    ) {
-      return "bg-[#FBF1C9] text-[#A77A08]";
-    }
-
-    return "bg-slate-100 text-slate-600";
-  };
-
-
-  /* ==========================================================
-     BOOKING
-  ========================================================== */
-
-  const openBookingModal = () => {
-
-    if (!selectedBattery) {
-      return;
-    }
-
-    if (
-      isBatteryBooked(
-        selectedBattery
-      )
-    ) {
-      return;
-    }
+  const openBookingModal = useCallback(() => {
+    if (!selectedBattery || isBatteryBooked(selectedBattery)) return;
 
     setBookingForm({
-      serviceType:
-        "Regular Maintenance",
+      serviceType: "Regular Maintenance",
       date: "",
       time: "",
       mobileNumber: "",
@@ -374,430 +120,129 @@ const ServicePage = () => {
     });
 
     setShowBookingModal(true);
-  };
+  }, [selectedBattery, isBatteryBooked]);
 
+  const handleBookingChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setBookingForm((prev) => ({ ...prev, [name]: value }));
+  }, []);
 
-  const handleBookingChange = (e) => {
+  const handleBookService = useCallback(
+    (e) => {
+      e.preventDefault();
+      if (!selectedBattery || !bookingForm.date || !bookingForm.time) return;
 
-    const {
-      name,
-      value,
-    } = e.target;
+      if (isBatteryBooked(selectedBattery)) {
+        setShowBookingModal(false);
+        return;
+      }
 
-    setBookingForm(
-      (prev) => ({
-        ...prev,
-        [name]: value,
-      })
-    );
-  };
+      bookService({
+        batteryId: getBatteryId(selectedBattery),
+        serviceType: bookingForm.serviceType,
+        scheduledDate: bookingForm.date,
+        scheduledTime: bookingForm.time,
+        mobileNumber: bookingForm.mobileNumber,
+        notes: bookingForm.notes,
+      });
 
-
-  const handleBookService = (e) => {
-
-    e.preventDefault();
-
-    if (
-      !selectedBattery ||
-      !bookingForm.date ||
-      !bookingForm.time
-    ) {
-      return;
-    }
-
-    const batteryId =
-      getBatteryId(
-        selectedBattery
-      );
-
-
-    const alreadyBooked =
-      bookings.some(
-        (booking) =>
-          booking.batteryId === batteryId &&
-          booking.status === "Booked"
-      );
-
-
-    if (alreadyBooked) {
       setShowBookingModal(false);
-      return;
-    }
+    },
+    [selectedBattery, bookingForm, isBatteryBooked, bookService, getBatteryId]
+  );
 
-
-    const newBooking = {
-
-      id: `SRV-${Date.now()}`,
-
-      batteryId,
-
-      model:
-        selectedBattery.model ||
-        "ESS",
-
-      chemistry:
-        selectedBattery.chemistry ||
-        "LFP",
-
-      location:
-        selectedBattery.location ||
-        "Warehouse",
-
-      serviceType:
-        bookingForm.serviceType,
-
-      date:
-        bookingForm.date,
-
-      time:
-        bookingForm.time,
-
-      notes:
-        bookingForm.notes,
-
-      status:
-        "Booked",
-
-      createdAt:
-        new Date().toISOString(),
-    };
-
-
-    setBookings(
-      (prev) => [
-        ...prev,
-        newBooking,
-      ]
+  const handleCompleteBooking = useCallback((bookingId) => {
+    setServices((prev) =>
+      prev.map((service) =>
+        service.id === bookingId ? { ...service, status: "Completed" } : service
+      )
     );
+  }, [setServices]);
 
-
-    setShowBookingModal(false);
-  };
-
-
-  /* ==========================================================
-     COMPLETE / CANCEL
-  ========================================================== */
-
-  const handleCompleteBooking = (
-    bookingId
-  ) => {
-
-    setBookings(
-      (prev) =>
-        prev.map(
-          (booking) =>
-            booking.id === bookingId
-              ? {
-                  ...booking,
-                  status:
-                    "Completed",
-                }
-              : booking
-        )
+  const handleCancelBooking = useCallback((bookingId) => {
+    setServices((prev) =>
+      prev.map((service) =>
+        service.id === bookingId ? { ...service, status: "Cancelled" } : service
+      )
     );
-  };
-
-
-  const handleCancelBooking = (
-    bookingId
-  ) => {
-
-    setBookings(
-      (prev) =>
-        prev.map(
-          (booking) =>
-            booking.id === bookingId
-              ? {
-                  ...booking,
-                  status:
-                    "Cancelled",
-                }
-              : booking
-        )
-
-
-
-    );
-  };
-
-
-  /* ==========================================================
-     RENDER
-  ========================================================== */
+  }, [setServices]);
 
   return (
     <div className="w-full space-y-8">
-
-      {/* ======================================================
-          HEADER
-      ======================================================= */}
-
-      <div className="mb-8">
-
-        <div className="
-          flex flex-col
-          lg:flex-row
-          lg:items-center
-          lg:justify-between
-          gap-5
-        ">
-
-          <div>
-
-            <p className="
-              text-sm
-              font-medium
-              text-[#9A8240]
-              mb-2
-              pt-2
-            ">
-              Service Management
-            </p>
-
-            <h1 className="
-              text-3xl
-              lg:text-4xl
-              font-bold
-            ">
-              Service Center
-            </h1>
-
-            <p className="
-              mt-2
-              text-[#6C747D]
-            ">
-              Monitor battery service requests,
-              bookings and maintenance activities.
-            </p>
-
-          </div>
-
-          <button
-            onClick={openScanner}
-            className="
-              inline-flex
-              items-center
-              justify-center
-              gap-2
-              rounded-xl
-              bg-[#173B5C]
-              px-5 py-3.5
-              text-white
-              font-semibold
-              hover:bg-[#102F4A]
-              transition-all
-            "
-          >
-            <Battery className="w-5 h-5" />
-            Scan Battery
-          </button>
-
-        </div>
+      <div className="mb-2">
+        <PageHeader
+          icon={Battery}
+          title="Service Center"
+          subtitle="Monitor battery service requests, bookings and maintenance activities."
+          actions={
+            <button
+              onClick={openScanner}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#173B5C] px-5 py-3 text-white font-semibold hover:bg-[#102F4A] transition-all shadow-sm"
+            >
+              <Battery className="w-5 h-5" />
+              Scan Battery
+            </button>
+          }
+        />
       </div>
 
+      <ServiceStats stats={serviceStats} />
 
-      {/* ======================================================
-          STATS
-      ======================================================= */}
+      <BookedServices bookings={bookings} onComplete={handleCompleteBooking} onCancel={handleCancelBooking} />
 
-      <ServiceStats
-        stats={serviceStats}
-      />
-
-
-      {/* ======================================================
-          BOOKINGS
-      ======================================================= */}
-
-      <BookedServices
-        bookings={bookings}
-        onComplete={
-          handleCompleteBooking
-        }
-        onCancel={
-          handleCancelBooking
-        }
-      />
-
-
-      {/* ======================================================
-          REQUESTS
-      ======================================================= */}
-
-      <section className="
-        bg-[#FFFDF8]
-        border border-[#EEE8D8]
-        rounded-3xl
-        shadow-sm
-        overflow-hidden
-      ">
-
+      <Card padded={false} className="overflow-hidden">
         <ServiceFilters
           search={search}
           setSearch={setSearch}
-          statusFilter={
-            statusFilter
-          }
-          setStatusFilter={
-            setStatusFilter
-          }
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
         />
 
+        <ServiceTable batteries={filteredBatteries} bookings={bookings} getBatteryId={getBatteryId} onSelectBattery={setSelectedBattery} />
 
-        {/* Desktop */}
-        <ServiceTable
-          batteries={
-            filteredBatteries
-          }
-          bookings={bookings}
-          getBatteryId={
-            getBatteryId
-          }
-          getServiceStatus={
-            getServiceStatus
-          }
-          getStatusStyle={
-            getStatusStyle
-          }
-          onSelectBattery={
-            setSelectedBattery
-          }
-        />
-
-
-        {/* Mobile */}
         <ServiceMobileCards
-          batteries={
-            filteredBatteries
-          }
+          batteries={filteredBatteries}
           bookings={bookings}
-          getBatteryId={
-            getBatteryId
-          }
-          getServiceStatus={
-            getServiceStatus
-          }
-          getStatusStyle={
-            getStatusStyle
-          }
-          onSelectBattery={
-            setSelectedBattery
-          }
+          getBatteryId={getBatteryId}
+          getServiceStatus={getServiceStatus}
+          onSelectBattery={setSelectedBattery}
         />
 
-
-        {filteredBatteries.length ===
-          0 && (
-          <div className="
-            p-12
-            text-center
-          ">
-
-            <Battery className="
-              w-10 h-10
-              mx-auto
-              text-[#7D858C]
-            " />
-
-            <h3 className="
-              mt-4
-              text-lg
-              font-bold
-            ">
-              No service requests found
-            </h3>
-
-            <p className="
-              mt-1
-              text-sm
-              text-[#747B83]
-            ">
-              Try changing your search
-              or filter.
-            </p>
-
-          </div>
+        {filteredBatteries.length === 0 && (
+          <EmptyState
+            icon={Battery}
+            title="No service requests found"
+            description="Try changing your search or filter."
+          />
         )}
+      </Card>
 
-      </section>
-
-
-      {/* ======================================================
-          INFO CARDS
-      ======================================================= */}
-
-      <ServiceInfoCards/>
-
-
-      {/* ======================================================
-          BATTERY MODAL
-      ======================================================= */}
+      <ServiceInfoCards />
 
       {selectedBattery && (
         <BatteryServiceModal
-          battery={
-            selectedBattery
-          }
-          booking={
-            getBatteryBooking(
-              selectedBattery
-            )
-          }
-          isBooked={
-            isBatteryBooked(
-              selectedBattery
-            )
-          }
-          getBatteryId={
-            getBatteryId
-          }
-          getServiceStatus={
-            getServiceStatus
-          }
-          onClose={() =>
-            setSelectedBattery(null)
-          }
-          onBook={
-            openBookingModal
-          }
+          battery={selectedBattery}
+          booking={getBatteryBooking(selectedBattery)}
+          isBooked={isBatteryBooked(selectedBattery)}
+          getBatteryId={getBatteryId}
+          getServiceStatus={getServiceStatus}
+          onClose={() => setSelectedBattery(null)}
+          onBook={openBookingModal}
         />
       )}
 
-
-      {/* ======================================================
-          BOOKING MODAL
-      ======================================================= */}
-
-      {showBookingModal &&
-        selectedBattery && (
-          <BookServiceModal
-            battery={
-              selectedBattery
-            }
-            form={
-              bookingForm
-            }
-            onChange={
-              handleBookingChange
-            }
-            onSubmit={
-              handleBookService
-            }
-            onClose={() =>
-              setShowBookingModal(
-                false
-              )
-            }
-            getBatteryId={
-              getBatteryId
-            }
-          />
-        )}
-
+      {showBookingModal && selectedBattery && (
+        <BookServiceModal
+          battery={selectedBattery}
+          form={bookingForm}
+          onChange={handleBookingChange}
+          onSubmit={handleBookService}
+          onClose={() => setShowBookingModal(false)}
+          getBatteryId={getBatteryId}
+        />
+      )}
     </div>
   );
 };
-
 
 export default ServicePage;

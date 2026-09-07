@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   MaxSpace Design System — Global Styles
+   Font: Inter (UI) + JetBrains Mono (code identifiers)
+   Theme: Cream / Navy / Gold (see tailwind.config.js)
+============================================================ */
+
 @layer base {
   body {
     font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -9,13 +15,106 @@
     color: #16263A;
     min-height: 100vh;
   }
-  
+
   code, pre, .font-mono {
     font-family: 'JetBrains Mono', monospace;
   }
 }
 
-/* White & Yellow Light Theme Card & Glass Utilities */
+@layer components {
+  /* ---------- Reusable surface panel ---------- */
+  .panel {
+    background: #FFFDF8;
+    border: 1px solid #EEE9DA;
+    border-radius: 1.5rem; /* rounded-3xl */
+    box-shadow: 0 1px 2px 0 rgba(22, 38, 58, 0.04);
+  }
+
+  .soft-row {
+    background: #F5F1E7;
+    border: 1px solid #E7E1D3;
+    border-radius: 1rem; /* rounded-2xl */
+  }
+
+  /* ---------- Buttons ---------- */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.75rem; /* rounded-xl */
+    font-weight: 600;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+
+  .btn-primary {
+    background: #173B5C;
+    color: #fff;
+  }
+  .btn-primary:hover {
+    background: #102F4A;
+  }
+
+  .btn-secondary {
+    background: #FFFDF8;
+    color: #16263A;
+    border: 1px solid #EEE9DA;
+  }
+  .btn-secondary:hover {
+    background: #F5F1E7;
+    border-color: #E7E1D3;
+  }
+
+  .btn-gold {
+    background: transparent;
+    color: #B48611;
+    border: 2px solid #B48611;
+  }
+  .btn-gold:hover {
+    background: #FBF1C9;
+  }
+
+  /* ---------- Form fields ---------- */
+  .field-input {
+    width: 100%;
+    background: #FFFDF8;
+    border: 1px solid #E7E1D3;
+    border-radius: 0.75rem;
+    outline: none;
+    transition: border-color 0.2s ease;
+  }
+  .field-input:focus {
+    border-color: #173B5C;
+  }
+
+  .field-label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #16263A;
+    margin-bottom: 0.375rem;
+  }
+
+  /* ---------- Chips / badges ---------- */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.25rem 0.75rem;
+  }
+}
+
+/* ---------- Legacy glass utilities (auth cards) ---------- */
+.glass-card {
+  background: #FFFDF8;
+  border: 1px solid #EEE9DA;
+  box-shadow: 0 4px 20px -2px rgba(22, 38, 58, 0.08);
+}
+
 .glass-panel {
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(14px);
@@ -23,83 +122,63 @@
   border: 1px solid rgba(226, 232, 240, 0.9);
 }
 
-.glass-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+.glow-yellow {
+  box-shadow: 0 0 25px -4px rgba(180, 134, 17, 0.35);
 }
 
 .glass-card-hover {
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
 .glass-card-hover:hover {
   transform: translateY(-2px);
-  border-color: #facc15;
-  box-shadow: 0 12px 25px -8px rgba(234, 179, 8, 0.25);
+  border-color: #B48611;
+  box-shadow: 0 12px 25px -8px rgba(180, 134, 17, 0.25);
 }
 
-.glow-yellow {
-  box-shadow: 0 0 25px -4px rgba(234, 179, 8, 0.35);
-}
-
-/* Custom light scrollbar */
+/* ---------- Theme scrollbar ---------- */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
-
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: #F5F1E7;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #D8D1C0;
   border-radius: 4px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: #eab308;
+  background: #B48611;
 }
 
-/* Scanner Animation with Vibrant Yellow Laser */
+/* ---------- Scanner laser animation ---------- */
 @keyframes scanLaserYellow {
-  0% {
-    top: 5%;
-    opacity: 0.8;
-  }
-  50% {
-    top: 90%;
-    opacity: 1;
-  }
-  100% {
-    top: 5%;
-    opacity: 0.8;
-  }
+  0% { top: 5%; opacity: 0.8; }
+  50% { top: 90%; opacity: 1; }
+  100% { top: 5%; opacity: 0.8; }
 }
-
 .animate-scan-laser {
   animation: scanLaserYellow 2.2s ease-in-out infinite;
 }
 
-/* =========================================================
+/* ============================================================
    DARK MODE
-   Applied when <html class="dark"> is present (toggle from
-   the Settings page or persisted "appSettings" in storage).
-   The overrides target the arbitrary-value light palette so
-   the dark toggle meaningfully changes the whole app.
-========================================================= */
+   Applied when <html class="dark"> is present (Settings page).
+   Overrides the canonical light palette to a deep navy theme.
+============================================================ */
 
 html.dark body {
   background-color: #0b1220;
   color: #e2e8f0;
 }
 
-html.dark [class*="bg-[#F8F2DE]"] {
+html.dark [class*="bg-[#F8F2DE]"],
+html.dark .bg-page {
   background-color: #0b1220 !important;
 }
 
-html.dark [class*="bg-[#FFFDF8]"] {
+html.dark [class*="bg-[#FFFDF8]"],
+html.dark .bg-surface {
   background-color: #111b2e !important;
 }
 
@@ -107,53 +186,31 @@ html.dark [class*="bg-white"] {
   background-color: #16233a !important;
 }
 
-html.dark [class*="bg-slate-50"] {
-  background-color: #182741 !important;
+html.dark [class*="bg-slate-50"],
+html.dark [class*="bg-[#F5F1E7]"],
+html.dark [class*="bg-[#FFFCF5]"],
+html.dark [class*="bg-[#F7F7F7]"],
+html.dark [class*="bg-[#F7F3E9]"],
+html.dark [class*="bg-[#FCFAF4]"],
+html.dark [class*="bg-[#F3F0E8]"],
+html.dark [class*="bg-[#F1EEE6]"],
+html.dark .bg-soft {
+  background-color: #1a2942 !important;
 }
 
 html.dark [class*="bg-slate-100"] {
   background-color: #1d2c48 !important;
 }
 
-html.dark [class*="bg-slate-200"] {
+html.dark [class*="bg-slate-200"],
+html.dark [class*="bg-slate-300"],
+html.dark [class*="bg-[#E7E1D3]"] {
   background-color: #25365a !important;
 }
 
-html.dark [class*="bg-slate-300"] {
-  background-color: #33466e !important;
-}
-
-html.dark [class*="bg-[#F5F1E7]"],
-html.dark [class*="bg-[#F7F7F7]"] {
-  background-color: #1a2942 !important;
-}
-
-html.dark [class*="text-[#16263A]"],
-html.dark [class*="text-slate-900"],
-html.dark [class*="text-slate-800"] {
-  color: #e2e8f0 !important;
-}
-
-html.dark [class*="text-slate-700"],
-html.dark [class*="text-[#8A7A4A]"] {
-  color: #c4b48a !important;
-}
-
-html.dark [class*="text-slate-600"],
-html.dark [class*="text-slate-500"],
-html.dark [class*="text-slate-400"],
-html.dark [class*="text-[#747B83]"] {
-  color: #93a4c2 !important;
-}
-
-html.dark [class*="border-[#EEE9DA]"],
-html.dark [class*="border-[#ECE7DA]"],
-html.dark [class*="border-[#E9E4D7]"],
-html.dark [class*="border-slate-100"],
-html.dark [class*="border-slate-200"] {
-  border-color: #263a5f !important;
-}
-
+html.dark [class*="bg-[#FBF1C9]"],
+html.dark [class*="bg-[#FFF8E7]"],
+html.dark [class*="bg-[#FBF7E8]"],
 html.dark [class*="bg-yellow-50"] {
   background-color: #2a2a14 !important;
   border-color: #6b5d1e !important;
@@ -167,20 +224,90 @@ html.dark [class*="bg-emerald-50"] {
   background-color: #0f2a22 !important;
 }
 
+html.dark [class*="bg-red-50"] {
+  background-color: #2d1518 !important;
+}
+
+html.dark [class*="text-[#16263A]"],
+html.dark [class*="text-slate-900"],
+html.dark [class*="text-slate-800"],
+html.dark [class*="text-slate-950"] {
+  color: #e2e8f0 !important;
+}
+
+html.dark [class*="text-[#173B5C]"],
+html.dark [class*="text-slate-700"] {
+  color: #9cc1e6 !important;
+}
+
+html.dark [class*="text-[#102F4A]"] {
+  color: #bcd7ef !important;
+}
+
+html.dark [class*="text-[#747B83]"],
+html.dark [class*="text-slate-600"],
+html.dark [class*="text-slate-500"],
+html.dark [class*="text-slate-400"],
+html.dark [class*="text-[#8A9096]"] {
+  color: #93a4c2 !important;
+}
+
+html.dark [class*="text-[#8A7A4A]"],
+html.dark [class*="text-[#9A8240]"] {
+  color: #c4b48a !important;
+}
+
+html.dark [class*="text-[#B48611]"],
+html.dark [class*="text-[#B48A18]"],
+html.dark [class*="text-[#A77A08]"],
+html.dark [class*="text-yellow-700"],
+html.dark [class*="text-yellow-800"] {
+  color: #e6bd5c !important;
+}
+
+html.dark [class*="border-[#EEE9DA]"],
+html.dark [class*="border-[#ECE7DA]"],
+html.dark [class*="border-[#E9E4D7]"],
+html.dark [class*="border-[#EEE8D8]"],
+html.dark [class*="border-[#EEEAE0]"],
+html.dark [class*="border-[#ECE7DB]"],
+html.dark [class*="border-[#E7E1D3]"],
+html.dark [class*="border-slate-100"],
+html.dark [class*="border-slate-200"],
+html.dark [class*="border-slate-300"] {
+  border-color: #263a5f !important;
+}
+
+html.dark [class*="border-[#F0E6C8]"],
+html.dark [class*="border-[#D4C9A0]"],
+html.dark [class*="border-yellow-200"] {
+  border-color: #6b5d1e !important;
+}
+
 html.dark [class*="border-emerald-200"] {
   border-color: #1f7a5f !important;
+}
+
+html.dark [class*="border-red-200"] {
+  border-color: #8b3a42 !important;
 }
 
 html.dark [class*="text-emerald-800"] {
   color: #6ee7b7 !important;
 }
 
-html.dark [class*="bg-red-50"] {
-  background-color: #2d1518 !important;
+html.dark [class*="text-green-700"],
+html.dark [class*="text-green-800"] {
+  color: #6ee7b7 !important;
 }
 
-html.dark [class*="border-red-200"] {
-  border-color: #8b3a42 !important;
+html.dark [class*="bg-green-100"] {
+  background-color: #0f2a22 !important;
+  border-color: #1f7a5f !important;
+}
+
+html.dark [class*="border-green-200"] {
+  border-color: #1f7a5f !important;
 }
 
 html.dark [class*="shadow-sm"],
@@ -191,7 +318,9 @@ html.dark [class*="shadow-2xl"] {
 html.dark input[type="text"],
 html.dark input[type="email"],
 html.dark input[type="tel"],
-html.dark input[type="password"] {
+html.dark input[type="password"],
+html.dark input[type="date"],
+html.dark input[type="time"] {
   background-color: #16233a;
   color: #e2e8f0;
 }
@@ -200,4 +329,9 @@ html.dark select,
 html.dark textarea {
   background-color: #16233a;
   color: #e2e8f0;
+}
+
+/* Toggle knobs stay light in dark mode */
+html.dark span[class*="bg-white"][class*="rounded-full"] {
+  background-color: #e8ecf4 !important;
 }

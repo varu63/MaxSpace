@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 import { useBattery } from "../../context/BatteryContext";
+import DownloadAppButton from "./DownloadAppButton";
 
 const Header = () => {
   const {
@@ -53,7 +54,7 @@ const Header = () => {
           ${hidden ? "-translate-y-[120%]" : "translate-y-0"}
         `}
       >
-        <div className="max-w-5xl mx-auto h-14 sm:h-16 bg-[#FFFDF8]/95 backdrop-blur-md border border-[#E9E4D7] rounded-2xl sm:rounded-3xl shadow-sm px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto h-14 sm:h-16 bg-[#FFFDF8]/95 backdrop-blur-md border border-[#EEE9DA] rounded-2xl sm:rounded-3xl shadow-sm px-4 sm:px-6 lg:px-8 flex items-center justify-between">
           {/* LEFT */}
           <div className="flex items-center gap-3">
             {/* MENU BUTTON */}
@@ -63,11 +64,11 @@ const Header = () => {
                 flex items-center justify-center
                 w-10 h-10
                 rounded-xl
-                bg-slate-100
-                border border-slate-200
-                text-slate-700
-                hover:text-slate-950
-                hover:bg-slate-200
+                bg-[#F5F1E7]
+                border border-[#E7E1D3]
+                text-[#173B5C]
+                hover:text-[#16263A]
+                hover:bg-[#E7E1D3]
                 active:scale-95
                 transition-all
               "
@@ -79,7 +80,7 @@ const Header = () => {
 
             {/* Logo */}
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-full bg-[#F7F7F7] flex items-center justify-center border-[#16263A] border overflow-hidden">
+              <div className="w-10 h-10 rounded-full bg-[#F5F1E7] flex items-center justify-center border-[#16263A] border overflow-hidden">
                 <img
                   src="/Logo.jpeg"
                   alt="logo"
@@ -92,7 +93,7 @@ const Header = () => {
                   MaxSpace
                 </h1>
 
-                <p className="text-[9px] text-slate-500">
+                <p className="text-[9px] text-[#747B83]">
                   Digital Product Passport
                 </p>
               </div>
@@ -107,11 +108,11 @@ const Header = () => {
               className="
                 w-9 h-9 sm:w-10 sm:h-10
                 rounded-xl
-                bg-slate-100
-                border border-slate-200
+                bg-[#F5F1E7]
+                border border-[#E7E1D3]
                 flex items-center justify-center
                 text-[#173B5C]
-                hover:bg-slate-200
+                hover:bg-[#E7E1D3]
                 transition
               "
               title="Scan Battery"
@@ -125,11 +126,11 @@ const Header = () => {
                 hidden sm:flex
                 w-10 h-10
                 rounded-xl
-                bg-slate-100
-                border border-slate-200
+                bg-[#F5F1E7]
+                border border-[#E7E1D3]
                 items-center justify-center
-                text-slate-600
-                hover:bg-slate-200
+                text-[#747B83]
+                hover:bg-[#E7E1D3]
                 transition
                 relative
               "
@@ -139,8 +140,6 @@ const Header = () => {
 
               <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#B48611]" />
             </button>
-
-           
 
             {/* User */}
             <div className="hidden sm:flex items-center gap-2 ml-1">
@@ -152,15 +151,22 @@ const Header = () => {
             </div>
 
             {/* Sign Out */}
+            <DownloadAppButton
+              className="flex items-center justify-center gap-1.5 h-10 px-3 rounded-xl bg-[#173B5C] text-white border border-[#173B5C] hover:bg-[#102F4A] transition"
+              iconClassName="w-4 h-4 sm:w-5 sm:h-5"
+            >
+              <span className="hidden lg:inline text-xs font-bold">Download</span>
+            </DownloadAppButton>
+
             <button
               onClick={handleSignOut}
               className="
                 flex items-center justify-center gap-1.5
                 h-10 px-3
                 rounded-xl
-                bg-slate-100
-                border border-slate-200
-                text-slate-600
+                bg-[#F5F1E7]
+                border border-[#E7E1D3]
+                text-[#747B83]
                 hover:bg-red-50 hover:text-red-700 hover:border-red-200
                 transition
               "
