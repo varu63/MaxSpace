@@ -1,4 +1,4 @@
-# MaxSpace — Digital Battery Passport System
+﻿# MaxSpace — Digital Battery Passport System
 
 A modern single-page web application for managing battery fleets and generating **EU-compliant Digital Battery Passports** under the [EU Battery Regulation 2023/1542](https://eur-lex.europa.eu/eli/reg/2023/1542).
 
