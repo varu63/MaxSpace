@@ -41,6 +41,22 @@ const loadFromStorage = (key, fallback) => {
 
 export const BatteryProvider = ({ children }) => {
   /* =======================================================
+     MAIN DATA
+  ======================================================= */
+
+  const [batteries, setBatteries] = useState(() =>
+    loadFromStorage("maxspace_batteries", initialBatteries)
+  );
+
+  const [services, setServices] = useState(() =>
+    loadFromStorage("maxspace_services", initialServices)
+  );
+
+  const [userProfile, setUserProfile] = useState(() =>
+    loadFromStorage("maxspace_user_profile", initialUserProfile)
+  );
+
+  /* =======================================================
      AUTH
   ======================================================= */
 
@@ -62,7 +78,7 @@ export const BatteryProvider = ({ children }) => {
     setIsAuthenticated(true);
     localStorage.setItem("maxspace_auth", "authenticated");
     return true;
-  }, []);
+  }, [setIsAuthenticated, setUserProfile]);
 
   const signUp = useCallback((credentials = {}) => {
     setUserProfile((previous) => ({
@@ -75,28 +91,12 @@ export const BatteryProvider = ({ children }) => {
     setIsAuthenticated(true);
     localStorage.setItem("maxspace_auth", "authenticated");
     return true;
-  }, []);
+  }, [setIsAuthenticated, setUserProfile]);
 
   const signOut = useCallback(() => {
     setIsAuthenticated(false);
     localStorage.removeItem("maxspace_auth");
-  }, []);
-
-  /* =======================================================
-     MAIN DATA
-  ======================================================= */
-
-  const [batteries, setBatteries] = useState(() =>
-    loadFromStorage("maxspace_batteries", initialBatteries)
-  );
-
-  const [services, setServices] = useState(() =>
-    loadFromStorage("maxspace_services", initialServices)
-  );
-
-  const [userProfile, setUserProfile] = useState(() =>
-    loadFromStorage("maxspace_user_profile", initialUserProfile)
-  );
+  }, [setIsAuthenticated]);
 
   /* =======================================================
      SIDEBAR
@@ -141,8 +141,9 @@ export const BatteryProvider = ({ children }) => {
   );
 
   useEffect(() => {
+    const timers = toastTimers.current;
     return () => {
-      Object.values(toastTimers.current).forEach(clearTimeout);
+      Object.values(timers).forEach(clearTimeout);
     };
   }, []);
 
@@ -182,7 +183,7 @@ export const BatteryProvider = ({ children }) => {
       ...previous,
       activityLogs: [newActivity, ...(previous?.activityLogs || [])].slice(0, 20),
     }));
-  }, []);
+  }, [setUserProfile]);
 
   const openPassport = useCallback(
     (battery) => {
@@ -375,7 +376,7 @@ export const BatteryProvider = ({ children }) => {
       setUserProfile((previous) => ({ ...previous, ...updatedProfile }));
       addToast("Profile Updated", "Your profile details and preferences have been saved.");
     },
-    [addToast]
+    [addToast, setUserProfile]
   );
 
   /* =======================================================
@@ -441,7 +442,7 @@ export const BatteryProvider = ({ children }) => {
     setServices(initialServices);
     setUserProfile(initialUserProfile);
     addToast("Sample Data Restored", "Reset all records to initial EU DPP sample dataset.", "info");
-  }, [addToast]);
+  }, [addToast, setUserProfile]);
 
   /* =======================================================
      LOCAL STORAGE

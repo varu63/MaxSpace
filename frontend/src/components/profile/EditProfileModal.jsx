@@ -1,9 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useBattery } from '../../context/BatteryContext';
 import { Modal } from '../common/Modal';
 import { X, User } from 'lucide-react';
 
 export const EditProfileModal = ({ isOpen, onClose }) => {
+  if (!isOpen) return null;
+
+  return <EditProfileForm onClose={onClose} />;
+};
+
+const EditProfileForm = ({ onClose }) => {
   const { userProfile, updateProfile } = useBattery();
 
   const [formData, setFormData] = useState({
@@ -18,22 +24,6 @@ export const EditProfileModal = ({ isOpen, onClose }) => {
     euOperatorId: userProfile.euOperatorId
   });
 
-  useEffect(() => {
-    if (isOpen) {
-      setFormData({
-        name: userProfile.name,
-        title: userProfile.title,
-        email: userProfile.email,
-        phone: userProfile.phone,
-        company: userProfile.company,
-        location: userProfile.location,
-        avatar: userProfile.avatar,
-        fleetType: userProfile.fleetType,
-        euOperatorId: userProfile.euOperatorId
-      });
-    }
-  }, [isOpen, userProfile]);
-
   const handleSubmit = (e) => {
     e.preventDefault();
     updateProfile(formData);
@@ -41,7 +31,7 @@ export const EditProfileModal = ({ isOpen, onClose }) => {
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} z={50}>
+    <Modal isOpen onClose={onClose} z={50}>
       <div className="relative w-full max-w-xl bg-[#FFFDF8] border border-[#EEE9DA] rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-[#16263A]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-[#EEE9DA] bg-[#F5F1E7]">

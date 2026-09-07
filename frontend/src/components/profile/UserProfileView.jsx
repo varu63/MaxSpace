@@ -691,7 +691,6 @@ export const UserProfileView = () => {
           setIsEditModalOpen(false)
         }
       />
-
     </div>
   );
 };
