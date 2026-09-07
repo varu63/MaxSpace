@@ -65,62 +65,66 @@ const ServiceAnalytics = ({ bookings }) => {
       />
 
       <div className="p-6">
-      <div className="grid grid-cols-2 gap-4">
-        {stats.map((item) => {
-          const Icon = item.icon;
+        {/* Service Stats */}
+        <div className="grid grid-cols-2 gap-4">
+          {stats.map((item) => {
+            const Icon = item.icon;
 
-          return (
-            <div
-              key={item.title}
-              className="flex items-center gap-3 rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3] p-4"
-            >
+            return (
               <div
-                className={`w-10 h-10 rounded-xl ${
-                  item.tone === "accent"
-                    ? "bg-[#B48611]"
-                    : "bg-[#173B5C]"
-                } flex items-center justify-center shadow-sm shrink-0`}
+                key={item.title}
+                className="flex items-center justify-between rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3] p-4"
               >
-                <Icon className="w-5 h-5 text-white" />
+                {/* Text - Left */}
+                <div className="min-w-0">
+                  <p className="text-xs text-[#747B83]">
+                    {item.title}
+                  </p>
+
+                  <p className="text-xl font-bold text-[#16263A]">
+                    {item.value}
+                  </p>
+                </div>
+
+                {/* Icon - Right */}
+                <div
+                  className={`w-10 h-10 rounded-xl ${
+                    item.tone === "accent"
+                      ? "bg-[#B48611]"
+                      : "bg-[#173B5C]"
+                  } flex items-center justify-center shadow-sm shrink-0 ml-3`}
+                >
+                  <Icon className="w-5 h-5 text-white" />
+                </div>
               </div>
-
-              <div className="min-w-0">
-                <p className="text-xs text-[#747B83]">
-                  {item.title}
-                </p>
-
-                <p className="text-xl font-bold text-[#16263A]">
-                  {item.value}
-                </p>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="mt-6">
-        <div className="flex justify-between text-sm mb-2">
-          <span className="text-[#747B83]">
-            Pending / Active
-          </span>
-
-          <span className="font-semibold text-[#16263A]">
-            {pending}
-          </span>
+            );
+          })}
         </div>
 
-        <div className="h-2 bg-[#F5F1E7] rounded-full">
-          <div
-            className="h-full bg-[#B48611] rounded-full"
-            style={{
-              width:
-                total > 0
-                  ? `${(pending / total) * 100}%`
-                  : "0%",
-            }}
-          />
+        {/* Pending / Active Progress */}
+        <div className="mt-6">
+          <div className="flex justify-between text-sm mb-2">
+            <span className="text-[#747B83]">
+              Pending / Active
+            </span>
+
+            <span className="font-semibold text-[#16263A]">
+              {pending}
+            </span>
+          </div>
+
+          <div className="h-2 bg-[#F5F1E7] rounded-full overflow-hidden">
+            <div
+              className="h-full bg-[#B48611] rounded-full transition-all duration-300"
+              style={{
+                width:
+                  total > 0
+                    ? `${(pending / total) * 100}%`
+                    : "0%",
+              }}
+            />
+          </div>
         </div>
-      </div>
       </div>
     </Card>
   );

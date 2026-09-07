@@ -52,9 +52,9 @@ export default function HomePage() {
 
   const fleetStats = useMemo(
     () => [
-      { icon: CheckCircle2, label: "Healthy", value: healthyCount, iconTone: "primary" },
-      { icon: Clock3, label: "Pending Service", value: pendingCount, iconTone: "accent" },
-      { icon: Wrench, label: "Under Service", value: activeServiceCount, iconTone: "primary" },
+      { icon: CheckCircle2, label: "Healthy", value: healthyCount, iconTone: "primary" , iconRight: true},
+      { icon: Clock3, label: "Pending Service", value: pendingCount, iconTone: "accent" , iconRight: true},
+      { icon: Wrench, label: "Under Service", value: activeServiceCount, iconTone: "primary", iconRight: true },
     ],
     [healthyCount, pendingCount, activeServiceCount]
   );
@@ -93,20 +93,33 @@ export default function HomePage() {
           }
         />
 
-        <div className="p-6 lg:p-7 grid grid-cols-1 md:grid-cols-3 gap-5">
-          {fleetStats.map((stat) => (
-            <div
-              key={stat.label}
-              className="flex items-center gap-4 rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3] p-5"
-            >
-              <IconBox icon={stat.icon} tone={stat.iconTone} />
-              <div>
-                <p className="text-xs text-[#747B83]">{stat.label}</p>
-                <p className="text-xl font-bold text-[#16263A]">{stat.value}</p>
-              </div>
-            </div>
-          ))}
+        <div className="p-6 lg:p-7 flex flex-col lg:flex-row gap-6 items-center">
+  <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-5 w-full">
+    {fleetStats.map((stat) => (
+      <div
+        key={stat.label}
+        className="flex items-center justify-between rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3] p-5"
+      >
+        {/* Text - Left */}
+        <div>
+          <p className="text-xs text-[#747B83]">
+            {stat.label}
+          </p>
+
+          <p className="text-xl font-bold text-[#16263A]">
+            {stat.value}
+          </p>
         </div>
+
+        {/* Icon - Right */}
+        <IconBox
+          icon={stat.icon}
+          tone={stat.iconTone}
+        />
+      </div>
+    ))}
+  </div>
+</div>
       </Card>
 
       <section>
