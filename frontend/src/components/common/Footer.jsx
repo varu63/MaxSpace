@@ -12,7 +12,7 @@ function Footer(){
             <span>Compliant with EU Battery Regulation 2023/1542 & Digital Product Passport (DPP) Architecture</span>
           </div>
 
-          <div className="flex items-center space-x-6 text-[#747B83]">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-[#747B83]">
             <span className="flex items-center space-x-1.5 hover:text-[#173B5C] cursor-pointer transition-colors font-medium">
               <Leaf className="w-3.5 h-3.5 text-[#B48611]" />
               <span>ESG Carbon Tracing</span>

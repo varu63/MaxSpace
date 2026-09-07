@@ -32,7 +32,7 @@ const Modal = ({ isOpen, onClose, z = 50, children }) => {
 
   return createPortal(
     <div
-      className={`fixed inset-0 ${Z_INDEX[z]} flex items-center justify-center px-6 sm:px-10 lg:px-20 py-6`}
+      className={`fixed inset-0 ${Z_INDEX[z]} flex overflow-y-auto px-4 sm:px-10 lg:px-20 py-6 [&>*]:m-auto`}
     >
       <div
         className="absolute inset-0 bg-[#16263A]/60 backdrop-blur-sm"

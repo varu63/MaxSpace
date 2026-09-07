@@ -236,7 +236,7 @@ const SignInPage = () => {
         </div>
 
         {/* Trust badges */}
-        <div className="mt-6 flex items-center justify-center gap-6 text-[11px] text-[#747B83]">
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[11px] text-[#747B83]">
           <span className="flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-[#B48611]" />
             EU DPP 2023/1542

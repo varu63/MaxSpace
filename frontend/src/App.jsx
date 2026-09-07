@@ -104,7 +104,7 @@ const MainLayout = () => {
   const isFullScreenPage = /^\/battery\/[^/]+\/passport$/.test(location.pathname);
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8F2DE] text-[#16263A]">
+    <div className="min-h-screen flex flex-col overflow-x-hidden bg-[#F8F2DE] text-[#16263A]">
       {!isFullScreenPage && <Sidebar />}
       {!isFullScreenPage && <Header />}
 

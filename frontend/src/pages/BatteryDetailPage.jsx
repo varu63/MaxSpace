@@ -89,7 +89,7 @@ export default function BatteryDetailPage() {
           <h1 className="mt-2 text-2xl lg:text-3xl font-bold">{battery.modelName}</h1>
           <p className="mt-1 text-sm text-[#747B83]">{battery.type}</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <button
             onClick={() => navigate(`/battery/${battery.id}/passport`)}
             className="h-10 px-5 rounded-xl border-2 border-[#B48611] text-[#B48611] text-xs font-semibold hover:bg-[#FBF1C9] transition flex items-center gap-1.5"

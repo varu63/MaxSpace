@@ -116,7 +116,7 @@ export const SectionHeader = React.memo(({
       className={`
         p-6 lg:p-7
         border-b border-[#EEE9DA]
-        flex items-center gap-3
+        flex flex-wrap items-center gap-3
         ${className}
       `}
     >

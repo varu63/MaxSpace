@@ -218,7 +218,7 @@ export const QRBarcodeScannerModal = () => {
 
                 {/* Animated Scanner Viewfinder Overlay */}
                 <div className="absolute inset-0 flex items-center justify-center p-8 pointer-events-none">
-                  <div className="relative w-64 h-64 border-2 border-yellow-400/50 rounded-2xl flex items-center justify-center bg-yellow-400/5">
+                  <div className="relative w-[min(100%,16rem)] aspect-square border-2 border-yellow-400/50 rounded-2xl flex items-center justify-center bg-yellow-400/5">
                     
                     {/* Viewfinder Corner Accents */}
                     <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-yellow-400 rounded-tl-lg"></div>
@@ -438,10 +438,10 @@ export const QRBarcodeScannerModal = () => {
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-4 bg-[#F5F1E7] border-t border-[#EEE9DA] flex items-center justify-between text-xs text-[#747B83]">
-          <div className="flex items-center space-x-2">
-            <ShieldCheck className="w-4 h-4 text-[#B48611]" />
-            <span>Encrypted barcode parsing & ISO 26262 verification</span>
+        <div className="px-6 py-4 bg-[#F5F1E7] border-t border-[#EEE9DA] flex flex-wrap items-center justify-between gap-2 text-xs text-[#747B83]">
+          <div className="flex items-center space-x-2 min-w-0">
+            <ShieldCheck className="w-4 h-4 text-[#B48611] shrink-0" />
+            <span className="truncate">Encrypted barcode parsing &amp; ISO 26262 verification</span>
           </div>
           <button
             onClick={closeScanner}

@@ -618,7 +618,7 @@ export const UserProfileView = () => {
                     "
                   >
 
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
 
                       <div className="
                         w-9 h-9
@@ -631,12 +631,12 @@ export const UserProfileView = () => {
                         <FileText className="w-4 h-4 text-[#173B5C]" />
                       </div>
 
-                      <div>
-                        <h4 className="text-sm font-bold">
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-bold break-words">
                           {log.action}
                         </h4>
 
-                        <p className="mt-1 text-xs text-[#747B83]">
+                        <p className="mt-1 text-xs text-[#747B83] break-words">
                           {log.details}
                         </p>
                       </div>

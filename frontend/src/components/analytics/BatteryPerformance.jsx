@@ -68,44 +68,44 @@ const BatteryPerformance = ({ batteries }) => {
                   </span>
                 </div>
 
-                <div className="mt-4 grid grid-cols-3 gap-3">
-                  <div className="flex items-center gap-2 bg-[#F5F1E7] border border-[#E7E1D3] rounded-xl p-3">
-                    <Zap className="w-4 h-4 text-[#173B5C]" />
+<div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="flex items-center gap-2 bg-[#F5F1E7] border border-[#E7E1D3] rounded-xl p-3 min-w-0">
+                    <Zap className="w-4 h-4 text-[#173B5C] shrink-0" />
 
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-xs text-[#747B83]">
                         Voltage
                       </p>
 
-                      <p className="text-sm font-semibold text-[#16263A]">
+                      <p className="text-sm font-semibold text-[#16263A] truncate">
                         {voltage}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 bg-[#F5F1E7] border border-[#E7E1D3] rounded-xl p-3">
-                    <Gauge className="w-4 h-4 text-[#173B5C]" />
+                  <div className="flex items-center gap-2 bg-[#F5F1E7] border border-[#E7E1D3] rounded-xl p-3 min-w-0">
+                    <Gauge className="w-4 h-4 text-[#173B5C] shrink-0" />
 
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-xs text-[#747B83]">
                         Capacity
                       </p>
 
-                      <p className="text-sm font-semibold text-[#16263A]">
+                      <p className="text-sm font-semibold text-[#16263A] truncate">
                         {capacity}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 bg-[#F5F1E7] border border-[#E7E1D3] rounded-xl p-3">
-                    <CalendarDays className="w-4 h-4 text-[#B48611]" />
+                  <div className="flex items-center gap-2 bg-[#F5F1E7] border border-[#E7E1D3] rounded-xl p-3 min-w-0">
+                    <CalendarDays className="w-4 h-4 text-[#B48611] shrink-0" />
 
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-xs text-[#747B83]">
                         Services
                       </p>
 
-                      <p className="text-sm font-semibold text-[#16263A]">
+                      <p className="text-sm font-semibold text-[#16263A] truncate">
                         {battery.serviceCount ?? 0}
                       </p>
                     </div>

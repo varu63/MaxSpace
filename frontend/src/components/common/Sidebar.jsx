@@ -13,6 +13,7 @@ import {
   BarChart3,
   ChevronRight,
   Settings,
+  LogOut,
 } from "lucide-react";
 
 import { useLocation, useNavigate } from "react-router-dom";
@@ -25,6 +26,7 @@ export const Sidebar = () => {
     openAddBattery,
     isSidebarOpen,
     setIsSidebarOpen,
+    signOut,
   } = useBattery();
 
   const navigate = useNavigate();
@@ -91,7 +93,7 @@ export const Sidebar = () => {
   };
 
   const sidebarContent = (
-    <div className="flex flex-col h-full justify-between bg-[#FFFDF8] text-[#16263A] select-none">
+    <div className="flex flex-col h-full justify-between overflow-y-auto bg-[#FFFDF8] text-[#16263A] select-none">
 
       {/* =====================================================
           TOP SECTION
@@ -347,6 +349,20 @@ export const Sidebar = () => {
           <ChevronRight className="w-4 h-4 text-[#8A9096] shrink-0" />
 
         </div>
+
+        {/* Logout */}
+        <button
+          type="button"
+          onClick={() => {
+            setIsSidebarOpen(false);
+            signOut();
+            navigate("/signin");
+          }}
+          className="w-full flex items-center justify-center space-x-2 px-3.5 py-2.5 rounded-2xl text-red-600 hover:bg-red-50 border border-red-200 font-bold text-xs transition-all shadow-sm"
+        >
+          <LogOut className="w-4 h-4" />
+          <span>Sign Out</span>
+        </button>
 
       </div>
 

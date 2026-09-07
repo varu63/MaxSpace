@@ -434,7 +434,7 @@ const SettingsPage = () => {
           </div>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <button
             type="button"
             onClick={handleReset}
@@ -1072,13 +1072,13 @@ const SettingsPage = () => {
 
       {/* Change Password Modal */}
       {isPasswordModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex overflow-y-auto p-4">
           <div
             className="absolute inset-0 bg-[#16263A]/60 backdrop-blur-sm"
             onClick={closePasswordModal}
           />
 
-          <div className="relative w-full max-w-md bg-[#FFFDF8] rounded-3xl border border-[#EEE9DA] shadow-2xl p-6">
+          <div className="relative w-full max-w-md m-auto max-h-[90vh] overflow-y-auto bg-[#FFFDF8] rounded-3xl border border-[#EEE9DA] shadow-2xl p-6">
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-3">
                 <div className="w-11 h-11 rounded-2xl bg-[#173B5C] text-white flex items-center justify-center">
@@ -1157,13 +1157,13 @@ const SettingsPage = () => {
 
       {/* Restore sample data confirmation modal */}
       {isResetModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex overflow-y-auto p-4">
           <div
             className="absolute inset-0 bg-[#16263A]/60 backdrop-blur-sm"
             onClick={closeResetModal}
           />
 
-          <div className="relative w-full max-w-md bg-[#FFFDF8] rounded-3xl border border-[#EEE9DA] shadow-2xl p-6">
+          <div className="relative w-full max-w-md m-auto max-h-[90vh] overflow-y-auto bg-[#FFFDF8] rounded-3xl border border-[#EEE9DA] shadow-2xl p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-11 h-11 rounded-2xl bg-red-600 text-white flex items-center justify-center">
                 <Trash2 className="w-5 h-5" />
