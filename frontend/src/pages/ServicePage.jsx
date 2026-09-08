@@ -4,9 +4,9 @@ import { Battery } from "lucide-react";
 
 import { useBattery } from "../context/BatteryContext";
 import { bookingsFromServices } from "../data/dummyData";
+import { isActiveBooking } from "../data/serviceStatuses";
 import { PageHeader, Card, EmptyState } from "../components/common";
 import ServiceStats from "../components/services/ServiceStats";
-import BookedServices from "../components/services/BookedServices";
 import ServiceFilters from "../components/services/ServiceFilters";
 import ServiceTable from "../components/services/ServiceTable";
 import ServiceMobileCards from "../components/services/ServiceMobileCards";
@@ -18,7 +18,6 @@ const ServicePage = () => {
   const {
     batteries = [],
     services,
-    setServices,
     bookService,
     openScanner,
     getBatteryServiceStatus,
@@ -27,6 +26,7 @@ const ServicePage = () => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [selectedBattery, setSelectedBattery] = useState(null);
+  const [expandedBatteryId, setExpandedBatteryId] = useState(null);
   const [showBookingModal, setShowBookingModal] = useState(false);
 
   const [bookingForm, setBookingForm] = useState({
@@ -52,10 +52,12 @@ const ServicePage = () => {
   const isBatteryBooked = useCallback(
     (battery) => {
       const batteryId = getBatteryId(battery);
+
+      // Book a battery only when it has no active service in the pipeline.
       return bookings.some(
         (booking) =>
           booking.batteryId === batteryId &&
-          (booking.status === "Booked" || booking.status === "In Progress")
+          isActiveBooking(booking.status)
       );
     },
     [bookings, getBatteryId]
@@ -67,7 +69,7 @@ const ServicePage = () => {
       return bookings.find(
         (booking) =>
           booking.batteryId === batteryId &&
-          (booking.status === "Booked" || booking.status === "In Progress")
+          isActiveBooking(booking.status)
       );
     },
     [bookings, getBatteryId]
@@ -98,15 +100,8 @@ const ServicePage = () => {
       else if (status === "Pending") pending += 1;
     }
 
-    let booked = 0;
-    let completed = 0;
-    for (const booking of bookings) {
-      if (booking.status === "Booked") booked += 1;
-      else if (booking.status === "Completed") completed += 1;
-    }
-
-    return { active, pending, booked, completed };
-  }, [batteries, bookings, getServiceStatus]);
+    return { active, pending };
+  }, [batteries, getServiceStatus]);
 
   const openBookingModal = useCallback(() => {
     if (!selectedBattery || isBatteryBooked(selectedBattery)) return;
@@ -151,21 +146,9 @@ const ServicePage = () => {
     [selectedBattery, bookingForm, isBatteryBooked, bookService, getBatteryId]
   );
 
-  const handleCompleteBooking = useCallback((bookingId) => {
-    setServices((prev) =>
-      prev.map((service) =>
-        service.id === bookingId ? { ...service, status: "Completed" } : service
-      )
-    );
-  }, [setServices]);
-
-  const handleCancelBooking = useCallback((bookingId) => {
-    setServices((prev) =>
-      prev.map((service) =>
-        service.id === bookingId ? { ...service, status: "Cancelled" } : service
-      )
-    );
-  }, [setServices]);
+  const handleToggleExpand = useCallback((batteryId) => {
+    setExpandedBatteryId((prev) => (prev === batteryId ? null : batteryId));
+  }, []);
 
   return (
     <div className="w-full space-y-8">
@@ -188,8 +171,6 @@ const ServicePage = () => {
 
       <ServiceStats stats={serviceStats} />
 
-      <BookedServices bookings={bookings} onComplete={handleCompleteBooking} onCancel={handleCancelBooking} />
-
       <Card padded={false} className="overflow-hidden">
         <ServiceFilters
           search={search}
@@ -198,7 +179,15 @@ const ServicePage = () => {
           setStatusFilter={setStatusFilter}
         />
 
-        <ServiceTable batteries={filteredBatteries} bookings={bookings} getBatteryId={getBatteryId} onSelectBattery={setSelectedBattery} />
+        <ServiceTable
+          batteries={filteredBatteries}
+          bookings={bookings}
+          getBatteryId={getBatteryId}
+          getServiceStatus={getServiceStatus}
+          onSelectBattery={setSelectedBattery}
+          expandedId={expandedBatteryId}
+          onToggle={handleToggleExpand}
+        />
 
         <ServiceMobileCards
           batteries={filteredBatteries}
@@ -206,6 +195,8 @@ const ServicePage = () => {
           getBatteryId={getBatteryId}
           getServiceStatus={getServiceStatus}
           onSelectBattery={setSelectedBattery}
+          expandedId={expandedBatteryId}
+          onToggle={handleToggleExpand}
         />
 
         {filteredBatteries.length === 0 && (

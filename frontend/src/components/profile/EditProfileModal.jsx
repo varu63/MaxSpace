@@ -17,7 +17,6 @@ const EditProfileForm = ({ onClose }) => {
     title: userProfile.title,
     email: userProfile.email,
     phone: userProfile.phone,
-    company: userProfile.company,
     location: userProfile.location,
     avatar: userProfile.avatar,
     fleetType: userProfile.fleetType,
@@ -104,16 +103,6 @@ const EditProfileForm = ({ onClose }) => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block font-bold text-[#16263A] mb-1.5">Organization / Company</label>
-              <input
-                type="text"
-                value={formData.company}
-                onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-[#F5F1E7] border border-[#E7E1D3] text-[#16263A] focus:outline-none focus:border-[#173B5C] font-medium"
-              />
-            </div>
-
             <div>
               <label className="block font-bold text-[#16263A] mb-1.5">Location / City</label>
               <input

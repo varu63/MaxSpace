@@ -167,9 +167,6 @@ export const UserProfileView = () => {
             <h1 className="text-2xl sm:text-3xl font-bold text-[#16263A]">
               {profile.name || "admin"}
             </h1>
-            <span className="px-3 py-1 rounded-full bg-[#FBF1C9] text-[#A77A08] border border-[#F0E6C8] text-[11px] font-black">
-              DPP OPERATOR
-            </span>
           </div>
 
           <p className="mt-1 text-sm font-semibold text-[#8A7A4A]">

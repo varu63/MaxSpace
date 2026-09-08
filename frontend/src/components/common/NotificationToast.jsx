@@ -21,6 +21,9 @@ export const NotificationToast = () => {
             {toast.type === 'warning' && (
               <AlertCircle className="w-5 h-5 text-amber-600" />
             )}
+            {toast.type === 'error' && (
+              <AlertCircle className="w-5 h-5 text-red-500" />
+            )}
             {toast.type === 'info' && (
               <Info className="w-5 h-5 text-[#8A9096]" />
             )}

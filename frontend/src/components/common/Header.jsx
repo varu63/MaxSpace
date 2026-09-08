@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBattery } from "../../context/BatteryContext";
 import { QrCode, Bell, Menu, User, LogOut, ChevronDown } from "lucide-react";

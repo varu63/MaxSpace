@@ -338,10 +338,6 @@ export const Sidebar = () => {
                 {userProfile.name}
               </p>
 
-              <p className="text-[10px] text-[#8A7A4A] font-medium truncate leading-tight">
-                {userProfile.company}
-              </p>
-
             </div>
 
           </div>

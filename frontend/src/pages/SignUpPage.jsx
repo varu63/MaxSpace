@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   User,
@@ -15,7 +15,7 @@ import {
 import { useBattery } from "../context/BatteryContext";
 
 const SignUpPage = () => {
-  const { signUp } = useBattery();
+  const { signUp, addToast } = useBattery();
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
@@ -58,7 +58,6 @@ const SignUpPage = () => {
       nextErrors.email = "Enter a valid email address.";
     }
 
-   
     if (!form.password) {
       nextErrors.password = "Password is required.";
     } else if (form.password.length < 6) {
@@ -79,20 +78,30 @@ const SignUpPage = () => {
     return Object.keys(nextErrors).length === 0;
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
     if (!validate()) return;
 
     setSubmitting(true);
 
-    setTimeout(() => {
-      signUp({
+    try {
+      // Register with the backend; navigate only on success
+      await signUp({
         name: form.name.trim(),
         email: form.email.trim(),
+        password: form.password,
+        confirmPassword: form.confirmPassword,
       });
       navigate("/home");
-    }, 600);
+    } catch (error) {
+      addToast(
+        "Sign Up Failed",
+        error?.message || "Could not create account.",
+        "error",
+      );
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -107,16 +116,13 @@ const SignUpPage = () => {
               className="w-full h-full object-scale-down"
             />
           </div>
-
           <h1 className="text-2xl font-black tracking-tight text-[#16263A]">
             Create your MaxSpace account
           </h1>
-
           <p className="text-sm text-[#747B83] mt-1">
             Start managing your battery fleet &amp; passports
           </p>
         </div>
-
         {/* Card */}
         <div className="glass-card rounded-3xl p-6 sm:p-8">
           <form onSubmit={handleSubmit} noValidate className="space-y-4">
@@ -128,7 +134,6 @@ const SignUpPage = () => {
               >
                 Full Name
               </label>
-
               <div
                 className={`flex items-center gap-2.5 px-3.5 rounded-xl bg-[#F5F1E7] border transition-colors ${
                   errors.name
@@ -141,20 +146,16 @@ const SignUpPage = () => {
                   id="name"
                   type="text"
                   value={form.name}
-                  onChange={(event) =>
-                    updateField("name", event.target.value)
-                  }
+                  onChange={(event) => updateField("name", event.target.value)}
                   placeholder="Alex Rivera"
                   autoComplete="name"
                   className="w-full py-3 bg-transparent text-sm text-[#16263A] placeholder:text-[#8A9096] focus:outline-none"
                 />
               </div>
-
               {errors.name && (
                 <p className="mt-1 text-xs text-red-600">{errors.name}</p>
               )}
             </div>
-
             {/* Email */}
             <div>
               <label
@@ -163,7 +164,6 @@ const SignUpPage = () => {
               >
                 Email
               </label>
-
               <div
                 className={`flex items-center gap-2.5 px-3.5 rounded-xl bg-[#F5F1E7] border transition-colors ${
                   errors.email
@@ -176,21 +176,16 @@ const SignUpPage = () => {
                   id="email"
                   type="email"
                   value={form.email}
-                  onChange={(event) =>
-                    updateField("email", event.target.value)
-                  }
+                  onChange={(event) => updateField("email", event.target.value)}
                   placeholder="you@gmail.com"
                   autoComplete="email"
                   className="w-full py-3 bg-transparent text-sm text-[#16263A] placeholder:text-[#8A9096] focus:outline-none"
                 />
               </div>
-
               {errors.email && (
                 <p className="mt-1 text-xs text-red-600">{errors.email}</p>
               )}
             </div>
-
-          
             {/* Password */}
             <div>
               <label

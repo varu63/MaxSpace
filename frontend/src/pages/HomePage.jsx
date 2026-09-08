@@ -16,6 +16,7 @@ import {
   Card,
   SectionHeader,
   IconBox,
+  FAQ,
 } from "../components/common";
 import { useBattery } from "../context/BatteryContext";
 
@@ -145,6 +146,8 @@ export default function HomePage() {
           ))}
         </div>
       </section>
+
+      <FAQ />
     </div>
   );
 }

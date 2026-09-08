@@ -4,6 +4,7 @@
    this dataset so totals, IDs, statuses, and dates stay
    consistent everywhere.
  ============================================================ */
+import { isActiveService, isCancelledService } from "./serviceStatuses";
 
 /* ------------------------------------------------------------
    BATTERIES
@@ -239,6 +240,175 @@ export const batteries = [
       { date: "2025-09", soh: 78.5 },
       { date: "2026-06", soh: 76.2 }
     ]
+  },
+  {
+    id: "batt-5",
+    barcode: "BATT-DRONE-220-LFPQ",
+    qrCode: "https://passport.battery-eu.org/passports/BATT-DRONE-220-LFPQ",
+    name: "Skyline UAV Power Pack 6.4",
+    modelName: "Skyline UAV Power Pack 6.4",
+    model: "Skyline UAV Power Pack 6.4",
+    type: "Aerial & UAV Market",
+    manufacturer: "Voltaic Air Mobility GmbH",
+    serialNumber: "SN-2025-UAV-88902",
+    chemistry: "LFP-Q (Lithium Iron Phosphate Quick)",
+    capacityKwh: 6.4,
+    capacity: "6.4 kWh",
+    nominalVoltage: "51.2 V",
+    voltage: "51.2 V",
+    weightKg: 28.6,
+    dimensionsMm: "420 x 260 x 180",
+    manufactureDate: "2025-01-20",
+    assemblyLocation: "Munich, Germany",
+    location: "Munich, Germany",
+    cells: 4,
+    stateOfHealth: 94.2,
+    stateOfCharge: 81,
+    cycleCount: 310,
+    maxRatedCycles: 2500,
+    internalResistanceMOhms: 21.4,
+    operatingTempC: 26.8,
+    carbonFootprintKgPerKwh: 61.0,
+    recycledContent: {
+      cobalt: 0,
+      nickel: 8,
+      lithium: 14,
+      lead: 0
+    },
+    warranty: {
+      status: "Active",
+      startDate: "2025-01-20",
+      endDate: "2028-01-20",
+      remainingDays: 521,
+      terms: "3 Years UAV Duty Cycle Coverage",
+      provider: "Voltaic Air Assurance",
+      certificateNumber: "WAR-2025-UAV-5120"
+    },
+    complianceStandards: [
+      "EU Battery Regulation 2023/1542",
+      "EN 4709-002 UAV Safety",
+      "UN 38.3 Transport Certified"
+    ],
+    dismantlingManual: "Isolate quick-disconnect rail, remove BMS cover, discharge cell brick to storage voltage before recycling.",
+    healthHistory: [
+      { date: "2025-01", soh: 100 },
+      { date: "2025-07", soh: 97.1 },
+      { date: "2026-01", soh: 95.4 },
+      { date: "2026-07", soh: 94.2 }
+    ]
+  },
+  {
+    id: "batt-6",
+    barcode: "BATT-TOOL-180-PROMO",
+    qrCode: "https://passport.battery-eu.org/passports/BATT-TOOL-180-PROMO",
+    name: "ProTeleMax Worksite Power 18",
+    modelName: "ProTeleMax Worksite Power 18",
+    model: "ProTeleMax Worksite Power 18",
+    type: "Industrial Cordless Equipment",
+    manufacturer: "Rotterdam BlueCharge BV",
+    serialNumber: "SN-2025-TLS-77641",
+    chemistry: "LFP (Lithium Iron Phosphate)",
+    capacityKwh: 1.8,
+    capacity: "1.8 kWh",
+    nominalVoltage: "20 V",
+    voltage: "20 V",
+    weightKg: 3.2,
+    dimensionsMm: "180 x 120 x 95",
+    manufactureDate: "2025-04-14",
+    assemblyLocation: "Rotterdam, Netherlands",
+    location: "Rotterdam, Netherlands",
+    cells: 4,
+    stateOfHealth: 90.8,
+    stateOfCharge: 47,
+    cycleCount: 540,
+    maxRatedCycles: 3000,
+    internalResistanceMOhms: 26.3,
+    operatingTempC: 24.0,
+    carbonFootprintKgPerKwh: 59.8,
+    recycledContent: {
+      cobalt: 0,
+      nickel: 6,
+      lithium: 16,
+      lead: 0
+    },
+    warranty: {
+      status: "Active",
+      startDate: "2025-04-14",
+      endDate: "2027-04-14",
+      remainingDays: 220,
+      terms: "2 Years Tool Warranty (Commercial Use)",
+      provider: "BlueCharge Professional Care",
+      certificateNumber: "WAR-2025-TLS-1430"
+    },
+    complianceStandards: [
+      "EU Battery Regulation 2023/1542",
+      "EN 62841-1 Tool Safety",
+      "UN 38.3 Safe Transport"
+    ],
+    dismantlingManual: "Slide contact plate off, unlock SMBus connector, separate electronics tray for reuse and cell pack for recycling.",
+    healthHistory: [
+      { date: "2025-04", soh: 100 },
+      { date: "2025-10", soh: 95.0 },
+      { date: "2026-04", soh: 92.1 },
+      { date: "2026-08", soh: 90.8 }
+    ]
+  },
+  {
+    id: "batt-7",
+    barcode: "BATT-FORK-460-LFP",
+    qrCode: "https://passport.battery-eu.org/passports/BATT-FORK-460-LFP",
+    name: "WarehouseMax Forklift Cell 40",
+    modelName: "WarehouseMax Forklift Cell 40",
+    model: "WarehouseMax Forklift Cell 40",
+    type: "Material Handling Equipment",
+    manufacturer: "HafenPower Logistics GmbH",
+    serialNumber: "SN-2024-FRKL-22831",
+    chemistry: "LFP (Lithium Iron Phosphate)",
+    capacityKwh: 40.0,
+    capacity: "40.0 kWh",
+    nominalVoltage: "80 V",
+    voltage: "80 V",
+    weightKg: 320,
+    dimensionsMm: "980 x 640 x 420",
+    manufactureDate: "2024-07-03",
+    assemblyLocation: "Hamburg, Germany",
+    location: "Hamburg, Germany",
+    cells: 4,
+    stateOfHealth: 83.6,
+    stateOfCharge: 52,
+    cycleCount: 1180,
+    maxRatedCycles: 5000,
+    internalResistanceMOhms: 38.7,
+    operatingTempC: 31.5,
+    carbonFootprintKgPerKwh: 81.2,
+    recycledContent: {
+      cobalt: 0,
+      nickel: 9,
+      lithium: 12,
+      lead: 0
+    },
+    warranty: {
+      status: "Expiring Soon",
+      startDate: "2024-07-03",
+      endDate: "2026-10-03",
+      remainingDays: 25,
+      terms: "2 Years Forklift Duty Coverage",
+      provider: "HafenPower Industrial Care",
+      certificateNumber: "WAR-2024-FRKL-2290"
+    },
+    complianceStandards: [
+      "EU Battery Regulation 2023/1542",
+      "EN 1175 Forklift Safety",
+      "UN 38.3 Train Transport Certified"
+    ],
+    dismantlingManual: "Use side-rail extraction sled, open HV interlock, remove module bolts and transfer cells to certified LiFePO4 recycler.",
+    healthHistory: [
+      { date: "2024-07", soh: 100 },
+      { date: "2025-01", soh: 96.2 },
+      { date: "2025-07", soh: 91.8 },
+      { date: "2026-01", soh: 86.5 },
+      { date: "2026-07", soh: 83.6 }
+    ]
   }
 ];
 
@@ -258,9 +428,58 @@ export const services = [
     status: "Confirmed",
     priority: "Normal",
     technician: "Markus Vance (Cert #8812)",
-    notes: "Regular 30,000 km health validation and BMS thermal map optimization.",
+    notes: "Regular 30,000 km health validation and BMS thermal map optimization. Waiting for admin approval.",
     cost: "$0.00 (Warranty Covered)",
     createdAt: "2026-08-25"
+  },
+  {
+    id: "srv-105",
+    ticketNumber: "SRV-2026-9520",
+    batteryId: "batt-5",
+    batteryName: "Skyline UAV Power Pack 6.4",
+    serviceType: "Propulsion Performance Validation",
+    center: "Voltaic Air Service Hangar - Munich",
+    scheduledDate: "2026-09-15",
+    scheduledTime: "08:30 AM",
+    status: "Accepted",
+    priority: "Normal",
+    technician: "",
+    notes: "Admin accepted. Service center confirmed the slot, technician not yet assigned.",
+    cost: "$0.00 (Warranty Covered)",
+    createdAt: "2026-08-27"
+  },
+  {
+    id: "srv-106",
+    ticketNumber: "SRV-2026-9371",
+    batteryId: "batt-6",
+    batteryName: "ProTeleMax Worksite Power 18",
+    serviceType: "Capacity Recovery & Pack Rebalancing",
+    center: "BlueCharge Mobile Workshop - Rotterdam",
+    scheduledDate: "2026-09-10",
+    scheduledTime: "01:00 PM",
+    status: "Assigned",
+    priority: "High",
+    technician: "Lars De Vries (Cert #7721)",
+    notes: "Service person assigned and dispatched with a rebalancing rig.",
+    cost: "$65.00",
+    createdAt: "2026-08-28"
+  },
+  {
+    id: "srv-107",
+    ticketNumber: "SRV-2026-9204",
+    batteryId: "batt-7",
+    batteryName: "WarehouseMax Forklift Cell 40",
+    serviceType: "In-Site Health Diagnostics",
+    center: "HafenPower On-Site Service - Hamburg",
+    scheduledDate: "2026-09-09",
+    scheduledTime: "03:00 PM",
+    status: "On The Way",
+    priority: "High",
+    technician: "Oliver Brandt (Cert #9983)",
+    estimatedArrival: "2026-09-09 03:40 PM",
+    notes: "Service van dispatched, technician on route to the warehouse.",
+    cost: "$90.00",
+    createdAt: "2026-08-30"
   },
   {
     id: "srv-102",
@@ -293,46 +512,7 @@ export const services = [
     notes: "Health assessed at 76.2%. Approved for second-life 48V microgrid buffer deployment.",
     cost: "$350.00",
     createdAt: "2026-08-01"
-  },
-  {
-    id: "srv-104",
-    ticketNumber: "SRV-2026-6410",
-    batteryId: "batt-2",
-    batteryName: "SolarStorage PowerCell 15k",
-    serviceType: "Annual Thermal System Inspection",
-    center: "EcoVolt Certified Hub - Central Berlin",
-    scheduledDate: "2026-05-18",
-    scheduledTime: "09:00 AM",
-    status: "Completed",
-    priority: "Low",
-    technician: "Sarah Chen (Energy Systems)",
-    notes: "Thermal paste checked, coolant flow nominal, zero degradation anomalies.",
-    cost: "$0.00 (Warranty Covered)",
-    createdAt: "2026-05-10"
   }
-];
-
-/* ------------------------------------------------------------
-   SERVICE STATUSES (used by filters + derived per-battery status)
------------------------------------------------------------- */
-export const serviceStatuses = [
-  "Confirmed",
-  "In Progress",
-  "Completed",
-  "Cancelled",
-];
-
-/* ------------------------------------------------------------
-   LOCATIONS (assembly + service centers, derived from data)
------------------------------------------------------------- */
-export const locations = [
-  "Salzgitter, Germany",
-  "Katowice, Poland",
-  "Lyon, France",
-  "Gothenburg, Sweden",
-  "EcoVolt Certified Hub - Central Berlin",
-  "Ampere Mobility Care - Paris/Lyon",
-  "Nordic Circular Energy Labs - Gothenburg",
 ];
 
 /* ------------------------------------------------------------
@@ -343,7 +523,6 @@ export const initialUserProfile = {
   title: "Clean Mobility & Energy Fleet Director",
   email: "alex.rivera@maxspace-energy.com",
   phone: "+49 (30) 8492-4910",
-  company: "MaxSpace Energy & Green Logistics",
   location: "Berlin, Germany / Austin, TX",
   memberSince: "January 2024",
   avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80",
@@ -444,14 +623,16 @@ export const getBatteryServiceStatus = (
   const records = serviceRecords.filter(
     (service) =>
       service.batteryId === batteryId &&
-      service.status !== "Cancelled"
+      !isCancelledService(service.status)
   );
 
   if (records.length === 0) {
     return "Pending";
   }
 
-  if (records.some((s) => s.status === "In Progress")) {
+  // Once a service is accepted/assigned/on-the-way/in-progress it counts
+  // as an active service (same bucket the Home page and filters use).
+  if (records.some((s) => isActiveService(s.status))) {
     return "Active";
   }
 
@@ -464,7 +645,7 @@ export const getBatteryServiceStatus = (
 
 /* Map a raw service record into the booking shape used by the
    Service / Analytics views. "Confirmed" is shown as "Booked". */
-export const serviceToBooking = (service) => ({
+const serviceToBooking = (service) => ({
   id: service.id,
   ticketNumber: service.ticketNumber,
   batteryId: service.batteryId,
@@ -478,6 +659,7 @@ date: service.scheduledDate,
   cost: service.cost,
   priority: service.priority,
   technician: service.technician,
+  estimatedArrival: service.estimatedArrival,
   status:
     service.status === "Confirmed"
       ? "Booked"
@@ -501,6 +683,6 @@ export const getBatteryServiceCount = (
   return serviceRecords.filter(
     (service) =>
       service.batteryId === batteryId &&
-      service.status !== "Cancelled"
+      !isCancelledService(service.status)
   ).length;
 };

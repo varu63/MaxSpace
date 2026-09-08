@@ -9,12 +9,14 @@ import {
   Zap,
   ArrowRight,
   BatteryCharging,
+  X,
 } from "lucide-react";
 
 import { useBattery } from "../context/BatteryContext";
+import { forgotPassword } from "../services/api";
 
 const SignInPage = () => {
-  const { signIn } = useBattery();
+  const { signIn, addToast } = useBattery();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
@@ -22,6 +24,12 @@ const SignInPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
+
+  const [isForgotOpen, setIsForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotError, setForgotError] = useState("");
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
 
   const validate = () => {
     const nextErrors = {};
@@ -42,17 +50,54 @@ const SignInPage = () => {
     return Object.keys(nextErrors).length === 0;
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
     if (!validate()) return;
 
     setSubmitting(true);
 
-    setTimeout(() => {
-      signIn({ email: email.trim() });
+    try {
+      // Authenticate with the backend; navigate only on success
+      await signIn({ email: email.trim(), password });
       navigate("/home");
-    }, 600);
+    } catch (error) {
+      addToast("Sign In Failed", error?.message || "Invalid email or password.", "error");
+      setSubmitting(false);
+    }
+  };
+
+  const openForgot = () => {
+    setForgotEmail(email.trim() || "");
+    setForgotError("");
+    setForgotSent(false);
+    setIsForgotOpen(true);
+  };
+
+  const closeForgot = () => {
+    setIsForgotOpen(false);
+    setForgotEmail("");
+    setForgotError("");
+    setForgotSent(false);
+  };
+
+  const handleForgotSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!forgotEmail.trim()) {
+      setForgotError("Email is required.");
+      return;
+    }
+
+    setForgotSubmitting(true);
+    try {
+      await forgotPassword(forgotEmail.trim());
+      setForgotSent(true);
+    } catch (error) {
+      setForgotError(error?.message || "Something went wrong. Please try again.");
+    } finally {
+      setForgotSubmitting(false);
+    }
   };
 
   return (
@@ -133,6 +178,7 @@ const SignInPage = () => {
 
                 <button
                   type="button"
+                  onClick={openForgot}
                   className="text-xs text-[#B48611] hover:text-[#8A7A4A] font-semibold"
                 >
                   Forgot password?
@@ -253,6 +299,88 @@ const SignInPage = () => {
           </span>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      {isForgotOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-[#16263A]/60 backdrop-blur-sm" onClick={closeForgot} />
+          <div className="relative w-full max-w-sm bg-[#FFFDF8] rounded-2xl shadow-xl border border-[#EEE9DA] p-6">
+            <button
+              type="button"
+              onClick={closeForgot}
+              className="absolute top-4 right-4 w-8 h-8 rounded-lg bg-[#F5F1E7] flex items-center justify-center hover:bg-[#E7E1D3] transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[#F5F1E7] mb-3">
+                <Mail className="w-5 h-5 text-[#B48611]" />
+              </div>
+              <h3 className="text-lg font-bold text-[#16263A]">Reset Password</h3>
+              <p className="text-sm text-[#747B83] mt-1">
+                Enter your email and we'll send you a reset link.
+              </p>
+            </div>
+
+            {forgotSent ? (
+              <div className="text-center">
+                <p className="text-sm text-[#16263A] mb-4">
+                  If an account exists with <strong>{forgotEmail}</strong>, a password reset link has been sent to your inbox.
+                </p>
+                <button
+                  type="button"
+                  onClick={closeForgot}
+                  className="w-full py-2.5 rounded-xl bg-[#173B5C] text-white font-bold text-sm hover:bg-[#102F4A] transition-colors"
+                >
+                  Back to Sign In
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgotSubmit} className="space-y-4">
+                <div>
+                  <label htmlFor="forgot-email" className="block text-xs font-bold text-[#16263A] mb-1.5">
+                    Email Address
+                  </label>
+                  <div className="flex items-center gap-2.5 px-3.5 rounded-xl bg-[#F5F1E7] border border-[#E7E1D3] focus-within:border-[#173B5C] transition-colors">
+                    <Mail className="w-4 h-4 text-[#8A9096] shrink-0" />
+                    <input
+                      id="forgot-email"
+                      type="email"
+                      value={forgotEmail}
+                      onChange={(e) => {
+                        setForgotEmail(e.target.value);
+                        if (forgotError) setForgotError("");
+                      }}
+                      placeholder="you@company.com"
+                      autoComplete="email"
+                      className="w-full py-3 bg-transparent text-sm text-[#16263A] placeholder:text-[#8A9096] focus:outline-none"
+                    />
+                  </div>
+                  {forgotError && (
+                    <p className="mt-1 text-xs text-red-600">{forgotError}</p>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={forgotSubmitting}
+                  className="w-full py-2.5 rounded-xl bg-[#173B5C] text-white font-bold text-sm hover:bg-[#102F4A] active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {forgotSubmitting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      Sending…
+                    </span>
+                  ) : (
+                    "Send Reset Link"
+                  )}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

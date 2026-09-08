@@ -25,6 +25,7 @@ import {
   AtSign,
 } from "lucide-react";
 import { useBattery } from "../context/BatteryContext";
+import { changePassword as changePasswordApi, getErrorMessage } from "../services/api";
 
 const DEFAULT_SETTINGS = {
   emailNotifications: true,
@@ -144,7 +145,6 @@ const SettingsPage = () => {
     title: userProfile?.title || "",
     email: userProfile?.email || "",
     phone: userProfile?.phone || "",
-    company: userProfile?.company || "",
     location: userProfile?.location || "",
   });
 
@@ -245,7 +245,6 @@ const SettingsPage = () => {
       title: profileForm.title,
       email: profileForm.email,
       phone: profileForm.phone,
-      company: profileForm.company,
       location: profileForm.location,
     });
 
@@ -279,7 +278,7 @@ const SettingsPage = () => {
     }));
   };
 
-  const handlePasswordSubmit = (event) => {
+  const handlePasswordSubmit = async (event) => {
     event.preventDefault();
 
     if (!passwordForm.current || !passwordForm.next) {
@@ -309,11 +308,24 @@ const SettingsPage = () => {
       return;
     }
 
-    addToast(
-      "Password Changed",
-      "Your password was updated successfully."
-    );
-    closePasswordModal();
+    try {
+      // Persist the new password to the backend
+      await changePasswordApi({
+        currentPassword: passwordForm.current,
+        newPassword: passwordForm.next,
+      });
+      addToast(
+        "Password Changed",
+        "Your password was updated successfully."
+      );
+      closePasswordModal();
+    } catch (error) {
+      addToast(
+        "Password Change Failed",
+        getErrorMessage(error),
+        "error"
+      );
+    }
   };
 
   /* =====================================================
@@ -617,11 +629,6 @@ const SettingsPage = () => {
                     label="Job Title"
                     value={profileForm.title}
                     onChange={handleProfileChange("title")}
-                  />
-                  <Field
-                    label="Company"
-                    value={profileForm.company}
-                    onChange={handleProfileChange("company")}
                   />
                   <Field
                     label="Location"

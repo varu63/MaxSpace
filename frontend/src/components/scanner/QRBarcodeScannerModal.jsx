@@ -62,13 +62,13 @@ export const QRBarcodeScannerModal = () => {
 
   if (!isScannerOpen) return null;
 
-  const handleProcessBarcode = (code) => {
+  const handleProcessBarcode = async (code) => {
     if (!code || !code.trim()) return;
 
     const trimmed = code.trim();
 
-    // Check if this battery exists in user's fleet
-    const existingBattery = findBatteryByBarcode(trimmed);
+    // Look up the barcode against the backend fleet (fails back to "new")
+    const existingBattery = await findBatteryByBarcode(trimmed);
 
     if (existingBattery) {
       setRecentScanResult({

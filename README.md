@@ -179,7 +179,6 @@ MaxSpace/
             ├── services/
             │   ├── BookServiceModal.jsx
             │   ├── BatteryServiceModal.jsx
-            │   ├── BookedServices.jsx
             │   ├── ServiceTable.jsx
             │   ├── ServiceMobileCards.jsx
             │   ├── ServiceStats.jsx
@@ -307,7 +306,7 @@ Changes persist automatically via `useEffect` watchers in the context provider.
 | **HomePage**             | Fleet dashboard with stat cards, fleet status summary, battery card grid |
 | **BatteryDetailPage**    | Full battery specs: SoH, SoC, cycles, warranty, compliance, health history |
 | **BatteryPassportPage**  | Full-screen EU Battery Passport with gold-framed compliance layout       |
-| **ServicePage**          | Service center: stats, booked services, filterable table + mobile cards  |
+| **ServicePage**          | Service center: stats, filterable table + mobile cards                |
 | **AnalyticsPage**        | Analytics: fleet health chart, service analytics, performance metrics    |
 | **ProfilePage**          | Operator profile with hero, account info, notifications, activity log    |
 | **SettingPage**          | Multi-section settings: general, account, appearance, security, data     |

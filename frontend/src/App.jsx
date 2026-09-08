@@ -3,10 +3,12 @@ import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ChevronUp } from "lucide-react";
 
 import { BatteryProvider, useBattery } from "./context/BatteryContext";
+import { AdminProvider, useAdmin } from "./context/AdminContext";
 
 import Sidebar from "./components/common/Sidebar";
 import Header from "./components/common/Header";
 import Footer from "./components/common/Footer";
+import LoadingSpinner from "./components/common/LoadingSpinner";
 import { NotificationToast } from "./components/common/NotificationToast";
 import { QRBarcodeScannerModal } from "./components/scanner/QRBarcodeScannerModal";
 import FloatingDownloadButton from "./components/common/FloatingDownloadButton";
@@ -21,11 +23,23 @@ const BatteryPassportPage = lazy(() => import("./pages/BatteryPassportPage"));
 const SignInPage = lazy(() => import("./pages/SignInPage"));
 const SignUpPage = lazy(() => import("./pages/SignUpPage"));
 
-const PageLoader = () => (
-  <div className="flex items-center justify-center min-h-[50vh]">
-    <div className="w-8 h-8 border-2 border-[#E7E1D3] border-t-[#173B5C] rounded-full animate-spin" />
-  </div>
+const AdminLoginPage = lazy(() => import("./pages/admin/AdminLoginPage"));
+const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
+const AdminDashboardPage = lazy(() => import("./pages/admin/AdminDashboardPage"));
+const AdminServiceRequestsPage = lazy(() =>
+  import("./pages/admin/AdminServiceRequestsPage")
 );
+const AdminServiceDetailsPage = lazy(() =>
+  import("./pages/admin/AdminServiceDetailsPage")
+);
+const AdminServicePersonsPage = lazy(() =>
+  import("./pages/admin/AdminServicePersonsPage")
+);
+const AdminCustomersPage = lazy(() => import("./pages/admin/AdminCustomersPage"));
+const AdminAnalyticsPage = lazy(() => import("./pages/admin/AdminAnalyticsPage"));
+const AdminProfilePage = lazy(() => import("./pages/admin/AdminProfilePage"));
+
+const PageLoader = () => <LoadingSpinner />;
 
 const ThemeSync = () => {
   useEffect(() => {
@@ -94,6 +108,44 @@ const PublicOnlyRoute = ({ children }) => {
 
   if (isAuthenticated) {
     return <Navigate to="/home" replace />;
+  }
+
+  return children;
+};
+
+/* ============================================================
+   ADMIN GUARDS
+   - AdminPublicOnlyRoute: /admin/login is only for guests.
+   - AdminPrivateRoute: requires an authenticated ADMIN session
+     verified against the backend (token + role check).
+   Any non-admin user is redirected away from /admin/* entirely.
+============================================================ */
+const AdminPublicOnlyRoute = ({ children }) => {
+  const { isAdminAuthenticated, verifying } = useAdmin();
+
+  if (verifying) {
+    return <PageLoader />;
+  }
+
+  if (isAdminAuthenticated) {
+    return <Navigate to="/admin" replace />;
+  }
+
+  return children;
+};
+
+const AdminPrivateRoute = ({ children }) => {
+  const { isAdminAuthenticated, verifying } = useAdmin();
+
+  if (verifying) {
+    return <PageLoader />;
+  }
+
+  // Not authenticated as admin (or no stored token) → login.
+  // The backend independently enforces the ADMIN role on every
+  // admin API via requireAdmin, so we never trust the frontend alone.
+  if (!isAdminAuthenticated) {
+    return <Navigate to="/admin/login" replace />;
   }
 
   return children;
@@ -184,29 +236,62 @@ const MainLayout = () => {
 const App = () => {
   return (
     <BatteryProvider>
-      <ThemeSync />
-      <Suspense fallback={<PageLoader />}>
-        <Routes>
-          <Route
-            path="/signin"
-            element={
-              <PublicOnlyRoute>
-                <SignInPage />
-              </PublicOnlyRoute>
-            }
-          />
-          <Route
-            path="/signup"
-            element={
-              <PublicOnlyRoute>
-                <SignUpPage />
-              </PublicOnlyRoute>
-            }
-          />
-          <Route path="/*" element={<MainLayout />} />
-        </Routes>
-      </Suspense>
-      <NotificationToast />
+      <AdminProvider>
+        <ThemeSync />
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route
+              path="/signin"
+              element={
+                <PublicOnlyRoute>
+                  <SignInPage />
+                </PublicOnlyRoute>
+              }
+            />
+            <Route
+              path="/signup"
+              element={
+                <PublicOnlyRoute>
+                  <SignUpPage />
+                </PublicOnlyRoute>
+              }
+            />
+
+            {/* ============ ADMIN PANEL ============ */}
+            <Route
+              path="/admin/login"
+              element={
+                <AdminPublicOnlyRoute>
+                  <AdminLoginPage />
+                </AdminPublicOnlyRoute>
+              }
+            />
+
+            <Route
+              path="/admin"
+              element={
+                <AdminPrivateRoute>
+                  <AdminLayout />
+                </AdminPrivateRoute>
+              }
+            >
+              <Route index element={<AdminDashboardPage />} />
+              <Route path="services" element={<AdminServiceRequestsPage />} />
+              <Route
+                path="services/:id"
+                element={<AdminServiceDetailsPage />}
+              />
+              <Route path="service-persons" element={<AdminServicePersonsPage />} />
+              <Route path="customers" element={<AdminCustomersPage />} />
+              <Route path="analytics" element={<AdminAnalyticsPage />} />
+              <Route path="profile" element={<AdminProfilePage />} />
+            </Route>
+
+            <Route path="/*" element={<MainLayout />} />
+          </Routes>
+        </Suspense>
+        <NotificationToast />
+      </AdminProvider>
     </BatteryProvider>
   );
 };
