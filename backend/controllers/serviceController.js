@@ -81,6 +81,17 @@ export const createService = asyncHandler(async (req, res) => {
     notes: data.notes || "Routine check requested by owner.",
     cost: data.cost || "$0.00 (Warranty Covered)",
     createdAt: todayISO(),
+    history: [
+      {
+        id: `hist-${Date.now()}`,
+        status: "Confirmed",
+        action: "Service Created",
+        performedBy: "USER",
+        performedByName: req.user?.name || "Customer",
+        notes: "Service request created",
+        timestamp: new Date().toISOString(),
+      },
+    ],
   };
 
   store.createService(newService);
@@ -109,6 +120,16 @@ export const updateService = asyncHandler(async (req, res) => {
   }
 
   const updated = store.updateService(req.params.id, { ...restFields, ...(status ? { status } : {}) });
+
+  if (status) {
+    store.addServiceHistory(req.params.id, {
+      status,
+      action: `Service ${status}`,
+      performedBy: "USER",
+      performedByName: req.user?.name || "Customer",
+      notes: `Status changed to ${status}`,
+    });
+  }
 
   if (status === "Completed") {
     store.logActivity(

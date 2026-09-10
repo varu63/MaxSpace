@@ -7,9 +7,7 @@ import {
   MapPin,
   Calendar,
   CheckCircle2,
-  UserPlus,
   AlertCircle,
-  BadgeCheck,
   Phone,
   Mail,
   Hash,
@@ -19,10 +17,14 @@ import {
   Wrench,
   Activity,
   Circle,
+  Truck,
+  PlayCircle,
+  BadgeCheck,
+  Hourglass,
 } from "lucide-react";
 
-import { useAdmin } from "../../context/AdminContext";
-import { fetchAdminService, getErrorMessage } from "../../services/adminApi";
+import { useBatteryTechnician } from "../../context/BatteryTechnicianContext";
+import { fetchAssignedServiceDetail, getErrorMessage } from "../../services/batteryTechnicianApi";
 import { Card } from "../../components/common";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import StatusBadge from "../../components/admin/StatusBadge";
@@ -32,23 +34,28 @@ import {
   formatDate,
 } from "../../components/admin/adminUtils";
 
-const AdminServiceDetailsPage = () => {
+/* Battery Technician allowed next-status actions */
+const EMPLOYEE_ACTIONS = {
+  "Assigned": { label: "Accept Service", nextStatus: "Accepted", icon: CheckCircle2, color: "bg-green-600 hover:bg-green-700" },
+  "Accepted": { label: "Start Travel", nextStatus: "On The Way", icon: Truck, color: "bg-amber-600 hover:bg-amber-700" },
+  "On The Way": { label: "Start Service", nextStatus: "In Progress", icon: PlayCircle, color: "bg-orange-600 hover:bg-orange-700" },
+  "In Progress": { label: "Finish Service", nextStatus: "Waiting for Admin Approval", icon: BadgeCheck, color: "bg-green-600 hover:bg-green-700" },
+};
+
+const BatteryTechnicianServiceDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { servicePersons, acceptService, assignServicePerson, updateServiceStatus, approveServiceCompletion } = useAdmin();
+  const { updateServiceStatus } = useBatteryTechnician();
 
   const [service, setService] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState("");
-  const [assignOpen, setAssignOpen] = useState(false);
-  const [selectedPersonId, setSelectedPersonId] = useState("");
-  const [confirmCancel, setConfirmCancel] = useState(false);
 
   useEffect(() => {
     const loadService = async () => {
       try {
-        const data = await fetchAdminService(id);
+        const data = await fetchAssignedServiceDetail(id);
         setService(data);
       } catch (err) {
         setError(getErrorMessage(err));
@@ -79,11 +86,31 @@ const AdminServiceDetailsPage = () => {
     });
   }, [service]);
 
-  const handleAccept = async () => {
+  const action = service ? EMPLOYEE_ACTIONS[service.status] : null;
+  const canCancel =
+    service &&
+    service.status !== "Completed" &&
+    service.status !== "Cancelled" &&
+    service.status !== "Waiting for Admin Approval";
+
+  const handleAction = async () => {
+    if (!action || !service) return;
+    setActionLoading(action.nextStatus);
+    try {
+      const updated = await updateServiceStatus(service.id, action.nextStatus);
+      setService((prev) => ({ ...prev, ...updated }));
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+  const handleCancel = async () => {
     if (!service) return;
-    setActionLoading("accept");
+    setActionLoading("Cancelled");
     try {
-      const updated = await acceptService(service.id);
+      const updated = await updateServiceStatus(service.id, "Cancelled");
       setService((prev) => ({ ...prev, ...updated }));
     } catch (err) {
       setError(getErrorMessage(err));
@@ -91,50 +118,6 @@ const AdminServiceDetailsPage = () => {
       setActionLoading("");
     }
   };
-
-  const handleAssign = async () => {
-    if (!selectedPersonId || !service) return;
-    setActionLoading("assign");
-    try {
-      const updated = await assignServicePerson(service.id, selectedPersonId);
-      setService((prev) => ({ ...prev, ...updated }));
-      setAssignOpen(false);
-      setSelectedPersonId("");
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setActionLoading("");
-    }
-  };
-
-  const handleStatusChange = async (newStatus) => {
-    if (!service) return;
-    setActionLoading("status");
-    try {
-      const updated = await updateServiceStatus(service.id, newStatus);
-      setService((prev) => ({ ...prev, ...updated }));
-      setConfirmCancel(false);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setActionLoading("");
-    }
-  };
-
-  const handleApprove = async () => {
-    if (!service) return;
-    setActionLoading("approve");
-    try {
-      const updated = await approveServiceCompletion(service.id);
-      setService((prev) => ({ ...prev, ...updated }));
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setActionLoading("");
-    }
-  };
-
-  const activePersons = servicePersons.filter((sp) => sp.status === "active");
 
   if (loading) {
     return <LoadingSpinner />;
@@ -147,10 +130,10 @@ const AdminServiceDetailsPage = () => {
         <p className="text-sm text-red-700">{error}</p>
         <button
           type="button"
-          onClick={() => navigate("/admin/services")}
+          onClick={() => navigate("/battery-technician/services")}
           className="mt-4 text-sm font-bold text-[#B48611] hover:text-[#8A7A4A]"
         >
-          ← Back to Service Requests
+          ← Back to My Services
         </button>
       </div>
     );
@@ -164,11 +147,11 @@ const AdminServiceDetailsPage = () => {
       <div>
         <button
           type="button"
-          onClick={() => navigate("/admin/services")}
+          onClick={() => navigate("/battery-technician/services")}
           className="flex items-center gap-1.5 text-sm font-bold text-[#B48611] hover:text-[#8A7A4A] mb-4"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to Service Requests
+          Back to My Services
         </button>
 
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
@@ -186,64 +169,37 @@ const AdminServiceDetailsPage = () => {
 
           {/* Action buttons */}
           <div className="flex items-center gap-2 flex-wrap shrink-0">
-            {service.status === "Confirmed" && (
+            {action && (
               <button
                 type="button"
-                onClick={handleAccept}
-                disabled={actionLoading === "accept"}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-green-600 text-white font-bold text-sm hover:bg-green-700 transition-colors disabled:opacity-60"
+                onClick={handleAction}
+                disabled={actionLoading === action.nextStatus}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-white font-bold text-sm transition-colors disabled:opacity-60 ${action.color}`}
               >
-                {actionLoading === "accept" ? (
+                {actionLoading === action.nextStatus ? (
                   <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                 ) : (
-                  <CheckCircle2 className="w-4 h-4" />
+                  <action.icon className="w-4 h-4" />
                 )}
-                Accept Request
+                {action.label}
               </button>
             )}
 
-            {service.status === "Accepted" && (
+            {canCancel && (
               <button
                 type="button"
-                onClick={() => setAssignOpen(true)}
-                disabled={actionLoading === "assign"}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#B48611] text-white font-bold text-sm hover:bg-[#9A8240] transition-colors disabled:opacity-60"
+                onClick={handleCancel}
+                disabled={actionLoading === "Cancelled"}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-600 text-white font-bold text-sm hover:bg-red-700 transition-colors disabled:opacity-60"
               >
-                <UserPlus className="w-4 h-4" />
-                Assign Battery Technician
-              </button>
-            )}
-
-            {service.status === "Waiting for Admin Approval" && (
-              <button
-                type="button"
-                onClick={handleApprove}
-                disabled={actionLoading === "approve"}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-green-600 text-white font-bold text-sm hover:bg-green-700 transition-colors disabled:opacity-60"
-              >
-                {actionLoading === "approve" ? (
+                {actionLoading === "Cancelled" ? (
                   <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                 ) : (
-                  <BadgeCheck className="w-4 h-4" />
+                  <AlertCircle className="w-4 h-4" />
                 )}
-                Approve Completion
+                Cancel
               </button>
             )}
-
-            {service.status !== "Completed" &&
-              service.status !== "Cancelled" &&
-              service.status !== "Confirmed" &&
-              service.status !== "Accepted" &&
-              service.status !== "Waiting for Admin Approval" && (
-                <button
-                  type="button"
-                  onClick={() => setConfirmCancel(true)}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#F5F1E7] text-red-700 border border-red-200 font-bold text-sm hover:bg-red-50 transition-colors"
-                >
-                  Cancel Service
-                </button>
-              )
-            }
           </div>
         </div>
       </div>
@@ -262,6 +218,24 @@ const AdminServiceDetailsPage = () => {
         </div>
       )}
 
+      {/* Waiting for Admin Approval notice */}
+      {service.status === "Waiting for Admin Approval" && (
+        <div className="flex items-start gap-3 rounded-2xl border border-[#F0E6C8] bg-[#FBF1C9] px-5 py-4">
+          <div className="w-10 h-10 rounded-xl bg-[#A77A08] flex items-center justify-center shrink-0">
+            <Hourglass className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-[#A77A08]">
+              Waiting for Admin Approval
+            </p>
+            <p className="text-xs text-[#8A7A4A] mt-0.5">
+              You marked this service as finished. An admin will now review and
+              approve the completion. No further action is needed from you.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Service Timeline */}
       <Card padded={false}>
         <div className="p-6 lg:p-7 border-b border-[#EEE9DA]">
@@ -275,19 +249,17 @@ const AdminServiceDetailsPage = () => {
             {timeline.map((item, idx) => {
               return (
                 <div key={item.step} className="flex gap-4 relative">
-                  {/* Vertical line */}
                   {idx < timeline.length - 1 && (
                     <div className="absolute left-[9px] top-5 w-[2px] h-full bg-[#E7E1D3]" />
                   )}
 
-                  {/* Dot */}
                   <div className="relative z-10 shrink-0 mt-1">
                     <div
                       className={`w-5 h-5 rounded-full flex items-center justify-center ${
                         item.state === "done"
                           ? "bg-green-500"
                           : item.state === "active"
-                          ? `bg-[#173B5C] ring-4 ring-[#173B5C]/20`
+                          ? "bg-[#173B5C] ring-4 ring-[#173B5C]/20"
                           : "bg-[#E7E1D3]"
                       }`}
                     >
@@ -305,7 +277,6 @@ const AdminServiceDetailsPage = () => {
                     </div>
                   </div>
 
-                  {/* Content */}
                   <div className="pb-8">
                     <p
                       className={`text-sm font-bold ${
@@ -463,129 +434,8 @@ const AdminServiceDetailsPage = () => {
           </div>
         </Card>
       </div>
-
-      {/* Cancel confirmation modal */}
-      {confirmCancel && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div
-            className="absolute inset-0 bg-[#16263A]/60 backdrop-blur-sm"
-            onClick={() => setConfirmCancel(false)}
-          />
-          <div className="relative w-full max-w-md bg-[#FFFDF8] rounded-2xl shadow-xl border border-[#EEE9DA] p-6">
-            <h3 className="font-bold text-lg text-[#16263A] mb-2">
-              Cancel Service Request?
-            </h3>
-            <p className="text-sm text-[#747B83] mb-5">
-              This will cancel ticket {service.ticketNumber}. The customer will
-              be notified. This action cannot be undone.
-            </p>
-            {error && (
-              <div className="mb-4 flex items-start gap-2 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{error}</span>
-              </div>
-            )}
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setConfirmCancel(false)}
-                className="flex-1 py-2.5 rounded-xl bg-[#F5F1E7] text-[#16263A] font-bold text-sm border border-[#E7E1D3] hover:bg-[#E7E1D3] transition-colors"
-              >
-                Keep Service
-              </button>
-              <button
-                type="button"
-                onClick={() => handleStatusChange("Cancelled")}
-                disabled={actionLoading === "status"}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-bold text-sm hover:bg-red-700 transition-colors disabled:opacity-60"
-              >
-                {actionLoading === "status" ? "Cancelling…" : "Cancel Service"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Assign Modal */}
-      {assignOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div
-            className="absolute inset-0 bg-[#16263A]/60 backdrop-blur-sm"
-            onClick={() => setAssignOpen(false)}
-          />
-          <div className="relative w-full max-w-md bg-[#FFFDF8] rounded-2xl shadow-xl border border-[#EEE9DA] p-6">
-            <button
-              type="button"
-              onClick={() => setAssignOpen(false)}
-              className="absolute top-4 right-4 w-8 h-8 rounded-lg bg-[#F5F1E7] flex items-center justify-center hover:bg-[#E7E1D3] transition-colors"
-            >
-              ×
-            </button>
-
-            <h3 className="font-bold text-lg text-[#16263A] mb-4">
-              Assign Battery Technician
-            </h3>
-
-            <div className="space-y-2 max-h-48 overflow-y-auto mb-4">
-              {activePersons.length === 0 ? (
-                <p className="text-sm text-[#747B83] text-center py-4">
-                  No active battery technicians.
-                </p>
-              ) : (
-                activePersons.map((person) => (
-                  <label
-                    key={person.id}
-                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                      selectedPersonId === person.id
-                        ? "border-[#173B5C] bg-[#F8F2DE]"
-                        : "border-[#E7E1D3] bg-[#F5F1E7] hover:border-[#B48611]"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="sp"
-                      checked={selectedPersonId === person.id}
-                      onChange={() => setSelectedPersonId(person.id)}
-                      className="sr-only"
-                    />
-                    <div className="w-8 h-8 rounded-lg bg-[#173B5C] text-[#FBF1C9] flex items-center justify-center text-xs font-black shrink-0">
-                      {person.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-[#16263A]">
-                        {person.name}
-                      </p>
-                      <p className="text-[11px] text-[#747B83]">
-                        {person.specialization}
-                      </p>
-                    </div>
-                  </label>
-                ))
-              )}
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setAssignOpen(false)}
-                className="flex-1 py-2.5 rounded-xl bg-[#F5F1E7] text-[#16263A] font-bold text-sm border border-[#E7E1D3]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleAssign}
-                disabled={!selectedPersonId || actionLoading === "assign"}
-                className="flex-1 py-2.5 rounded-xl bg-[#173B5C] text-white font-bold text-sm hover:bg-[#102F4A] disabled:opacity-60"
-              >
-                {actionLoading === "assign" ? "Assigning…" : "Assign"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
-export default AdminServiceDetailsPage;
+export default BatteryTechnicianServiceDetailsPage;

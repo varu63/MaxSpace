@@ -1,6 +1,6 @@
 import React from "react";
 import { Battery, Wrench, ShieldCheck, AlertTriangle } from "lucide-react";
-import { StatCard } from "../common";
+import { StatCard } from "../../common";
 
 const ServiceStats = ({ stats = {} }) => {
   return (

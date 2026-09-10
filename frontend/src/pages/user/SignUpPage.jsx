@@ -12,7 +12,7 @@ import {
   Zap,
 } from "lucide-react";
 
-import { useBattery } from "../context/BatteryContext";
+import { useBattery } from "../../context/BatteryContext";
 
 const SignUpPage = () => {
   const { signUp, addToast } = useBattery();

@@ -8,9 +8,11 @@ import {
   acceptService,
   assignService,
   updateServiceStatus,
+  approveService,
   getServicePersons,
   createServicePerson,
   updateServicePerson,
+  createTechnician,
   getCustomers,
   getAdminAnalytics,
 } from "../controllers/adminController.js";
@@ -30,10 +32,13 @@ router.get("/services/:id", protect, requireAdmin, getAdminService);
 router.patch("/services/:id/accept", protect, requireAdmin, acceptService);
 router.patch("/services/:id/assign", protect, requireAdmin, assignService);
 router.patch("/services/:id/status", protect, requireAdmin, updateServiceStatus);
+router.patch("/services/:id/approve", protect, requireAdmin, approveService);
 
 router.get("/service-persons", protect, requireAdmin, getServicePersons);
 router.post("/service-persons", protect, requireAdmin, createServicePerson);
 router.patch("/service-persons/:id", protect, requireAdmin, updateServicePerson);
+
+router.post("/technicians", protect, requireAdmin, createTechnician);
 
 router.get("/customers", protect, requireAdmin, getCustomers);
 router.get("/analytics", protect, requireAdmin, getAdminAnalytics);

@@ -610,3 +610,43 @@ export const seedServicePersons = [
     createdAt: "2024-04-05",
   },
 ];
+
+/* Battery Technician / Employee users — each linked to a service person record via servicePersonId */
+export const seedEmployeeUsers = [
+  {
+    id: "emp-1",
+    name: "Markus Vance",
+    email: "markus.vance@maxspace.com",
+    password: "employee123",
+    role: "EMPLOYEE",
+    servicePersonId: "sp-1",
+    createdAt: "2024-06-01",
+  },
+  {
+    id: "emp-2",
+    name: "Lars De Vries",
+    email: "lars.devries@maxspace.com",
+    password: "employee123",
+    role: "EMPLOYEE",
+    servicePersonId: "sp-2",
+    createdAt: "2024-07-15",
+  },
+  {
+    id: "emp-3",
+    name: "Oliver Brandt",
+    email: "oliver.brandt@maxspace.com",
+    password: "employee123",
+    role: "EMPLOYEE",
+    servicePersonId: "sp-3",
+    createdAt: "2025-01-10",
+  },
+  {
+    id: "emp-4",
+    name: "Elena Rostova",
+    email: "elena.rostova@maxspace.com",
+    password: "employee123",
+    role: "EMPLOYEE",
+    servicePersonId: "sp-4",
+    createdAt: "2025-03-20",
+  },
+];

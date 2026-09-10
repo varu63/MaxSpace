@@ -20,7 +20,7 @@ import { getAvatarText } from "./adminUtils";
 export const adminNavItems = [
   { to: "/admin", end: true, label: "Dashboard", icon: LayoutDashboard },
   { to: "/admin/services", end: false, label: "Service Requests", icon: Wrench },
-  { to: "/admin/service-persons", end: false, label: "Service Persons", icon: UserCheck },
+  { to: "/admin/service-persons", end: false, label: "Battery Technicians", icon: UserCheck },
   { to: "/admin/customers", end: false, label: "Customers", icon: Users },
   { to: "/admin/analytics", end: false, label: "Analytics", icon: BarChart3 },
   { to: "/admin/profile", end: false, label: "Admin Profile", icon: UserCircle },

@@ -5,7 +5,7 @@ import {
   Layers,
   ChevronDown,
 } from "lucide-react";
-import { IconBox } from "../common";
+import { IconBox } from "../../common";
 import ServiceDetailsPanel from "./ServiceDetailsPanel";
 
 const ServiceTable = ({

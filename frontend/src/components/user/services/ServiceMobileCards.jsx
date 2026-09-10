@@ -6,7 +6,7 @@ import {
   Wrench,
   ChevronDown,
 } from "lucide-react";
-import { getStatusStyle } from "./status";
+import { getStatusStyle } from "../../common/status";
 import ServiceDetailsPanel from "./ServiceDetailsPanel";
 
 const ServiceMobileCards = ({

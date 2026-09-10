@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useBattery } from '../../context/BatteryContext';
-import { Modal } from '../common/Modal';
+import { useBattery } from '../../../context/BatteryContext';
+import { Modal } from '../../common/Modal';
 import { X, User } from 'lucide-react';
 
 export const EditProfileModal = ({ isOpen, onClose }) => {

@@ -10,6 +10,7 @@ export const SERVICE_STATUS_FLOW = [
   "Assigned",
   "On The Way",
   "In Progress",
+  "Waiting for Admin Approval",
   "Completed",
 ];
 
@@ -19,6 +20,7 @@ export const SERVICE_STATUSES = [
   "Assigned",
   "On The Way",
   "In Progress",
+  "Waiting for Admin Approval",
   "Completed",
   "Cancelled",
 ];
@@ -39,6 +41,7 @@ export const ACTIVE_SERVICE_STATUSES = [
   "In Progress",
   "Assigned",
   "Accepted",
+  "Waiting for Admin Approval",
 ];
 
 export const isActiveService = (status) =>

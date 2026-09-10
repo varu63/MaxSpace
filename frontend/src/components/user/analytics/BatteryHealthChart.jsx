@@ -1,6 +1,6 @@
 import React from "react";
 import { HeartPulse } from "lucide-react";
-import { Card, SectionHeader } from "../common";
+import { Card, SectionHeader } from "../../common";
 
 const BatteryHealthChart = ({ batteries }) => {
   const data = batteries.map((battery) => ({

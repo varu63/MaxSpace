@@ -10,7 +10,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import ServiceTracking from "./ServiceTracking";
-import { getStatusStyle } from "./status";
+import { getStatusStyle } from "../../common/status";
 
 /* ============================================================
    ServiceDetailsPanel
@@ -91,7 +91,7 @@ const ServiceDetailsPanel = ({ booking, status }) => {
             {/* Assigned tech + estimate (when available) */}
             {(booking.technician || booking.estimatedArrival) && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Info icon={User} label="Assigned Service Person" value={booking.technician} />
+                <Info icon={User} label="Assigned Battery Technician" value={booking.technician} />
                 <Info icon={Clock3} label="Estimated Arrival" value={booking.estimatedArrival} />
               </div>
             )}

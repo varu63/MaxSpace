@@ -148,7 +148,7 @@ const AdminAnalyticsPage = () => {
             <div className="flex items-center gap-2 mb-2">
               <UserCheck className="w-4 h-4 text-[#B48611]" />
               <span className="text-[11px] font-semibold text-[#A77A08] uppercase">
-                Service Persons
+                Battery Technicians
               </span>
             </div>
             <p className="text-3xl font-bold text-[#16263A]">

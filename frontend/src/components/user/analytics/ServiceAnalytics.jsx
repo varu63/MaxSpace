@@ -6,7 +6,7 @@ import {
   XCircle,
   Activity,
 } from "lucide-react";
-import { Card, SectionHeader } from "../common";
+import { Card, SectionHeader } from "../../common";
 
 const ServiceAnalytics = ({ bookings }) => {
   const total = bookings.length;

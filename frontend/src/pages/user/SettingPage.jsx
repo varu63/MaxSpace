@@ -24,8 +24,8 @@ import {
   MapPin,
   AtSign,
 } from "lucide-react";
-import { useBattery } from "../context/BatteryContext";
-import { changePassword as changePasswordApi, getErrorMessage } from "../services/api";
+import { useBattery } from "../../context/BatteryContext";
+import { changePassword as changePasswordApi, getErrorMessage } from "../../services/api";
 
 const DEFAULT_SETTINGS = {
   emailNotifications: true,

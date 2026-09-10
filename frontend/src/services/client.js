@@ -1,13 +1,14 @@
 /* ============================================================
    SHARED API CLIENT
-   Core fetch wrapper that supports both the customer and admin
-   JWT sessions via a token key parameter.
+   Core fetch wrapper that supports the customer, admin, and
+   battery technician JWT sessions via a token key parameter.
 ============================================================ */
 
 const BASE_URL = (import.meta.env.VITE_API_URL || "/api").replace(/\/$/, "");
 
 export const USER_TOKEN_KEY = "maxspace_auth_token";
 export const ADMIN_TOKEN_KEY = "maxspace_admin_token";
+export const BATTERY_TECHNICIAN_TOKEN_KEY = "maxspace_battery_technician_token";
 
 export const getToken = (key = USER_TOKEN_KEY) => localStorage.getItem(key);
 
@@ -20,17 +21,25 @@ export const getAdminToken = () => getToken(ADMIN_TOKEN_KEY);
 
 export const setAdminToken = (token) => setToken(token, ADMIN_TOKEN_KEY);
 
+export const getBatteryTechnicianToken = () => getToken(BATTERY_TECHNICIAN_TOKEN_KEY);
+
+export const setBatteryTechnicianToken = (token) => setToken(token, BATTERY_TECHNICIAN_TOKEN_KEY);
+
 export const getErrorMessage = (error) => {
   if (!error) return "Something went wrong.";
   return error.message || "Something went wrong.";
 };
 
 /* Core fetch wrapper: attaches JWT, JSON bodies, throws on non-2xx. */
-const client = async (path, { method = "GET", body, auth = true, admin = false } = {}) => {
+const client = async (path, { method = "GET", body, auth = true, admin = false, batteryTechnician = false } = {}) => {
   const headers = { "Content-Type": "application/json" };
 
   if (auth) {
-    const token = admin ? getAdminToken() : getToken();
+    const token = batteryTechnician
+      ? getBatteryTechnicianToken()
+      : admin
+      ? getAdminToken()
+      : getToken();
     if (token) headers.Authorization = `Bearer ${token}`;
   }
 

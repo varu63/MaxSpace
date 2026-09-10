@@ -5,7 +5,7 @@ import {
   Gauge,
   CalendarDays,
 } from "lucide-react";
-import { Card, SectionHeader } from "../common";
+import { Card, SectionHeader } from "../../common";
 
 const BatteryPerformance = ({ batteries }) => {
   return (

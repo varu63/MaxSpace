@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { useBattery } from '../../context/BatteryContext';
-import { samplePresetBarcodes } from '../../data/dummyData';
-import { Modal } from '../common/Modal';
+import { useBattery } from '../../../context/BatteryContext';
+import { samplePresetBarcodes } from '../../../data/dummyData';
+import { Modal } from '../../common/Modal';
 import { 
   X, 
   Camera, 

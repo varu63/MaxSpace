@@ -4,7 +4,7 @@ import {
   Wrench,
   FileText,
 } from "lucide-react";
-import { Card, IconBox } from "../common";
+import { Card, IconBox } from "../../common";
 
 const ServiceInfoCards = () => {
   const cards = [

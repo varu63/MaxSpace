@@ -10,23 +10,26 @@ import {
   X,
   AlertCircle,
   Wrench,
+  User,
+  MapPin,
+  Calendar,
+  HardHat,
+  FileText,
+  BadgeCheck,
 } from "lucide-react";
 
 import { useAdmin } from "../../context/AdminContext";
-import { PageHeader, Card } from "../../components/common";
+import { PageHeader, Card, EmptyState } from "../../components/common";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import StatusBadge from "../../components/admin/StatusBadge";
 import {
-  SERVICE_STATUS_FLOW,
-  statusStyle,
-  statusLabel,
   formatDate,
 } from "../../components/admin/adminUtils";
 import { getErrorMessage } from "../../services/adminApi";
 import { STATUS_FILTER_OPTIONS } from "../../data/serviceStatuses";
 
 /* ============================================================
-   Assign Service Person Modal
+   Assign Battery Technician Modal
 ============================================================ */
 const AssignModal = ({ service, servicePersons, onAssign, onClose }) => {
   const [selectedPersonId, setSelectedPersonId] = useState("");
@@ -37,7 +40,7 @@ const AssignModal = ({ service, servicePersons, onAssign, onClose }) => {
 
   const handleAssign = async () => {
     if (!selectedPersonId) {
-      setError("Please select a service person.");
+          setError("Please select a battery technician.");
       return;
     }
     setSubmitting(true);
@@ -72,7 +75,7 @@ const AssignModal = ({ service, servicePersons, onAssign, onClose }) => {
           </div>
           <div>
             <h3 className="font-bold text-lg text-[#16263A]">
-              Assign Service Person
+              Assign Battery Technician
             </h3>
             <p className="text-xs text-[#747B83]">
               Ticket {service.ticketNumber} — {service.batteryName}
@@ -89,13 +92,18 @@ const AssignModal = ({ service, servicePersons, onAssign, onClose }) => {
 
         <div className="mb-5">
           <label className="block text-xs font-bold text-[#16263A] mb-1.5">
-            Service Person
+            Battery Technician
           </label>
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {activePersons.length === 0 ? (
-              <p className="text-sm text-[#747B83] py-4 text-center">
-                No active service persons available.
-              </p>
+              <div className="rounded-xl bg-[#FBF1C9] border border-[#F0E6C8] p-4 text-center">
+                <p className="text-sm font-bold text-[#A77A08]">
+                  No active battery technicians available.
+                </p>
+                <p className="text-xs text-[#8A7A4A] mt-1">
+                  Add a technician in "Battery Technicians" first.
+                </p>
+              </div>
             ) : (
               activePersons.map((person) => (
                 <label
@@ -165,152 +173,317 @@ const AssignModal = ({ service, servicePersons, onAssign, onClose }) => {
 };
 
 /* ============================================================
-   Status Update Dropdown
+   Admin Control Modals
 ============================================================ */
-const StatusDropdown = ({ service, statuses, onUpdate }) => {
-  const [open, setOpen] = useState(false);
+const ConfirmActionModal = ({ service, type, onConfirm, onClose }) => {
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  const allowedStatuses = useMemo(() => {
-    if (service.status === "Cancelled" || service.status === "Completed") return [];
-    return statuses.filter((s) => {
-      if (s === "Cancelled") return true;
-      if (s === service.status) return false;
-      const currentIdx = SERVICE_STATUS_FLOW.indexOf(service.status);
-      const sIdx = SERVICE_STATUS_FLOW.indexOf(s);
-      if (sIdx === -1) return true;
-      if (currentIdx === -1) return true;
-      return sIdx >= currentIdx;
-    });
-  }, [service.status, statuses]);
+  const isAccept = type === "accept";
+  const isApprove = type === "approve";
 
-  if (allowedStatuses.length === 0) return null;
+  const title = isAccept ? "Accept Service Request" : isApprove ? "Approve Completion" : "";
+  const description = isAccept
+    ? "Accepting this request moves it to the next stage, where you can assign a battery technician."
+    : isApprove
+    ? "The battery technician has finished this service. Confirm to mark this service as COMPLETED."
+    : "";
 
-  const handleUpdate = async (status) => {
+  const handleConfirm = async () => {
     setSubmitting(true);
+    setError("");
     try {
-      await onUpdate(service.id, status);
-      setOpen(false);
-    } catch {
-      // error handled in context
-    } finally {
+      await onConfirm();
+      onClose();
+    } catch (err) {
+      setError(getErrorMessage(err));
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#F5F1E7] text-[#16263A] border border-[#E7E1D3] text-[11px] font-bold hover:bg-[#E7E1D3] transition-colors"
-      >
-        Status
-        <ChevronDown className="w-3 h-3" />
-      </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div
+        className="absolute inset-0 bg-[#16263A]/60 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <div className="relative w-full max-w-md bg-[#FFFDF8] rounded-2xl shadow-xl border border-[#EEE9DA] p-6">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-4 right-4 w-8 h-8 rounded-lg bg-[#F5F1E7] flex items-center justify-center hover:bg-[#E7E1D3] transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
 
-      {open && (
-        <>
+        <div className="flex items-center gap-3 mb-5">
           <div
-            className="fixed inset-0 z-30"
-            onClick={() => setOpen(false)}
-          />
-          <div className="absolute right-0 mt-1 w-48 bg-[#FFFDF8] border border-[#EEE9DA] rounded-xl shadow-lg z-40 py-1">
-            {allowedStatuses.map((s) => {
-              const { dot } = statusStyle(s);
-              return (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => handleUpdate(s)}
-                  disabled={submitting}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[#16263A] hover:bg-[#F5F1E7] transition-colors disabled:opacity-50"
-                >
-                  <span className={`w-2 h-2 rounded-full ${dot}`} />
-                  {statusLabel(s)}
-                </button>
-              );
-            })}
+            className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+              isApprove ? "bg-green-600" : "bg-[#173B5C]"
+            }`}
+          >
+            <BadgeCheck className="w-6 h-6 text-white" />
           </div>
-        </>
-      )}
+          <div>
+            <h3 className="font-bold text-lg text-[#16263A]">{title}</h3>
+            <p className="text-xs text-[#747B83]">
+              Ticket {service.ticketNumber}
+            </p>
+          </div>
+        </div>
+
+        <p className="text-sm text-[#16263A] mb-4">{description}</p>
+
+        {error && (
+          <div className="mb-4 flex items-start gap-2 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl bg-[#F5F1E7] text-[#16263A] font-bold text-sm border border-[#E7E1D3] hover:bg-[#E7E1D3] transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={submitting}
+            className={`flex-1 py-2.5 rounded-xl text-white font-bold text-sm transition-colors disabled:opacity-60 ${
+              isApprove
+                ? "bg-green-600 hover:bg-green-700"
+                : "bg-[#173B5C] hover:bg-[#102F4A]"
+            }`}
+          >
+            {submitting
+              ? "Processing…"
+              : isApprove
+              ? "Approve Completion"
+              : "Accept Request"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
 
 /* ============================================================
-   Mobile Card
+   Admin "View All" action button (opens full record)
 ============================================================ */
-const ServiceCard = ({ service, onAccept, onAssign, onUpdateStatus }) => {
+const ViewAllButton = ({ service }) => {
   const navigate = useNavigate();
   return (
-    <div className="bg-[#FFFDF8] border border-[#EEE9DA] rounded-3xl p-5 shadow-sm">
-      <div className="flex items-center justify-between gap-2 mb-3">
-        <span className="font-mono text-xs font-bold text-[#173B5C]">
-          {service.ticketNumber}
-        </span>
-        <StatusBadge status={service.status} />
+    <button
+      type="button"
+      onClick={() => navigate(`/admin/services/${service.id}`)}
+      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#173B5C] text-white text-xs font-bold hover:bg-[#102F4A] transition-colors"
+    >
+      <Eye className="w-3.5 h-3.5" />
+      View All
+    </button>
+  );
+};
+
+/* ============================================================
+   Service Card — shown on ALL screen sizes
+============================================================ */
+const ServiceCard = ({ service, onAccept, onApprove, onAssign, onUpdateStatus }) => {
+  const [statusOpen, setStatusOpen] = useState(false);
+
+  const canCancel = !["Completed", "Cancelled"].includes(service.status);
+
+  const handleStatusUpdate = async (status) => {
+    await onUpdateStatus(service.id, status);
+    setStatusOpen(false);
+  };
+
+  return (
+    <Card padded={false} className="overflow-hidden">
+      {/* Card header */}
+      <div className="p-5 sm:p-6 border-b border-[#EEE9DA]">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-[#173B5C] flex items-center justify-center shrink-0">
+              <FileText className="w-5 h-5 text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-mono text-xs font-bold text-[#173B5C]">
+                {service.ticketNumber}
+              </p>
+              <p className="text-[11px] text-[#8A9096]">
+                Request ID: {service.id} · Created {formatDate(service.createdAt)}
+              </p>
+            </div>
+          </div>
+          <StatusBadge status={service.status} />
+        </div>
       </div>
 
-      <div
-        className="cursor-pointer"
-        onClick={() => navigate(`/admin/services/${service.id}`)}
-      >
-        <p className="text-sm font-bold text-[#16263A] truncate">
-          {service.battery?.modelName || service.batteryName}
-        </p>
-        <p className="text-xs text-[#747B83] truncate mt-0.5">
-          {service.serviceType}
-        </p>
-        {service.battery?.chemistry && (
-          <p className="text-[11px] text-[#8A9096] mt-1 font-mono">
-            {service.battery.chemistry}
-          </p>
-        )}
-        <p className="text-[11px] text-[#8A9096] mt-1">
-          {formatDate(service.scheduledDate)} · {service.scheduledTime}
-        </p>
+      {/* Card body — key info only */}
+      <div className="p-5 sm:p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Customer */}
+          <div className="flex items-start gap-2.5 rounded-xl bg-[#F5F1E7] border border-[#E7E1D3] p-3">
+            <User className="w-4 h-4 text-[#B48611] shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-[#8A9096]">
+                Customer
+              </p>
+              <p className="text-sm font-semibold text-[#16263A] truncate">
+                {service.customer?.name || "—"}
+              </p>
+            </div>
+          </div>
+
+          {/* Battery */}
+          <div className="flex items-start gap-2.5 rounded-xl bg-[#F5F1E7] border border-[#E7E1D3] p-3">
+            <Wrench className="w-4 h-4 text-[#B48611] shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-[#8A9096]">
+                Battery
+              </p>
+              <p className="text-sm font-semibold text-[#16263A] truncate">
+                {service.battery?.modelName || service.batteryName || "—"}
+              </p>
+              <p className="text-[11px] text-[#8A9096] font-mono truncate">
+                {service.batteryId}
+              </p>
+            </div>
+          </div>
+
+          {/* Service type */}
+          <div className="flex items-start gap-2.5 rounded-xl bg-[#F5F1E7] border border-[#E7E1D3] p-3 sm:col-span-2">
+            <Wrench className="w-4 h-4 text-[#B48611] shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-[#8A9096]">
+                Service Type
+              </p>
+              <p className="text-sm font-semibold text-[#16263A] truncate">
+                {service.serviceType}
+              </p>
+            </div>
+          </div>
+
+          {/* Location */}
+          <div className="flex items-start gap-2.5 rounded-xl bg-[#F5F1E7] border border-[#E7E1D3] p-3">
+            <MapPin className="w-4 h-4 text-[#B48611] shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-[#8A9096]">
+                Service Location
+              </p>
+              <p className="text-sm font-semibold text-[#16263A] truncate">
+                {service.center || service.battery?.location || "—"}
+              </p>
+            </div>
+          </div>
+
+          {/* Scheduled */}
+          <div className="flex items-start gap-2.5 rounded-xl bg-[#F5F1E7] border border-[#E7E1D3] p-3">
+            <Calendar className="w-4 h-4 text-[#B48611] shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-[#8A9096]">
+                Scheduled
+              </p>
+              <p className="text-sm font-semibold text-[#16263A]">
+                {formatDate(service.scheduledDate)}
+                <span className="block text-[11px] text-[#8A9096] font-normal">
+                  {service.scheduledTime}
+                </span>
+              </p>
+            </div>
+          </div>
+
+          {/* Technician */}
+          <div className="flex items-start gap-2.5 rounded-xl bg-[#F5F1E7] border border-[#E7E1D3] p-3 sm:col-span-2">
+            <HardHat className="w-4 h-4 text-[#B48611] shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-[#8A9096]">
+                Battery Technician
+              </p>
+              <p className="text-sm font-semibold text-[#16263A] truncate">
+                {service.technician || "Not yet assigned"}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="flex items-center gap-2 mt-4 flex-wrap">
-        <button
-          type="button"
-          onClick={() => navigate(`/admin/services/${service.id}`)}
-          className="px-3 py-1.5 rounded-lg bg-[#F5F1E7] text-[#16263A] border border-[#E7E1D3] text-[11px] font-bold hover:bg-[#E7E1D3] transition-colors"
-        >
-          <Eye className="w-3 h-3 inline mr-1" />
-          View
-        </button>
+      {/* Card footer — actions */}
+      <div className="px-5 sm:px-6 py-4 border-t border-[#EEE9DA] bg-[#FBF8F0]/60">
+        <div className="flex items-center gap-2 flex-wrap">
+          <ViewAllButton service={service} />
 
-        {service.status === "Confirmed" && (
-          <button
-            type="button"
-            onClick={() => onAccept(service.id)}
-            className="px-3 py-1.5 rounded-lg bg-[#173B5C] text-white text-[11px] font-bold hover:bg-[#102F4A] transition-colors"
-          >
-            <CheckCircle2 className="w-3 h-3 inline mr-1" />
-            Accept
-          </button>
-        )}
+          {service.status === "Confirmed" && (
+            <button
+              type="button"
+              onClick={() => onAccept(service)}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-green-600 text-white text-xs font-bold hover:bg-green-700 transition-colors"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Accept
+            </button>
+          )}
 
-        {service.status === "Accepted" && (
-          <button
-            type="button"
-            onClick={() => onAssign(service)}
-            className="px-3 py-1.5 rounded-lg bg-[#B48611] text-white text-[11px] font-bold hover:bg-[#9A8240] transition-colors"
-          >
-            <UserPlus className="w-3 h-3 inline mr-1" />
-            Assign
-          </button>
-        )}
+          {service.status === "Accepted" && (
+            <button
+              type="button"
+              onClick={() => onAssign(service)}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#B48611] text-white text-xs font-bold hover:bg-[#9A8240] transition-colors"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              Assign
+            </button>
+          )}
 
-        <StatusDropdown
-          service={service}
-          statuses={STATUS_FILTER_OPTIONS.filter((s) => s !== "All")}
-          onUpdate={onUpdateStatus}
-        />
+          {service.status === "Waiting for Admin Approval" && (
+            <button
+              type="button"
+              onClick={() => onApprove(service)}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-green-600 text-white text-xs font-bold hover:bg-green-700 transition-colors"
+            >
+              <BadgeCheck className="w-3.5 h-3.5" />
+              Approve Completion
+            </button>
+          )}
+
+          {canCancel && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setStatusOpen(!statusOpen)}
+                className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-[#F5F1E7] text-[#16263A] border border-[#E7E1D3] text-xs font-bold hover:bg-[#E7E1D3] transition-colors"
+              >
+                More
+                <ChevronDown className={`w-3 h-3 transition-transform ${statusOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {statusOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-30"
+                    onClick={() => setStatusOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-1 w-48 bg-[#FFFDF8] border border-[#EEE9DA] rounded-xl shadow-lg z-40 py-1">
+                    <button
+                      type="button"
+                      onClick={() => handleStatusUpdate("Cancelled")}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 transition-colors"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-red-500" />
+                      Cancel Service
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </Card>
   );
 };
 
@@ -325,15 +498,10 @@ const AdminServiceRequestsPage = () => {
     acceptService,
     assignServicePerson,
     updateServiceStatus,
+    approveServiceCompletion,
     refreshServices,
   } = useAdmin();
 
-  const navigate = useNavigate();
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [assignModal, setAssignModal] = useState(null);
-
-  const [actionLoading, setActionLoading] = useState(null);
   const [actionError, setActionError] = useState("");
 
   useEffect(() => {
@@ -353,10 +521,11 @@ const AdminServiceRequestsPage = () => {
       list = list.filter(
         (s) =>
           (s.ticketNumber || "").toLowerCase().includes(q) ||
+          (s.id || "").toLowerCase().includes(q) ||
           (s.batteryName || "").toLowerCase().includes(q) ||
           (s.battery?.modelName || "").toLowerCase().includes(q) ||
+          (s.batteryId || "").toLowerCase().includes(q) ||
           (s.serviceType || "").toLowerCase().includes(q) ||
-          (s.battery?.chemistry || "").toLowerCase().includes(q) ||
           (s.customer?.name || "").toLowerCase().includes(q) ||
           (s.center || "").toLowerCase().includes(q)
       );
@@ -365,15 +534,33 @@ const AdminServiceRequestsPage = () => {
     return list;
   }, [services, search, statusFilter]);
 
-  const handleAccept = async (serviceId) => {
-    setActionLoading(serviceId);
+  const handleAccept = async (service) => {
     setActionError("");
+    setConfirmModal({ type: "accept", service });
+  };
+
+  const confirmAccept = async () => {
+    const svc = confirmModal?.service;
+    if (!svc) return;
     try {
-      await acceptService(serviceId);
+      await acceptService(svc.id);
     } catch (err) {
       setActionError(getErrorMessage(err));
-    } finally {
-      setActionLoading(null);
+    }
+  };
+
+  const handleApprove = async (service) => {
+    setActionError("");
+    setConfirmModal({ type: "approve", service });
+  };
+
+  const confirmApprove = async () => {
+    const svc = confirmModal?.service;
+    if (!svc) return;
+    try {
+      await approveServiceCompletion(svc.id);
+    } catch (err) {
+      setActionError(getErrorMessage(err));
     }
   };
 
@@ -386,10 +573,10 @@ const AdminServiceRequestsPage = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader
         icon={Wrench}
-        title="Service Requests"
+        title="Service Records"
         subtitle={`${services.length} total bookings across the fleet`}
       />
 
@@ -438,164 +625,31 @@ const AdminServiceRequestsPage = () => {
         </div>
       </div>
 
-      {/* Mobile cards */}
-      <div className="lg:hidden space-y-3">
-        {filtered.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-sm text-[#747B83]">No service requests found.</p>
-          </div>
-        ) : (
-          filtered.map((service) => (
+      {/* Service cards — all screen sizes */}
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={Wrench}
+          title="No Service Records Found"
+          description={
+            search || statusFilter !== "All"
+              ? "No services match your current filters."
+              : "New customer service requests will appear here."
+          }
+        />
+      ) : (
+        <div className="space-y-4">
+          {filtered.map((service) => (
             <ServiceCard
               key={service.id}
               service={service}
               onAccept={handleAccept}
+              onApprove={handleApprove}
               onAssign={setAssignModal}
               onUpdateStatus={updateServiceStatus}
             />
-          ))
-        )}
-      </div>
-
-      {/* Desktop table */}
-      <Card padded={false} className="hidden lg:block overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-[#F5F1E7] text-[#747B83] text-[11px] font-bold uppercase tracking-wider">
-                <th className="px-5 py-3 text-left">Ticket</th>
-                <th className="px-5 py-3 text-left">Customer</th>
-                <th className="px-5 py-3 text-left">Battery</th>
-                <th className="px-5 py-3 text-left">Chemistry</th>
-                <th className="px-5 py-3 text-left">Service Type</th>
-                <th className="px-5 py-3 text-left">Location</th>
-                <th className="px-5 py-3 text-left">Scheduled</th>
-                <th className="px-5 py-3 text-left">Status</th>
-                <th className="px-5 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#EEE9DA]">
-              {filtered.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan="9"
-                    className="px-5 py-12 text-center text-[#747B83]"
-                  >
-                    No service requests match your filters.
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((service) => (
-                  <tr
-                    key={service.id}
-                    className="hover:bg-[#F5F1E7]/50 transition-colors"
-                  >
-                    <td className="px-5 py-3">
-                      <span className="font-mono text-xs font-bold text-[#173B5C]">
-                        {service.ticketNumber}
-                      </span>
-                      <span className="block text-[11px] text-[#8A9096]">
-                        {formatDate(service.createdAt)}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className="text-xs font-semibold text-[#16263A]">
-                        {service.customer?.name || "—"}
-                      </span>
-                      <span className="block text-[11px] text-[#8A9096] truncate max-w-[140px]">
-                        {service.customer?.email || "—"}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className="text-xs font-semibold text-[#16263A] truncate block max-w-[160px]">
-                        {service.battery?.modelName || service.batteryName}
-                      </span>
-                      <span className="text-[11px] text-[#8A9096] font-mono">
-                        {service.batteryId}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className="text-[11px] font-mono text-[#747B83]">
-                        {service.battery?.chemistry || "—"}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className="text-xs text-[#16263A] truncate block max-w-[180px]">
-                        {service.serviceType}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className="text-xs text-[#747B83] truncate block max-w-[160px]">
-                        {service.center || service.battery?.location || "—"}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className="text-xs text-[#16263A]">
-                        {formatDate(service.scheduledDate)}
-                      </span>
-                      <span className="block text-[11px] text-[#8A9096]">
-                        {service.scheduledTime}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3">
-                      <StatusBadge status={service.status} />
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            navigate(`/admin/services/${service.id}`)
-                          }
-                          className="p-1.5 rounded-lg bg-[#F5F1E7] text-[#16263A] hover:bg-[#E7E1D3] transition-colors"
-                          title="View details"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                        </button>
-
-                        {service.status === "Confirmed" && (
-                          <button
-                            type="button"
-                            onClick={() => handleAccept(service.id)}
-                            disabled={actionLoading === service.id}
-                            className="p-1.5 rounded-lg bg-green-100 text-green-700 border border-green-200 hover:bg-green-200 transition-colors disabled:opacity-50"
-                            title="Accept request"
-                          >
-                            {actionLoading === service.id ? (
-                              <span className="w-3.5 h-3.5 border-2 border-green-400 border-t-green-800 rounded-full animate-spin inline-block" />
-                            ) : (
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                            )}
-                          </button>
-                        )}
-
-                        {service.status === "Accepted" && (
-                          <button
-                            type="button"
-                            onClick={() => setAssignModal(service)}
-                            className="p-1.5 rounded-lg bg-violet-100 text-violet-700 border border-violet-200 hover:bg-violet-200 transition-colors"
-                            title="Assign service person"
-                          >
-                            <UserPlus className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-
-                        <StatusDropdown
-                          service={service}
-                          statuses={STATUS_FILTER_OPTIONS.filter(
-                            (s) => s !== "All"
-                          )}
-                          onUpdate={updateServiceStatus}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          ))}
         </div>
-      </Card>
+      )}
 
       {/* Assign modal */}
       {assignModal && (
@@ -604,6 +658,16 @@ const AdminServiceRequestsPage = () => {
           servicePersons={servicePersons}
           onAssign={handleAssign}
           onClose={() => setAssignModal(null)}
+        />
+      )}
+
+      {/* Confirm action modal */}
+      {confirmModal && (
+        <ConfirmActionModal
+          service={confirmModal.service}
+          type={confirmModal.type}
+          onConfirm={confirmModal.type === "approve" ? confirmApprove : confirmAccept}
+          onClose={() => setConfirmModal(null)}
         />
       )}
     </div>

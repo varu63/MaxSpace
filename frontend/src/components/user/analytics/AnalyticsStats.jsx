@@ -5,7 +5,7 @@ import {
   Wrench,
   TrendingUp,
 } from "lucide-react";
-import { StatCard } from "../common";
+import { StatCard } from "../../common";
 
 const AnalyticsStats = ({ stats }) => {
   const cards = [

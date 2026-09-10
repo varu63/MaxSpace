@@ -1,6 +1,6 @@
 import React from "react";
 import { BarChart3 } from "lucide-react";
-import { Card, SectionHeader } from "../common";
+import { Card, SectionHeader } from "../../common";
 
 const getHealthStyle = (health) => {
   if (health >= 80) {
