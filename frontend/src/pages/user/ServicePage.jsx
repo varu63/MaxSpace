@@ -2,17 +2,17 @@ import { useCallback, useMemo, useState } from "react";
 
 import { Battery } from "lucide-react";
 
-import { useBattery } from "../context/BatteryContext";
-import { bookingsFromServices } from "../data/dummyData";
-import { isActiveBooking } from "../data/serviceStatuses";
-import { PageHeader, Card, EmptyState } from "../components/common";
-import ServiceStats from "../components/services/ServiceStats";
-import ServiceFilters from "../components/services/ServiceFilters";
-import ServiceTable from "../components/services/ServiceTable";
-import ServiceMobileCards from "../components/services/ServiceMobileCards";
-import ServiceInfoCards from "../components/services/ServiceInfoCards";
-import BatteryServiceModal from "../components/services/BatteryServiceModal";
-import BookServiceModal from "../components/services/BookServiceModal";
+import { useBattery } from "../../context/BatteryContext";
+import { bookingsFromServices } from "../../data/dummyData";
+import { isActiveBooking } from "../../data/serviceStatuses";
+import { PageHeader, Card, EmptyState } from "../../components/common";
+import ServiceStats from "../../components/user/services/ServiceStats";
+import ServiceFilters from "../../components/user/services/ServiceFilters";
+import ServiceTable from "../../components/user/services/ServiceTable";
+import ServiceMobileCards from "../../components/user/services/ServiceMobileCards";
+import ServiceInfoCards from "../../components/user/services/ServiceInfoCards";
+import BatteryServiceModal from "../../components/user/services/BatteryServiceModal";
+import BookServiceModal from "../../components/user/services/BookServiceModal";
 
 const ServicePage = () => {
   const {

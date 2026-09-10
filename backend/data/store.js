@@ -11,6 +11,7 @@ import {
   seedAdminUsers,
   seedRegularUsers,
   seedServicePersons,
+  seedEmployeeUsers,
 } from "./seedData.js";
 
 class Store {
@@ -18,7 +19,7 @@ class Store {
     this.batteries = [...seedBatteries];
     this.services = [...seedServices];
     this.userProfile = { ...seedUserProfile };
-    this.users = [...seedAdminUsers, ...seedRegularUsers];
+    this.users = [...seedAdminUsers, ...seedRegularUsers, ...seedEmployeeUsers];
     this.servicePersons = [...seedServicePersons];
   }
 
@@ -46,6 +47,14 @@ class Store {
 
   getCustomers() {
     return this.users.filter((u) => u.role === "USER");
+  }
+
+  getEmployees() {
+    return this.users.filter((u) => u.role === "EMPLOYEE");
+  }
+
+  getEmployeeById(id) {
+    return this.users.find((u) => u.id === id && u.role === "EMPLOYEE") || null;
   }
 
   /* ---------- Batteries ---------- */
@@ -167,6 +176,34 @@ class Store {
     return this.userProfile;
   }
 
+  /* ---------- Service History ---------- */
+  addServiceHistory(serviceId, entry) {
+    let found = null;
+    this.services = this.services.map((s) => {
+      if (s.id === serviceId) {
+        const history = s.history || [];
+        found = {
+          ...s,
+          history: [
+            ...history,
+            {
+              id: `hist-${Date.now()}`,
+              status: entry.status,
+              action: entry.action,
+              performedBy: entry.performedBy || "System",
+              performedByName: entry.performedByName || "",
+              notes: entry.notes || "",
+              timestamp: new Date().toISOString(),
+            },
+          ],
+        };
+        return found;
+      }
+      return s;
+    });
+    return found;
+  }
+
   /* ---------- Activity Logs ---------- */
   logActivity(action, details, type = "general") {
     const log = {
@@ -188,7 +225,7 @@ class Store {
     this.batteries = [...seedBatteries];
     this.services = [...seedServices];
     this.userProfile = { ...seedUserProfile };
-    this.users = [...seedAdminUsers, ...seedRegularUsers];
+    this.users = [...seedAdminUsers, ...seedRegularUsers, ...seedEmployeeUsers];
     this.servicePersons = [...seedServicePersons];
   }
 }

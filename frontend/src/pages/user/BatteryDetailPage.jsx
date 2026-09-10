@@ -17,8 +17,8 @@ import {
   CheckCircle2,
   AlertTriangle,
 } from "lucide-react";
-import { useBattery } from "../context/BatteryContext";
-import { DetailRow, InfoBlock } from "../components/common";
+import { useBattery } from "../../context/BatteryContext";
+import { DetailRow, InfoBlock } from "../../components/common";
 
 export default function BatteryDetailPage() {
   const { id } = useParams();

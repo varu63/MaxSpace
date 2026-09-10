@@ -12,6 +12,7 @@ const STATUS_STYLES = {
   Assigned: { chip: "bg-violet-50 text-violet-700 border-violet-200", border: "border-violet-200", dot: "bg-violet-500" },
   "On The Way": { chip: "bg-amber-50 text-amber-700 border-amber-200", border: "border-amber-200", dot: "bg-amber-500" },
   "In Progress": { chip: "bg-orange-50 text-orange-700 border-orange-200", border: "border-orange-200", dot: "bg-orange-500" },
+  "Waiting for Admin Approval": { chip: "bg-indigo-50 text-indigo-700 border-indigo-200", border: "border-indigo-200", dot: "bg-indigo-500" },
   Active: { chip: "bg-green-100 text-green-700", border: "border-green-200", dot: "bg-green-500" },
   Completed: { chip: "bg-green-50 text-green-700 border-green-200", border: "border-green-200", dot: "bg-green-500" },
   Complete: { chip: "bg-green-100 text-green-700", border: "border-green-200", dot: "bg-green-500" },
@@ -31,9 +32,10 @@ export const statusLabel = (status) => {
   const labels = {
     Confirmed: "Booked / Pending Approval",
     Accepted: "Admin Accepted",
-    Assigned: "Service Person Assigned",
+    Assigned: "Battery Technician Assigned",
     "On The Way": "On The Way",
     "In Progress": "Service In Progress",
+    "Waiting for Admin Approval": "Waiting for Admin Approval",
     Completed: "Service Completed",
     Cancelled: "Cancelled",
   };

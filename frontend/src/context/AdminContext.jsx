@@ -54,6 +54,7 @@ export const AdminProvider = ({ children }) => {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const adminLogin = useCallback(async (credentials = {}) => {
     const data = await adminApi.adminSignIn(credentials);
@@ -182,13 +183,29 @@ export const AdminProvider = ({ children }) => {
     return updated;
   }, []);
 
+  const approveServiceCompletion = useCallback(async (serviceId) => {
+    const updated = await adminApi.approveAdminService(serviceId);
+    setServices((previous) =>
+      previous.map((s) => (s.id === serviceId ? { ...s, ...updated } : s))
+    );
+    return updated;
+  }, []);
+
   /* ============================================================
-     SERVICE PERSON ACTIONS
+     BATTERY TECHNICIAN ACTIONS
   ============================================================ */
 
   const createServicePerson = useCallback(async (person) => {
     const created = await adminApi.createAdminServicePerson(person);
     setServicePersons((previous) => [created, ...previous]);
+    return created;
+  }, []);
+
+  const createTechnician = useCallback(async (data) => {
+    const created = await adminApi.createAdminTechnician(data);
+    if (created?.servicePerson) {
+      setServicePersons((previous) => [created.servicePerson, ...previous]);
+    }
     return created;
   }, []);
 
@@ -230,6 +247,8 @@ export const AdminProvider = ({ children }) => {
       servicePersons,
       customers,
       analytics,
+      isSidebarOpen,
+      setIsSidebarOpen,
       adminLogin,
       adminLogout,
       loadAdminData,
@@ -238,7 +257,9 @@ export const AdminProvider = ({ children }) => {
       acceptService,
       assignServicePerson,
       updateServiceStatus,
+      approveServiceCompletion,
       createServicePerson,
+      createTechnician,
       updateServicePerson,
       toggleServicePersonStatus,
     }),
@@ -251,6 +272,8 @@ export const AdminProvider = ({ children }) => {
       servicePersons,
       customers,
       analytics,
+      isSidebarOpen,
+      setIsSidebarOpen,
       adminLogin,
       adminLogout,
       loadAdminData,
@@ -259,7 +282,9 @@ export const AdminProvider = ({ children }) => {
       acceptService,
       assignServicePerson,
       updateServiceStatus,
+      approveServiceCompletion,
       createServicePerson,
+      createTechnician,
       updateServicePerson,
       toggleServicePersonStatus,
     ]

@@ -142,6 +142,14 @@ export const acceptService = asyncHandler(async (req, res) => {
       : "Admin accepted the service request.",
   });
 
+  store.addServiceHistory(req.params.id, {
+    status: "Accepted",
+    action: "Service Accepted",
+    performedBy: "ADMIN",
+    performedByName: req.user.name || "Admin",
+    notes: "Service request accepted by admin",
+  });
+
   store.logActivity(
     "Service Accepted",
     `Ticket #${updated.ticketNumber} accepted by admin`,
@@ -169,12 +177,12 @@ export const assignService = asyncHandler(async (req, res) => {
   const person = store.getServicePersonById(servicePersonId);
   if (!person) {
     res.status(404);
-    throw new Error("Service person not found");
+    throw new Error("Battery technician not found");
   }
 
   if (person.status !== "active") {
     res.status(400);
-    throw new Error("Service person is not active");
+    throw new Error("Battery technician is not active");
   }
 
   const technicianLabel = `${person.name} (${person.certification})`;
@@ -185,13 +193,21 @@ export const assignService = asyncHandler(async (req, res) => {
     assignedServicePersonId: servicePersonId,
   });
 
-  // Update service person's assigned services
+  // Update battery technician's assigned services
   const assignedServices = person.assignedServices || [];
   if (!assignedServices.includes(req.params.id)) {
     store.updateServicePerson(servicePersonId, {
       assignedServices: [...assignedServices, req.params.id],
     });
   }
+
+  store.addServiceHistory(req.params.id, {
+    status: "Assigned",
+    action: "Service Assigned",
+    performedBy: "ADMIN",
+    performedByName: req.user.name || "Admin",
+    notes: `Assigned to ${technicianLabel}`,
+  });
 
   store.logActivity(
     "Service Assigned",
@@ -218,6 +234,14 @@ export const updateServiceStatus = asyncHandler(async (req, res) => {
   }
 
   const updated = store.updateService(req.params.id, { status });
+
+  store.addServiceHistory(req.params.id, {
+    status,
+    action: `Service ${status}`,
+    performedBy: "ADMIN",
+    performedByName: req.user.name || "Admin",
+    notes: `Status changed to ${status} by admin`,
+  });
 
   if (status === "Completed") {
     store.logActivity(
@@ -281,7 +305,7 @@ export const updateServicePerson = asyncHandler(async (req, res) => {
   const person = store.getServicePersonById(req.params.id);
   if (!person) {
     res.status(404);
-    throw new Error("Service person not found");
+    throw new Error("Battery technician not found");
   }
 
   const updated = store.updateServicePerson(req.params.id, req.body);
@@ -338,6 +362,7 @@ export const getAdminAnalytics = asyncHandler(async (req, res) => {
   const activeServices = services.filter((s) => isActiveStatus(s.status)).length;
   const completedServices = services.filter((s) => s.status === "Completed").length;
   const cancelledServices = services.filter((s) => s.status === "Cancelled").length;
+  const waitingApproval = services.filter((s) => s.status === "Waiting for Admin Approval").length;
 
   const completionRate =
     totalBookings > 0
@@ -350,6 +375,7 @@ export const getAdminAnalytics = asyncHandler(async (req, res) => {
     Assigned: assignedServices,
     "On The Way": services.filter((s) => s.status === "On The Way").length,
     "In Progress": services.filter((s) => s.status === "In Progress").length,
+    "Waiting for Admin Approval": waitingApproval,
     Completed: completedServices,
     Cancelled: cancelledServices,
   };
@@ -366,11 +392,97 @@ export const getAdminAnalytics = asyncHandler(async (req, res) => {
     activeServices,
     completedServices,
     cancelledServices,
+    waitingApproval,
     completionRate,
     statusBreakdown,
     recentServices,
     totalCustomers: customers.length,
     totalServicePersons: servicePersons.length,
     totalBatteries: batteries.length,
+  });
+});
+
+// PATCH /api/admin/services/:id/approve — approve completed service from technician
+export const approveService = asyncHandler(async (req, res) => {
+  const service = store.getServiceById(req.params.id);
+  if (!service) {
+    res.status(404);
+    throw new Error("Service not found");
+  }
+
+  if (service.status !== "Waiting for Admin Approval") {
+    res.status(400);
+    throw new Error("Only services waiting for admin approval can be approved");
+  }
+
+  const updated = store.updateService(req.params.id, {
+    status: "Completed",
+    adminApprovedAt: new Date().toISOString(),
+    approvedBy: req.user.id,
+  });
+
+  store.addServiceHistory(req.params.id, {
+    status: "Completed",
+    action: "Admin Approved Completion",
+    performedBy: "ADMIN",
+    performedByName: req.user.name || "Admin",
+    notes: "Service completion approved by admin",
+  });
+
+  store.logActivity(
+    "Service Completed",
+    `Ticket #${updated.ticketNumber} completion approved by admin`,
+    "service"
+  );
+
+  res.json(updated);
+});
+
+// POST /api/admin/technicians — create a battery technician (employee + service person)
+export const createTechnician = asyncHandler(async (req, res) => {
+  const { name, email, password, phone, certification, specialization } = req.body;
+
+  if (!name || !email || !password) {
+    res.status(400);
+    throw new Error("Name, email, and password are required");
+  }
+
+  const existing = store.getUserByEmail(email);
+  if (existing) {
+    res.status(400);
+    throw new Error("A user with this email already exists");
+  }
+
+  const personId = `sp-${Date.now()}`;
+  const userId = `emp-${Date.now()}`;
+
+  const newPerson = store.createServicePerson({
+    id: personId,
+    name,
+    email,
+    phone: phone || "",
+    certification: certification || "",
+    specialization: specialization || "",
+    status: "active",
+    assignedServices: [],
+    createdAt: todayISO(),
+  });
+
+  const bcrypt = await import("bcryptjs");
+  const hashedPassword = await bcrypt.default.hash(password, 10);
+
+  const newUser = store.createUser({
+    id: userId,
+    name,
+    email,
+    password: hashedPassword,
+    role: "EMPLOYEE",
+    servicePersonId: personId,
+    createdAt: todayISO(),
+  });
+
+  res.status(201).json({
+    user: sanitizeUser(newUser),
+    servicePerson: newPerson,
   });
 });

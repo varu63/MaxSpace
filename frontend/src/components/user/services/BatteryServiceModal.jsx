@@ -1,5 +1,5 @@
 import React from "react";
-import { Modal } from "../common/Modal";
+import { Modal } from "../../common/Modal";
 import { Battery, Calendar, Check, Plus, X } from "lucide-react";
 
 const BatteryServiceModal = ({

@@ -1,7 +1,7 @@
 import React from 'react';
 import { ShieldCheck, Cpu, Leaf, Globe } from 'lucide-react';
 
-function Footer(){
+function Footer({ panelText }){
   return (
     <footer className="mt-auto border-t border-[#EEE9DA] text-[#F8F2DE] bg-[#16263A] text-xs">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -9,7 +9,7 @@ function Footer(){
           
           <div className="flex items-center space-x-2 text-white font-semibold">
             <ShieldCheck className="w-4 h-4 text-[#B48611]" />
-            <span>Compliant with EU Battery Regulation 2023/1542 & Digital Product Passport (DPP) Architecture</span>
+            <span>{panelText || "Compliant with EU Battery Regulation 2023/1542 & Digital Product Passport (DPP) Architecture"}</span>
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-[#747B83]">

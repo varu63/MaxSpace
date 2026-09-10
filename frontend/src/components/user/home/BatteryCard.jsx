@@ -7,7 +7,7 @@ import {
   Activity,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useBattery } from "../../context/BatteryContext";
+import { useBattery } from "../../../context/BatteryContext";
 
 const BatteryCard = ({ battery }) => {
   const navigate = useNavigate();

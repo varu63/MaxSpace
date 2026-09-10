@@ -1,15 +1,15 @@
 import React, { useMemo } from "react";
 import { BarChart3, RefreshCw } from "lucide-react";
 
-import { useBattery } from "../context/BatteryContext";
-import { bookingsFromServices, getBatteryServiceCount } from "../data/dummyData";
-import { PageHeader } from "../components/common";
+import { useBattery } from "../../context/BatteryContext";
+import { bookingsFromServices, getBatteryServiceCount } from "../../data/dummyData";
+import { PageHeader } from "../../components/common";
 
-import AnalyticsStats from "../components/analytics/AnalyticsStats";
-import BatteryHealthChart from "../components/analytics/BatteryHealthChart";
-import ServiceAnalytics from "../components/analytics/ServiceAnalytics";
-import BatteryPerformance from "../components/analytics/BatteryPerformance";
-import AnalyticsTable from "../components/analytics/AnalyticsTable";
+import AnalyticsStats from "../../components/user/analytics/AnalyticsStats";
+import BatteryHealthChart from "../../components/user/analytics/BatteryHealthChart";
+import ServiceAnalytics from "../../components/user/analytics/ServiceAnalytics";
+import BatteryPerformance from "../../components/user/analytics/BatteryPerformance";
+import AnalyticsTable from "../../components/user/analytics/AnalyticsTable";
 
 const AnalyticsPage = () => {
   const {

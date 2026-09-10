@@ -5,10 +5,10 @@ import Sidebar from "../../components/common/Sidebar";
 import Header from "../../components/common/Header";
 import Footer from "../../components/common/Footer";
 
-import { useAdmin } from "../../context/AdminContext";
+import { useBatteryTechnician } from "../../context/BatteryTechnicianContext";
 
-const AdminLayout = () => {
-  const { isSidebarOpen, setIsSidebarOpen, adminLogout } = useAdmin();
+const BatteryTechnicianLayout = () => {
+  const { isSidebarOpen, setIsSidebarOpen, batteryTechnicianLogout } = useBatteryTechnician();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -18,18 +18,18 @@ const AdminLayout = () => {
   }, [location.pathname]);
 
   const handleLogout = async () => {
-    await adminLogout();
-    navigate("/admin/login", { replace: true });
+    await batteryTechnicianLogout();
+    navigate("/battery-technician/login", { replace: true });
   };
 
   return (
     <div className="min-h-screen flex flex-col overflow-x-hidden bg-[#F8F2DE] text-[#16263A]">
-      <Sidebar role="admin" />
+      <Sidebar role="battery-technician" />
 
       <Header
-        role="admin"
+        role="battery-technician"
         onOpenSidebar={() => setIsSidebarOpen(true)}
-        onNavigateProfile={() => navigate("/admin/profile")}
+        onNavigateProfile={() => navigate("/battery-technician/services")}
         onLogout={handleLogout}
         showScanner={false}
         isSidebarOpen={isSidebarOpen}
@@ -40,9 +40,9 @@ const AdminLayout = () => {
         <Outlet />
       </main>
 
-      <Footer panelText="Admin Panel · Authorized personnel only" />
+      <Footer panelText="MaxSpace Battery Technician Panel · Authorized personnel only" />
     </div>
   );
 };
 
-export default AdminLayout;
+export default BatteryTechnicianLayout;

@@ -20,7 +20,7 @@ import LoadingSpinner from "../../components/common/LoadingSpinner";
 import { getErrorMessage } from "../../services/adminApi";
 
 /* ============================================================
-   Add/Edit Service Person Modal
+   Add/Edit Battery Technician Modal
 ============================================================ */
 const PersonModal = ({ person, onClose, onCreate, onUpdate }) => {
   const [form, setForm] = useState({
@@ -29,6 +29,7 @@ const PersonModal = ({ person, onClose, onCreate, onUpdate }) => {
     phone: person?.phone || "",
     certification: person?.certification || "",
     specialization: person?.specialization || "",
+    password: "",
   });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -40,11 +41,16 @@ const PersonModal = ({ person, onClose, onCreate, onUpdate }) => {
       setError("Name and email are required.");
       return;
     }
+    if (!isEdit && form.password.length < 6) {
+      setError("Login password must be at least 6 characters.");
+      return;
+    }
     setSubmitting(true);
     setError("");
     try {
       if (isEdit) {
-        await onUpdate(person.id, form);
+        const { password, ...fields } = form;
+        await onUpdate(person.id, fields);
       } else {
         await onCreate(form);
       }
@@ -78,8 +84,13 @@ const PersonModal = ({ person, onClose, onCreate, onUpdate }) => {
           </div>
           <div>
             <h3 className="font-bold text-lg text-[#16263A]">
-              {isEdit ? "Edit Service Person" : "Add Service Person"}
+              {isEdit ? "Edit Battery Technician" : "Add Battery Technician"}
             </h3>
+            {!isEdit && (
+              <p className="text-[11px] text-[#B48611] font-semibold">
+                Creates a login account with the email + password below
+              </p>
+            )}
           </div>
         </div>
 
@@ -93,7 +104,7 @@ const PersonModal = ({ person, onClose, onCreate, onUpdate }) => {
         <form onSubmit={handleSubmit} className="space-y-4">
           {[
             { key: "name", label: "Full Name", type: "text", placeholder: "e.g. Markus Vance", required: true },
-            { key: "email", label: "Email", type: "email", placeholder: "email@maxspace.com", required: true },
+            { key: "email", label: "Login Email", type: "email", placeholder: "email@maxspace.com", required: true },
             { key: "phone", label: "Phone", type: "tel", placeholder: "+49 30 1234 5678" },
             { key: "certification", label: "Certification", type: "text", placeholder: "e.g. Cert #1234" },
             { key: "specialization", label: "Specialization", type: "text", placeholder: "e.g. BMS Diagnostics" },
@@ -112,6 +123,25 @@ const PersonModal = ({ person, onClose, onCreate, onUpdate }) => {
             </div>
           ))}
 
+          {!isEdit && (
+            <div>
+              <label className="block text-xs font-bold text-[#16263A] mb-1.5">
+                Login Password
+              </label>
+              <input
+                type="password"
+                value={form.password}
+                onChange={(e) => update("password", e.target.value)}
+                placeholder="Min 6 characters"
+                className="field-input px-3.5 py-3 text-sm"
+              />
+              <p className="text-[10px] text-[#8A9096] mt-1">
+                The technician uses this email and password to sign in to the
+                Battery Technician panel.
+              </p>
+            </div>
+          )}
+
           <div className="flex items-center gap-3 pt-2">
             <button
               type="button"
@@ -129,7 +159,7 @@ const PersonModal = ({ person, onClose, onCreate, onUpdate }) => {
                 ? "Saving…"
                 : isEdit
                 ? "Save Changes"
-                : "Add Person"}
+                : "Create Account"}
             </button>
           </div>
         </form>
@@ -145,7 +175,7 @@ const AdminServicePersonsPage = () => {
   const {
     servicePersons,
     loading,
-    createServicePerson,
+    createTechnician,
     updateServicePerson,
     toggleServicePersonStatus,
   } = useAdmin();
@@ -190,8 +220,8 @@ const AdminServicePersonsPage = () => {
     <div className="space-y-6">
       <PageHeader
         icon={UserCheck}
-        title="Service Persons"
-        subtitle={`${servicePersons.length} registered service personnel`}
+        title="Battery Technicians"
+        subtitle={`${servicePersons.length} registered battery technicians`}
         actions={
           <button
             type="button"
@@ -199,7 +229,7 @@ const AdminServicePersonsPage = () => {
             className="btn btn-primary px-4 py-2.5 text-sm"
           >
             <UserPlus className="w-4 h-4" />
-            Add Person
+            Add Technician
           </button>
         }
       />
@@ -246,7 +276,7 @@ const AdminServicePersonsPage = () => {
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.length === 0 ? (
           <div className="sm:col-span-2 lg:col-span-3 text-center py-12">
-            <p className="text-sm text-[#747B83]">No service persons found.</p>
+            <p className="text-sm text-[#747B83]">No battery technicians found.</p>
           </div>
         ) : (
           filtered.map((person) => (
@@ -353,7 +383,7 @@ const AdminServicePersonsPage = () => {
         <PersonModal
           person={modal === "add" ? null : modal}
           onClose={() => setModal(null)}
-          onCreate={createServicePerson}
+          onCreate={createTechnician}
           onUpdate={updateServicePerson}
         />
       )}

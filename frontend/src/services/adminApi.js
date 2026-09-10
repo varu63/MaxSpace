@@ -42,6 +42,9 @@ export const updateAdminServiceStatus = (id, status) =>
     admin: true,
   });
 
+export const approveAdminService = (id) =>
+  client(`/admin/services/${id}/approve`, { method: "PATCH", admin: true });
+
 /* ============================================================
    SERVICE PERSONS
 ============================================================ */
@@ -53,6 +56,13 @@ export const createAdminServicePerson = (person) =>
 
 export const updateAdminServicePerson = (id, fields) =>
   client(`/admin/service-persons/${id}`, { method: "PATCH", body: fields, admin: true });
+
+/* ============================================================
+   TECHNICIANS (Employee + Service Person)
+============================================================ */
+
+export const createAdminTechnician = (data) =>
+  client("/admin/technicians", { method: "POST", body: data, admin: true });
 
 /* ============================================================
    CUSTOMERS / ANALYTICS

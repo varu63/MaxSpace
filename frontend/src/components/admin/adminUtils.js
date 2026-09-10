@@ -2,7 +2,7 @@
    Admin panel shared helpers
 ============================================================ */
 import { SERVICE_STATUS_FLOW } from "../../data/serviceStatuses";
-import { statusStyle, statusLabel } from "../services/status";
+import { statusStyle, statusLabel } from "../common/status";
 
 export { SERVICE_STATUS_FLOW, statusStyle, statusLabel };
 

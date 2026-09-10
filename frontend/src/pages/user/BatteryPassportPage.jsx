@@ -14,8 +14,8 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
-import { useBattery } from "../context/BatteryContext";
-import { DetailRow, InfoBlock } from "../components/common";
+import { useBattery } from "../../context/BatteryContext";
+import { DetailRow, InfoBlock } from "../../components/common";
 
 export default function BatteryPassportPage() {
   const { id } = useParams();

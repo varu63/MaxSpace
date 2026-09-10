@@ -28,10 +28,13 @@ const AdminDashboardPage = () => {
     const active = services.filter((s) =>
       ["On The Way", "In Progress"].includes(s.status)
     ).length;
+    const waitingApproval = services.filter(
+      (s) => s.status === "Waiting for Admin Approval"
+    ).length;
     const completed = services.filter((s) => s.status === "Completed").length;
     const cancelled = services.filter((s) => s.status === "Cancelled").length;
 
-    return { total, pending, accepted, active, completed, cancelled };
+    return { total, pending, accepted, active, waitingApproval, completed, cancelled };
   }, [services]);
 
   const recentServices = useMemo(
@@ -49,6 +52,7 @@ const AdminDashboardPage = () => {
       Assigned: 0,
       "On The Way": 0,
       "In Progress": 0,
+      "Waiting for Admin Approval": 0,
       Completed: 0,
       Cancelled: 0,
     };
@@ -63,6 +67,7 @@ const AdminDashboardPage = () => {
     { label: "Pending Requests", value: stats.pending, icon: Clock, tone: "accent" },
     { label: "Accepted Services", value: stats.accepted, icon: CheckCircle2, tone: "primary" },
     { label: "Active Services", value: stats.active, icon: Activity, tone: "accent" },
+    { label: "Awaiting Approval", value: stats.waitingApproval, icon: CheckCircle2, tone: "primary" },
     { label: "Completed Services", value: stats.completed, icon: TrendingUp, tone: "primary" },
     { label: "Cancelled Services", value: stats.cancelled, icon: XCircle, tone: "accent" },
   ];
@@ -241,7 +246,7 @@ const AdminDashboardPage = () => {
                 <div className="mt-2 flex items-center justify-between text-[11px] text-[#8A7A4A]">
                   <span className="flex items-center gap-1">
                     <UserCheck className="w-3.5 h-3.5" />
-                    {analytics.totalServicePersons} service persons
+                    {analytics.totalServicePersons} battery technicians
                   </span>
                   <span>{analytics.totalCustomers} customers</span>
                 </div>

@@ -9,7 +9,7 @@ import {
   Clock3,
   Home,
 } from "lucide-react";
-import BatteryCard from "../components/home/BatteryCard";
+import BatteryCard from "../../components/user/home/BatteryCard";
 import {
   PageHeader,
   StatCard,
@@ -17,8 +17,8 @@ import {
   SectionHeader,
   IconBox,
   FAQ,
-} from "../components/common";
-import { useBattery } from "../context/BatteryContext";
+} from "../../components/common";
+import { useBattery } from "../../context/BatteryContext";
 
 export default function HomePage() {
   const {

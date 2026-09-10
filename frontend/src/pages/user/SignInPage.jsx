@@ -12,8 +12,8 @@ import {
   X,
 } from "lucide-react";
 
-import { useBattery } from "../context/BatteryContext";
-import { forgotPassword } from "../services/api";
+import { useBattery } from "../../context/BatteryContext";
+import { forgotPassword } from "../../services/api";
 
 const SignInPage = () => {
   const { signIn, addToast } = useBattery();

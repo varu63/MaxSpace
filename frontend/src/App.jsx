@@ -1,27 +1,28 @@
-import React, { lazy, Suspense, useState, useEffect } from "react";
+import { lazy, Suspense, useState, useEffect } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ChevronUp } from "lucide-react";
 
 import { BatteryProvider, useBattery } from "./context/BatteryContext";
 import { AdminProvider, useAdmin } from "./context/AdminContext";
+import { BatteryTechnicianProvider, useBatteryTechnician } from "./context/BatteryTechnicianContext";
 
 import Sidebar from "./components/common/Sidebar";
 import Header from "./components/common/Header";
 import Footer from "./components/common/Footer";
 import LoadingSpinner from "./components/common/LoadingSpinner";
 import { NotificationToast } from "./components/common/NotificationToast";
-import { QRBarcodeScannerModal } from "./components/scanner/QRBarcodeScannerModal";
+import { QRBarcodeScannerModal } from "./components/user/scanner/QRBarcodeScannerModal";
 import FloatingDownloadButton from "./components/common/FloatingDownloadButton";
 
-const HomePage = lazy(() => import("./pages/HomePage"));
-const ServicePage = lazy(() => import("./pages/ServicePage"));
-const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
-const ProfilePage = lazy(() => import("./pages/ProfilePage"));
-const SettingsPage = lazy(() => import("./pages/SettingPage"));
-const BatteryDetailPage = lazy(() => import("./pages/BatteryDetailPage"));
-const BatteryPassportPage = lazy(() => import("./pages/BatteryPassportPage"));
-const SignInPage = lazy(() => import("./pages/SignInPage"));
-const SignUpPage = lazy(() => import("./pages/SignUpPage"));
+const HomePage = lazy(() => import("./pages/user/HomePage"));
+const ServicePage = lazy(() => import("./pages/user/ServicePage"));
+const AnalyticsPage = lazy(() => import("./pages/user/AnalyticsPage"));
+const ProfilePage = lazy(() => import("./pages/user/ProfilePage"));
+const SettingsPage = lazy(() => import("./pages/user/SettingPage"));
+const BatteryDetailPage = lazy(() => import("./pages/user/BatteryDetailPage"));
+const BatteryPassportPage = lazy(() => import("./pages/user/BatteryPassportPage"));
+const SignInPage = lazy(() => import("./pages/user/SignInPage"));
+const SignUpPage = lazy(() => import("./pages/user/SignUpPage"));
 
 const AdminLoginPage = lazy(() => import("./pages/admin/AdminLoginPage"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
@@ -38,6 +39,22 @@ const AdminServicePersonsPage = lazy(() =>
 const AdminCustomersPage = lazy(() => import("./pages/admin/AdminCustomersPage"));
 const AdminAnalyticsPage = lazy(() => import("./pages/admin/AdminAnalyticsPage"));
 const AdminProfilePage = lazy(() => import("./pages/admin/AdminProfilePage"));
+
+const BatteryTechnicianLoginPage = lazy(() =>
+  import("./pages/battery-technician/BatteryTechnicianLoginPage")
+);
+const BatteryTechnicianLayout = lazy(() =>
+  import("./pages/battery-technician/BatteryTechnicianLayout")
+);
+const BatteryTechnicianDashboardPage = lazy(() =>
+  import("./pages/battery-technician/BatteryTechnicianDashboardPage")
+);
+const BatteryTechnicianServicesPage = lazy(() =>
+  import("./pages/battery-technician/BatteryTechnicianServicesPage")
+);
+const BatteryTechnicianServiceDetailsPage = lazy(() =>
+  import("./pages/battery-technician/BatteryTechnicianServiceDetailsPage")
+);
 
 const PageLoader = () => <LoadingSpinner />;
 
@@ -151,6 +168,40 @@ const AdminPrivateRoute = ({ children }) => {
   return children;
 };
 
+/* ============================================================
+   BATTERY TECHNICIAN GUARDS
+   - BatteryTechnicianPublicOnlyRoute: /battery-technician/login is only for guests.
+   - BatteryTechnicianPrivateRoute: requires an authenticated EMPLOYEE session
+     verified against the backend (token + role check).
+============================================================ */
+const BatteryTechnicianPublicOnlyRoute = ({ children }) => {
+  const { isBatteryTechnicianAuthenticated, verifying } = useBatteryTechnician();
+
+  if (verifying) {
+    return <PageLoader />;
+  }
+
+  if (isBatteryTechnicianAuthenticated) {
+    return <Navigate to="/battery-technician" replace />;
+  }
+
+  return children;
+};
+
+const BatteryTechnicianPrivateRoute = ({ children }) => {
+  const { isBatteryTechnicianAuthenticated, verifying } = useBatteryTechnician();
+
+  if (verifying) {
+    return <PageLoader />;
+  }
+
+  if (!isBatteryTechnicianAuthenticated) {
+    return <Navigate to="/battery-technician/login" replace />;
+  }
+
+  return children;
+};
+
 const MainLayout = () => {
   const location = useLocation();
   const isFullScreenPage = /^\/battery\/[^/]+\/passport$/.test(location.pathname);
@@ -237,60 +288,89 @@ const App = () => {
   return (
     <BatteryProvider>
       <AdminProvider>
-        <ThemeSync />
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
-            <Route
-              path="/signin"
-              element={
-                <PublicOnlyRoute>
-                  <SignInPage />
-                </PublicOnlyRoute>
-              }
-            />
-            <Route
-              path="/signup"
-              element={
-                <PublicOnlyRoute>
-                  <SignUpPage />
-                </PublicOnlyRoute>
-              }
-            />
-
-            {/* ============ ADMIN PANEL ============ */}
-            <Route
-              path="/admin/login"
-              element={
-                <AdminPublicOnlyRoute>
-                  <AdminLoginPage />
-                </AdminPublicOnlyRoute>
-              }
-            />
-
-            <Route
-              path="/admin"
-              element={
-                <AdminPrivateRoute>
-                  <AdminLayout />
-                </AdminPrivateRoute>
-              }
-            >
-              <Route index element={<AdminDashboardPage />} />
-              <Route path="services" element={<AdminServiceRequestsPage />} />
+        <BatteryTechnicianProvider>
+          <ThemeSync />
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
               <Route
-                path="services/:id"
-                element={<AdminServiceDetailsPage />}
+                path="/signin"
+                element={
+                  <PublicOnlyRoute>
+                    <SignInPage />
+                  </PublicOnlyRoute>
+                }
               />
-              <Route path="service-persons" element={<AdminServicePersonsPage />} />
-              <Route path="customers" element={<AdminCustomersPage />} />
-              <Route path="analytics" element={<AdminAnalyticsPage />} />
-              <Route path="profile" element={<AdminProfilePage />} />
-            </Route>
+              <Route
+                path="/signup"
+                element={
+                  <PublicOnlyRoute>
+                    <SignUpPage />
+                  </PublicOnlyRoute>
+                }
+              />
 
-            <Route path="/*" element={<MainLayout />} />
-          </Routes>
-        </Suspense>
-        <NotificationToast />
+              {/* ============ ADMIN PANEL ============ */}
+              <Route
+                path="/admin/login"
+                element={
+                  <AdminPublicOnlyRoute>
+                    <AdminLoginPage />
+                  </AdminPublicOnlyRoute>
+                }
+              />
+
+              <Route
+                path="/admin"
+                element={
+                  <AdminPrivateRoute>
+                    <AdminLayout />
+                  </AdminPrivateRoute>
+                }
+              >
+                <Route index element={<AdminDashboardPage />} />
+                <Route path="services" element={<AdminServiceRequestsPage />} />
+                <Route
+                  path="services/:id"
+                  element={<AdminServiceDetailsPage />}
+                />
+                <Route path="service-persons" element={<AdminServicePersonsPage />} />
+                <Route path="customers" element={<AdminCustomersPage />} />
+                <Route path="analytics" element={<AdminAnalyticsPage />} />
+                <Route path="profile" element={<AdminProfilePage />} />
+              </Route>
+
+              {/* ============ BATTERY TECHNICIAN PANEL ============ */}
+              <Route
+                path="/battery-technician/login"
+                element={
+                  <BatteryTechnicianPublicOnlyRoute>
+                    <BatteryTechnicianLoginPage />
+                  </BatteryTechnicianPublicOnlyRoute>
+                }
+              />
+
+              <Route
+                path="/battery-technician"
+                element={
+                  <BatteryTechnicianPrivateRoute>
+                    <BatteryTechnicianLayout />
+                  </BatteryTechnicianPrivateRoute>
+                }
+              >
+                <Route index element={<BatteryTechnicianDashboardPage />} />
+                <Route path="services" element={<BatteryTechnicianServicesPage />} />
+                <Route path="services/:id" element={<BatteryTechnicianServiceDetailsPage />} />
+              </Route>
+
+              {/* Backward compatibility: redirect old /service-man routes */}
+              <Route path="/service-man/login" element={<Navigate to="/battery-technician/login" replace />} />
+              <Route path="/service-man/*" element={<Navigate to="/battery-technician" replace />} />
+
+              <Route path="/*" element={<MainLayout />} />
+            </Routes>
+          </Suspense>
+          <NotificationToast />
+        </BatteryTechnicianProvider>
       </AdminProvider>
     </BatteryProvider>
   );
