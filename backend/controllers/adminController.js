@@ -1,10 +1,9 @@
+import bcrypt from "bcryptjs";
 import store from "../data/store.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { signToken, sanitizeUser, matchesPassword } from "../utils/auth.js";
 import { todayISO } from "../utils/date.js";
 import { VALID_STATUSES, isActiveStatus } from "../constants/serviceStatuses.js";
-
-const signAdminToken = (id, role) => signToken(id, role);
 
 // POST /api/admin/login
 export const adminLogin = asyncHandler(async (req, res) => {
@@ -28,7 +27,7 @@ export const adminLogin = asyncHandler(async (req, res) => {
     throw new Error("Invalid email or password");
   }
 
-  const token = signAdminToken(user.id, user.role);
+  const token = signToken(user.id, user.role);
 
   res.status(200).json({
     token,
@@ -265,13 +264,16 @@ export const getServicePersons = asyncHandler(async (req, res) => {
   const persons = store.getAllServicePersons();
   const services = store.getAllServices();
 
-  const enriched = persons.map((sp) => ({
-    ...sp,
-    assignedServiceCount: (sp.assignedServices || []).length,
-    recentServices: services
-      .filter((s) => (sp.assignedServices || []).includes(s.id))
-      .slice(0, 3),
-  }));
+  const enriched = persons.map((sp) => {
+    const assigned = services.filter((s) => (sp.assignedServices || []).includes(s.id));
+    return {
+      ...sp,
+      assignedServiceCount: assigned.length,
+      completedServiceCount: assigned.filter((s) => s.status === "Completed").length,
+      activeServiceCount: assigned.filter((s) => isActiveStatus(s.status)).length,
+      recentServices: assigned.slice(0, 3),
+    };
+  });
 
   res.json(enriched);
 });
@@ -440,41 +442,94 @@ export const approveService = asyncHandler(async (req, res) => {
 
 // POST /api/admin/technicians — create a battery technician (employee + service person)
 export const createTechnician = asyncHandler(async (req, res) => {
-  const { name, email, password, phone, certification, specialization } = req.body;
+  const { name, email, password, confirmPassword, phone, technicianId, specializations, certification } = req.body;
 
-  if (!name || !email || !password) {
+  if (!name || !name.trim()) {
     res.status(400);
-    throw new Error("Name, email, and password are required");
+    throw new Error("Full name is required");
   }
 
-  const existing = store.getUserByEmail(email);
-  if (existing) {
+  if (!email || !email.trim()) {
     res.status(400);
+    throw new Error("Email is required");
+  }
+
+  if (!password) {
+    res.status(400);
+    throw new Error("Password is required");
+  }
+
+  if (!technicianId || !technicianId.trim()) {
+    res.status(400);
+    throw new Error("Technician ID is required");
+  }
+
+  if (!specializations || !Array.isArray(specializations) || specializations.length === 0) {
+    res.status(400);
+    throw new Error("At least one specialization is required");
+  }
+
+  if (password.length < 6) {
+    res.status(400);
+    throw new Error("Password must be at least 6 characters");
+  }
+
+  if (confirmPassword && password !== confirmPassword) {
+    res.status(400);
+    throw new Error("Passwords do not match");
+  }
+
+  const phoneRegex = /^\+?[\d\s\-().]{7,20}$/;
+  if (phone && !phoneRegex.test(phone.trim())) {
+    res.status(400);
+    throw new Error("Invalid phone number format");
+  }
+
+  if (!store.isTechnicianIdUnique(technicianId.trim())) {
+    res.status(409);
+    throw new Error("Technician ID already exists");
+  }
+
+  const existingUser = store.getUserByEmail(email.trim());
+  if (existingUser) {
+    res.status(409);
     throw new Error("A user with this email already exists");
   }
 
+  const existingTech = store.getTechnicianByEmail(email.trim());
+  if (existingTech) {
+    res.status(409);
+    throw new Error("A technician with this email already exists");
+  }
+
+  if (phone && !store.isPhoneUnique(phone.trim())) {
+    res.status(409);
+    throw new Error("A technician with this phone number already exists");
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
   const personId = `sp-${Date.now()}`;
-  const userId = `emp-${Date.now()}`;
 
   const newPerson = store.createServicePerson({
     id: personId,
-    name,
-    email,
-    phone: phone || "",
+    technicianId: technicianId.trim(),
+    name: name.trim(),
+    email: email.trim().toLowerCase(),
+    phone: phone ? phone.trim() : "",
     certification: certification || "",
-    specialization: specialization || "",
+    specializations: specializations,
+    specialization: specializations[0] || "",
     status: "active",
     assignedServices: [],
     createdAt: todayISO(),
   });
 
-  const bcrypt = await import("bcryptjs");
-  const hashedPassword = await bcrypt.default.hash(password, 10);
-
+  const userId = `emp-${Date.now()}`;
   const newUser = store.createUser({
     id: userId,
-    name,
-    email,
+    name: name.trim(),
+    email: email.trim().toLowerCase(),
     password: hashedPassword,
     role: "EMPLOYEE",
     servicePersonId: personId,
@@ -485,4 +540,146 @@ export const createTechnician = asyncHandler(async (req, res) => {
     user: sanitizeUser(newUser),
     servicePerson: newPerson,
   });
+});
+
+// GET /api/admin/technicians — list all technicians
+export const getTechnicians = asyncHandler(async (req, res) => {
+  const persons = store.getAllTechnicians();
+  const services = store.getAllServices();
+
+  const enriched = persons.map((sp) => {
+    const assigned = services.filter((s) => (sp.assignedServices || []).includes(s.id));
+    return {
+      ...sp,
+      assignedServiceCount: assigned.length,
+      completedServiceCount: assigned.filter((s) => s.status === "Completed").length,
+      activeServiceCount: assigned.filter((s) => isActiveStatus(s.status)).length,
+      recentServices: assigned.slice(0, 3),
+    };
+  });
+
+  res.json(enriched);
+});
+
+// GET /api/admin/technicians/:id — get single technician
+export const getTechnician = asyncHandler(async (req, res) => {
+  const person = store.getTechnicianById(req.params.id);
+  if (!person) {
+    res.status(404);
+    throw new Error("Technician not found");
+  }
+
+  const services = store.getAllServices();
+  const assignedServices = services.filter(
+    (s) => (person.assignedServices || []).includes(s.id)
+  );
+
+  res.json({
+    ...person,
+    assignedServiceCount: assignedServices.length,
+    assignedServices: assignedServices,
+  });
+});
+
+// PATCH /api/admin/technicians/:id — update technician
+export const updateTechnician = asyncHandler(async (req, res) => {
+  const person = store.getTechnicianById(req.params.id);
+  if (!person) {
+    res.status(404);
+    throw new Error("Technician not found");
+  }
+
+  const { name, email, phone, technicianId, specializations, certification, status } = req.body;
+
+  if (technicianId && technicianId !== person.technicianId) {
+    if (!store.isTechnicianIdUnique(technicianId, person.id)) {
+      res.status(409);
+      throw new Error("Technician ID already exists");
+    }
+  }
+
+  if (phone && phone !== person.phone) {
+    if (!store.isPhoneUnique(phone, person.id)) {
+      res.status(409);
+      throw new Error("A technician with this phone number already exists");
+    }
+  }
+
+  if (email && email !== person.email) {
+    const existingUser = store.getUserByEmail(email);
+    if (existingUser) {
+      res.status(409);
+      throw new Error("A user with this email already exists");
+    }
+    const existingTech = store.getTechnicianByEmail(email);
+    if (existingTech) {
+      res.status(409);
+      throw new Error("A technician with this email already exists");
+    }
+  }
+
+  const fields = {};
+  if (name !== undefined) fields.name = name.trim();
+  if (email !== undefined) fields.email = email.trim().toLowerCase();
+  if (phone !== undefined) fields.phone = phone.trim();
+  if (technicianId !== undefined) fields.technicianId = technicianId.trim();
+  if (specializations !== undefined) {
+    fields.specializations = specializations;
+    if (specializations.length > 0) fields.specialization = specializations[0];
+  }
+  if (certification !== undefined) fields.certification = certification;
+  if (status !== undefined) fields.status = status;
+
+  const updated = store.updateServicePerson(req.params.id, fields);
+
+  const syncEmployeeUser = async () => {
+    const employee = store.getEmployeeByServicePersonId(person.id);
+    if (!employee) return;
+    const userFields = {};
+    if (email && email !== person.email) userFields.email = email.trim().toLowerCase();
+    if (name && name !== person.name) userFields.name = name.trim();
+    if (Object.keys(userFields).length === 0) return;
+    store.updateUser(employee.id, userFields);
+  };
+  await syncEmployeeUser();
+
+  res.json(updated);
+});
+
+// PATCH /api/admin/technicians/:id/reset-password — reset technician password
+export const resetTechnicianPassword = asyncHandler(async (req, res) => {
+  const person = store.getTechnicianById(req.params.id);
+  if (!person) {
+    res.status(404);
+    throw new Error("Technician not found");
+  }
+
+  const { password, confirmPassword } = req.body;
+
+  if (!password) {
+    res.status(400);
+    throw new Error("New password is required");
+  }
+
+  if (password.length < 6) {
+    res.status(400);
+    throw new Error("Password must be at least 6 characters");
+  }
+
+  if (confirmPassword && password !== confirmPassword) {
+    res.status(400);
+    throw new Error("Passwords do not match");
+  }
+
+  const employee = store.getEmployeeByServicePersonId(person.id);
+  if (!employee) {
+    res.status(404);
+    throw new Error("Technician login account not found");
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  store.updateUser(employee.id, { password: hashedPassword });
+
+  res.json({ message: "Password reset successfully" });
 });

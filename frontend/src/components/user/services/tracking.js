@@ -6,7 +6,7 @@
  ============================================================ */
 
 /* Ordered lifecycle stages shown on the tracking timeline. */
-export const SERVICE_STAGES = [
+const SERVICE_STAGES = [
   { key: "Booked", label: "Booked", short: "Booked" },
   { key: "Accepted", label: "Accepted", short: "Accepted" },
   { key: "Assigned", label: "Assigned", short: "Assigned" },
@@ -18,7 +18,7 @@ export const SERVICE_STAGES = [
 /* Map a service `status` value to the index of the CURRENT stage.
    All stages before this index are treated as completed; this
    stage is highlighted (current); stages after are upcoming. */
-export const getServiceStageIndex = (status) => {
+const getServiceStageIndex = (status) => {
   const value = (status || "").toLowerCase();
 
   switch (value) {
@@ -50,12 +50,6 @@ export const getServiceStageIndex = (status) => {
 export const isServiceBooked = (status) => {
   const value = (status || "").toLowerCase();
   return ["confirmed", "booked", "pending approval"].includes(value);
-};
-
-/* True when a service has reached (or passed) admin acceptance. */
-export const isServiceAccepted = (status) => {
-  const index = getServiceStageIndex(status);
-  return index >= 1;
 };
 
 /* Build the milestone list with per-stage state derived from status:

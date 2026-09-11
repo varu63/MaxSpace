@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import { BarChart3, RefreshCw } from "lucide-react";
 
 import { useBattery } from "../../context/BatteryContext";

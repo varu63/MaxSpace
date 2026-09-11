@@ -227,6 +227,37 @@ export const AdminProvider = ({ children }) => {
     [servicePersons, updateServicePerson]
   );
 
+  const refreshTechnicians = useCallback(async () => {
+    const techs = await adminApi.fetchAdminTechnicians();
+    setServicePersons(techs || []);
+  }, []);
+
+  const fetchTechnician = useCallback(async (id) => {
+    return adminApi.fetchAdminTechnician(id);
+  }, []);
+
+  const updateTechnician = useCallback(async (id, fields) => {
+    const updated = await adminApi.updateAdminTechnician(id, fields);
+    setServicePersons((previous) =>
+      previous.map((sp) => (sp.id === id ? { ...sp, ...updated } : sp))
+    );
+    return updated;
+  }, []);
+
+  const toggleTechnicianStatus = useCallback(
+    async (id) => {
+      const person = servicePersons.find((sp) => sp.id === id);
+      if (!person) return null;
+      const nextStatus = person.status === "active" ? "inactive" : "active";
+      return updateTechnician(id, { status: nextStatus });
+    },
+    [servicePersons, updateTechnician]
+  );
+
+  const resetTechnicianPassword = useCallback(async (id, data) => {
+    return adminApi.resetAdminTechnicianPassword(id, data);
+  }, []);
+
   const refreshServices = useCallback(async () => {
     const svcs = await adminApi.fetchAdminServices();
     setServices(svcs || []);
@@ -262,6 +293,11 @@ export const AdminProvider = ({ children }) => {
       createTechnician,
       updateServicePerson,
       toggleServicePersonStatus,
+      refreshTechnicians,
+      fetchTechnician,
+      updateTechnician,
+      toggleTechnicianStatus,
+      resetTechnicianPassword,
     }),
     [
       adminUser,
@@ -287,6 +323,11 @@ export const AdminProvider = ({ children }) => {
       createTechnician,
       updateServicePerson,
       toggleServicePersonStatus,
+      refreshTechnicians,
+      fetchTechnician,
+      updateTechnician,
+      toggleTechnicianStatus,
+      resetTechnicianPassword,
     ]
   );
 

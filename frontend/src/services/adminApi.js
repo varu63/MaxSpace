@@ -64,6 +64,22 @@ export const updateAdminServicePerson = (id, fields) =>
 export const createAdminTechnician = (data) =>
   client("/admin/technicians", { method: "POST", body: data, admin: true });
 
+export const fetchAdminTechnicians = () =>
+  client("/admin/technicians", { admin: true });
+
+export const fetchAdminTechnician = (id) =>
+  client(`/admin/technicians/${id}`, { admin: true });
+
+export const updateAdminTechnician = (id, fields) =>
+  client(`/admin/technicians/${id}`, { method: "PATCH", body: fields, admin: true });
+
+export const resetAdminTechnicianPassword = (id, data) =>
+  client(`/admin/technicians/${id}/reset-password`, {
+    method: "PATCH",
+    body: data,
+    admin: true,
+  });
+
 /* ============================================================
    CUSTOMERS / ANALYTICS
 ============================================================ */

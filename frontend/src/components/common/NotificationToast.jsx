@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { useBattery } from '../../context/BatteryContext';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 

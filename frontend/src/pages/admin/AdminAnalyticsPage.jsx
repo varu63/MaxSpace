@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import {
   ClipboardList,
   Clock,
@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 import { useAdmin } from "../../context/AdminContext";
-import { PageHeader, Card } from "../../components/common";
+import { PageHeader, Card, StatCard } from "../../components/common";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import { statusStyle, statusLabel } from "../../components/admin/adminUtils";
 
@@ -23,12 +23,12 @@ const AdminAnalyticsPage = () => {
   const statCards = useMemo(() => {
     if (!analytics) return [];
     return [
-      { label: "Total Bookings", value: analytics.totalBookings, icon: ClipboardList, tone: "primary" },
-      { label: "Pending Bookings", value: analytics.pendingBookings, icon: Clock, tone: "accent" },
-      { label: "Active Services", value: analytics.activeServices, icon: Activity, tone: "primary" },
-      { label: "Completed Services", value: analytics.completedServices, icon: TrendingUp, tone: "accent" },
-      { label: "Cancelled Services", value: analytics.cancelledServices, icon: XCircle, tone: "primary" },
-      { label: "Completion Rate", value: `${analytics.completionRate}%`, icon: Percent, tone: "accent" },
+      { label: "Total Bookings", value: analytics.totalBookings, icon: ClipboardList, tone: "primary", description: "Fleet service requests" },
+      { label: "Pending Bookings", value: analytics.pendingBookings, icon: Clock, tone: "accent", description: "Awaiting dispatch" },
+      { label: "Active Services", value: analytics.activeServices, icon: Activity, tone: "primary", description: "In-progress jobs" },
+      { label: "Completed Services", value: analytics.completedServices, icon: TrendingUp, tone: "accent", description: "Finished successfully" },
+      { label: "Cancelled Services", value: analytics.cancelledServices, icon: XCircle, tone: "primary", description: "Terminated requests" },
+      { label: "Completion Rate", value: `${analytics.completionRate}%`, icon: Percent, tone: "accent", description: "Overall fulfillment" },
     ];
   }, [analytics]);
 
@@ -45,53 +45,38 @@ const AdminAnalyticsPage = () => {
     <div className="space-y-8">
       <PageHeader
         icon={BarChart3}
-        title="Analytics"
-        subtitle="Service performance & booking statistics"
+        title="Fleet Analytics"
+        subtitle="Service performance metrics & booking statistics across all assets"
       />
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        {statCards.map((card) => {
-          const Icon = card.icon;
-          return (
-            <div
-              key={card.label}
-              className="bg-[#FFFDF8] border border-[#EEE9DA] rounded-3xl p-5 shadow-sm"
-            >
-              <div className="flex items-center justify-between">
-                <p className="text-xs sm:text-sm font-medium text-[#8A7A4A]">
-                  {card.label}
-                </p>
-                <div
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                    card.tone === "primary" ? "bg-[#173B5C]" : "bg-[#B48611]"
-                  }`}
-                >
-                  <Icon className="w-4 h-4 text-white" />
-                </div>
-              </div>
-              <h3 className="text-2xl sm:text-3xl font-bold text-[#16263A] mt-2">
-                {card.value}
-              </h3>
-            </div>
-          );
-        })}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 lg:gap-5">
+        {statCards.map((card) => (
+          <StatCard
+            key={card.label}
+            icon={card.icon}
+            value={card.value}
+            label={card.label}
+            description={card.description}
+            tone={card.tone}
+          />
+        ))}
       </div>
 
       {/* Status statistics */}
-      <Card padded={false}>
+      <Card padded={false} className="overflow-hidden">
         <div className="p-6 lg:p-7 border-b border-[#EEE9DA]">
-          <h2 className="font-bold text-lg text-[#16263A]">
-            Service Status Statistics
+          <h2 className="font-bold text-lg sm:text-xl text-[#16263A]">
+            Service Status Distribution
           </h2>
           <p className="text-xs text-[#747B83] mt-0.5">
-            Distribution of all bookings by current stage
+            Breakdown of all active and historical bookings by operational stage
           </p>
         </div>
 
         <div className="p-6 lg:p-7">
           {statusBreakdown.length === 0 ? (
-            <p className="text-sm text-[#747B83]">No data available.</p>
+            <p className="text-sm text-[#747B83]">No service data available.</p>
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {statusBreakdown.map(([status, count]) => {
@@ -101,9 +86,9 @@ const AdminAnalyticsPage = () => {
                 return (
                   <div
                     key={status}
-                    className="p-4 rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3]"
+                    className="p-4 sm:p-5 rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3]"
                   >
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between mb-3">
                       <span className={`chip border ${chip}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
                         {statusLabel(status)}
@@ -118,8 +103,8 @@ const AdminAnalyticsPage = () => {
                         style={{ width: `${percent}%` }}
                       />
                     </div>
-                    <p className="text-[11px] text-[#8A9096] mt-1.5">
-                      {percent}% of total
+                    <p className="text-[11px] font-medium text-[#8A9096] mt-2">
+                      {percent}% of total requests
                     </p>
                   </div>
                 );
@@ -129,43 +114,46 @@ const AdminAnalyticsPage = () => {
         </div>
       </Card>
 
-      {/* Additional overview */}
+      {/* Additional fleet overview tiles */}
       {analytics && (
-        <div className="grid sm:grid-cols-3 gap-4">
-          <div className="bg-[#FBF1C9] border border-[#F0E6C8] rounded-3xl p-5">
+        <div className="grid sm:grid-cols-3 gap-4 lg:gap-5">
+          <div className="bg-[#FBF1C9] border border-[#F0E6C8] rounded-3xl p-6 shadow-sm">
             <div className="flex items-center gap-2 mb-2">
-              <Users className="w-4 h-4 text-[#B48611]" />
-              <span className="text-[11px] font-semibold text-[#A77A08] uppercase">
+              <Users className="w-5 h-5 text-[#B48611]" />
+              <span className="text-xs font-bold text-[#A77A08] uppercase tracking-wider">
                 Total Customers
               </span>
             </div>
-            <p className="text-3xl font-bold text-[#16263A]">
+            <p className="text-3xl font-black text-[#16263A] mt-1">
               {analytics.totalCustomers}
             </p>
+            <p className="text-xs text-[#8A7A4A] mt-1">Registered consumer accounts</p>
           </div>
 
-          <div className="bg-[#FBF1C9] border border-[#F0E6C8] rounded-3xl p-5">
+          <div className="bg-[#FBF1C9] border border-[#F0E6C8] rounded-3xl p-6 shadow-sm">
             <div className="flex items-center gap-2 mb-2">
-              <UserCheck className="w-4 h-4 text-[#B48611]" />
-              <span className="text-[11px] font-semibold text-[#A77A08] uppercase">
+              <UserCheck className="w-5 h-5 text-[#B48611]" />
+              <span className="text-xs font-bold text-[#A77A08] uppercase tracking-wider">
                 Battery Technicians
               </span>
             </div>
-            <p className="text-3xl font-bold text-[#16263A]">
+            <p className="text-3xl font-black text-[#16263A] mt-1">
               {analytics.totalServicePersons}
             </p>
+            <p className="text-xs text-[#8A7A4A] mt-1">Active field technicians</p>
           </div>
 
-          <div className="bg-[#FBF1C9] border border-[#F0E6C8] rounded-3xl p-5">
+          <div className="bg-[#FBF1C9] border border-[#F0E6C8] rounded-3xl p-6 shadow-sm">
             <div className="flex items-center gap-2 mb-2">
-              <Wrench className="w-4 h-4 text-[#B48611]" />
-              <span className="text-[11px] font-semibold text-[#A77A08] uppercase">
+              <Wrench className="w-5 h-5 text-[#B48611]" />
+              <span className="text-xs font-bold text-[#A77A08] uppercase tracking-wider">
                 Fleet Batteries
               </span>
             </div>
-            <p className="text-3xl font-bold text-[#16263A]">
+            <p className="text-3xl font-black text-[#16263A] mt-1">
               {analytics.totalBatteries}
             </p>
+            <p className="text-xs text-[#8A7A4A] mt-1">Monitored energy assets</p>
           </div>
         </div>
       )}

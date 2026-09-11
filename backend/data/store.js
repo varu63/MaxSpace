@@ -45,16 +45,20 @@ class Store {
     return userData;
   }
 
+  updateUser(id, fields) {
+    let found = null;
+    this.users = this.users.map((u) => {
+      if (u.id === id) {
+        found = { ...u, ...fields };
+        return found;
+      }
+      return u;
+    });
+    return found;
+  }
+
   getCustomers() {
     return this.users.filter((u) => u.role === "USER");
-  }
-
-  getEmployees() {
-    return this.users.filter((u) => u.role === "EMPLOYEE");
-  }
-
-  getEmployeeById(id) {
-    return this.users.find((u) => u.id === id && u.role === "EMPLOYEE") || null;
   }
 
   /* ---------- Batteries ---------- */
@@ -164,6 +168,41 @@ class Store {
       return sp;
     });
     return found;
+  }
+
+  /* ---------- Technicians (enhanced service persons) ---------- */
+  getAllTechnicians() {
+    return this.servicePersons;
+  }
+
+  getTechnicianById(id) {
+    return this.servicePersons.find((sp) => sp.id === id) || null;
+  }
+
+  getTechnicianByEmail(email) {
+    if (!email) return null;
+    return this.servicePersons.find(
+      (sp) => sp.email.toLowerCase() === email.toLowerCase()
+    ) || null;
+  }
+
+  isTechnicianIdUnique(technicianId, excludeId = null) {
+    return !this.servicePersons.some(
+      (sp) => sp.technicianId === technicianId && sp.id !== excludeId
+    );
+  }
+
+  isPhoneUnique(phone, excludeId = null) {
+    if (!phone) return true;
+    return !this.servicePersons.some(
+      (sp) => sp.phone === phone && sp.id !== excludeId
+    );
+  }
+
+  getEmployeeByServicePersonId(servicePersonId) {
+    return this.users.find(
+      (u) => u.role === "EMPLOYEE" && u.servicePersonId === servicePersonId
+    ) || null;
   }
 
   /* ---------- Profile ---------- */
