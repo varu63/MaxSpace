@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { useBattery } from "../../../context/BatteryContext";
 import { EditProfileModal } from "./EditProfileModal";
 

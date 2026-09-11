@@ -13,6 +13,10 @@ import {
   createServicePerson,
   updateServicePerson,
   createTechnician,
+  getTechnicians,
+  getTechnician,
+  updateTechnician,
+  resetTechnicianPassword,
   getCustomers,
   getAdminAnalytics,
 } from "../controllers/adminController.js";
@@ -38,7 +42,11 @@ router.get("/service-persons", protect, requireAdmin, getServicePersons);
 router.post("/service-persons", protect, requireAdmin, createServicePerson);
 router.patch("/service-persons/:id", protect, requireAdmin, updateServicePerson);
 
+router.get("/technicians", protect, requireAdmin, getTechnicians);
+router.get("/technicians/:id", protect, requireAdmin, getTechnician);
 router.post("/technicians", protect, requireAdmin, createTechnician);
+router.patch("/technicians/:id", protect, requireAdmin, updateTechnician);
+router.patch("/technicians/:id/reset-password", protect, requireAdmin, resetTechnicianPassword);
 
 router.get("/customers", protect, requireAdmin, getCustomers);
 router.get("/analytics", protect, requireAdmin, getAdminAnalytics);

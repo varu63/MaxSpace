@@ -1,16 +1,11 @@
 import bcrypt from "bcryptjs";
 import store from "../data/store.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
-
-const sanitizeProfile = (profile) => {
-  if (!profile) return profile;
-  const { password, ...rest } = profile;
-  return rest;
-};
+import { sanitizeUser } from "../utils/auth.js";
 
 // GET /api/profile
 export const getProfile = asyncHandler(async (req, res) => {
-  res.json({ profile: sanitizeProfile(store.getProfile()) });
+  res.json({ profile: sanitizeUser(store.getProfile()) });
 });
 
 // PUT /api/profile
@@ -18,7 +13,7 @@ export const updateProfile = asyncHandler(async (req, res) => {
   const { password, ...allowed } = req.body || {};
   const updated = store.updateProfile(allowed);
   store.logActivity("Profile Updated", "Profile details and preferences saved", "general");
-  res.json({ profile: sanitizeProfile(updated) });
+  res.json({ profile: sanitizeUser(updated) });
 });
 
 // PUT /api/profile/notifications
@@ -30,7 +25,7 @@ export const updateNotifications = asyncHandler(async (req, res) => {
       ...(req.body || {}),
     },
   });
-  res.json({ profile: sanitizeProfile(updated) });
+  res.json({ profile: sanitizeUser(updated) });
 });
 
 // POST /api/profile/password
@@ -68,7 +63,7 @@ export const changePassword = asyncHandler(async (req, res) => {
   const updated = store.updateProfile({ password: hashed });
   store.logActivity("Password Changed", "Account password was updated", "general");
 
-  res.json({ message: "Password updated successfully", profile: sanitizeProfile(updated) });
+  res.json({ message: "Password updated successfully", profile: sanitizeUser(updated) });
 });
 
 // GET /api/profile/activity
@@ -79,7 +74,7 @@ export const getActivityLogs = asyncHandler(async (req, res) => {
 // GET /api/profile/export
 export const exportProfileData = asyncHandler(async (req, res) => {
   res.json({
-    user: sanitizeProfile(store.getProfile()),
+    user: sanitizeUser(store.getProfile()),
     batteries: store.getAllBatteries(),
     services: store.getAllServices(),
     exportedAt: new Date().toISOString(),

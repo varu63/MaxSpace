@@ -47,7 +47,7 @@ export const QRBarcodeScannerModal = () => {
             setCameraActive(true);
           })
           .catch((err) => {
-            console.log('Webcam unavailable, using visual scanner HUD', err);
+            console.warn('Webcam unavailable, using visual scanner HUD', err);
             setCameraActive(false);
           });
       }

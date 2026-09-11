@@ -2,24 +2,21 @@
     BATTERY TECHNICIAN API SERVICE LAYER
     HTTP calls for the Battery Technician panel using the employee JWT.
 ============================================================ */
-import client, { BATTERY_TECHNICIAN_TOKEN_KEY } from "./client";
+import client, {
+  BATTERY_TECHNICIAN_TOKEN_KEY,
+  getBatteryTechnicianToken,
+  setBatteryTechnicianToken,
+  getErrorMessage,
+} from "./client";
 
-export { BATTERY_TECHNICIAN_TOKEN_KEY };
-
-export const getBatteryTechnicianToken = () =>
-  typeof window !== "undefined" ? localStorage.getItem(BATTERY_TECHNICIAN_TOKEN_KEY) : null;
-
-export const setBatteryTechnicianToken = (token) => {
-  if (!token) localStorage.removeItem(BATTERY_TECHNICIAN_TOKEN_KEY);
-  else localStorage.setItem(BATTERY_TECHNICIAN_TOKEN_KEY, token);
+export {
+  BATTERY_TECHNICIAN_TOKEN_KEY,
+  getBatteryTechnicianToken,
+  setBatteryTechnicianToken,
+  getErrorMessage,
 };
 
-export const BATTERY_TECHNICIAN_PROFILE_KEY = "maxspace_battery_technician_profile";
-
-export const getErrorMessage = (error) => {
-  if (!error) return "Something went wrong.";
-  return error.message || "Something went wrong.";
-};
+const BATTERY_TECHNICIAN_PROFILE_KEY = "maxspace_battery_technician_profile";
 
 export const getBatteryTechnicianProfile = () => {
   try {

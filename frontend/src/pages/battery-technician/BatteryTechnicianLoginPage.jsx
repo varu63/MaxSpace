@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
   Mail,
@@ -58,7 +58,7 @@ const BatteryTechnicianLoginPage = () => {
       <div className="w-full max-w-md">
         {/* Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white border border-[#EEE9DA] shadow-sm overflow-hidden mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white dark:bg-white border border-[#EEE9DA] shadow-sm overflow-hidden mb-4">
             <img
               src="/Logo.png"
               alt=""
@@ -69,7 +69,7 @@ const BatteryTechnicianLoginPage = () => {
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FBF1C9] border border-[#F0E6C8] mb-3">
             <HardHat className="w-3.5 h-3.5 text-[#B48611]" />
             <span className="text-[11px] font-bold text-[#A77A08] uppercase tracking-wide">
-              Battery Technician Access
+              Technician Access
             </span>
           </div>
 
