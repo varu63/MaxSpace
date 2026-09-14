@@ -68,6 +68,7 @@ export const AdminProvider = ({ children }) => {
   const adminLogout = useCallback(async () => {
     setIsAdminAuthenticated(false);
     setAdminUser(null);
+    adminApi.setAdminToken(null);
     clearAdminProfileFromStorage();
     try {
       await adminApi.adminLogout();

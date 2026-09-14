@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
-import store from "../data/store.js";
+import store from "../data/index.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
-import { sanitizeUser } from "../utils/auth.js";
+import { sanitizeUser, matchesPassword } from "../utils/auth.js";
 
 // GET /api/profile
 export const getProfile = asyncHandler(async (req, res) => {
@@ -45,14 +45,14 @@ export const changePassword = asyncHandler(async (req, res) => {
     throw new Error("New password must be at least 6 characters");
   }
 
-  const profile = store.getProfile();
+  const user = store.getUserById(req.user?.id);
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
 
-  // Verify current password (bcrypt hash or seeded plaintext)
-  const stored = profile.password;
-  const looksHashed = /^\$2[aby]\$/.test(stored || "");
-  const matches = looksHashed
-    ? await bcrypt.compare(String(currentPassword || ""), stored)
-    : stored === String(currentPassword || "");
+  // Verify current password against the login user record
+  const matches = await matchesPassword(String(currentPassword || ""), user.password);
 
   if (!matches) {
     res.status(401);
@@ -60,10 +60,12 @@ export const changePassword = asyncHandler(async (req, res) => {
   }
 
   const hashed = await bcrypt.hash(String(newPassword), 10);
-  const updated = store.updateProfile({ password: hashed });
+  store.updateUser(user.id, { password: hashed });
+  // Keep the shared profile record in sync (password is stripped on sanitize)
+  store.updateProfile({ password: hashed });
   store.logActivity("Password Changed", "Account password was updated", "general");
 
-  res.json({ message: "Password updated successfully", profile: sanitizeUser(updated) });
+  res.json({ message: "Password updated successfully", profile: sanitizeUser(store.getProfile()) });
 });
 
 // GET /api/profile/activity

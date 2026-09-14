@@ -1,6 +1,10 @@
-import store from "../data/store.js";
+import store from "../data/index.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { todayISO, todayMonth } from "../utils/date.js";
+import {
+  normalizeBatteryIdentifier,
+  resolveBatteryByIdentifier,
+} from "../utils/batteryIdentifier.js";
 
 const barcodePrefix = "BATT-GEN";
 
@@ -8,7 +12,8 @@ const barcodePrefix = "BATT-GEN";
 export const getBatteries = asyncHandler(async (req, res) => {
   const { barcode } = req.query;
   if (barcode) {
-    const battery = store.findBatteryByBarcodeOrSerial(barcode);
+    const code = normalizeBatteryIdentifier(barcode);
+    const battery = store.findBatteryByBarcodeOrSerial(code);
     return res.json(battery ? [battery] : []);
   }
   res.json(store.getAllBatteries());
@@ -16,7 +21,7 @@ export const getBatteries = asyncHandler(async (req, res) => {
 
 // GET /api/batteries/:id
 export const getBattery = asyncHandler(async (req, res) => {
-  const battery = store.getBatteryById(req.params.id);
+  const battery = resolveBatteryByIdentifier(store, req.params.id);
   if (!battery) {
     res.status(404);
     throw new Error("Battery not found");
@@ -24,11 +29,17 @@ export const getBattery = asyncHandler(async (req, res) => {
   res.json(battery);
 });
 
-// GET /api/batteries/lookup?barcode=...|serial=...|id=...
+// GET /api/batteries/lookup?barcode=...|serial=...|id=...|code=...
 export const lookupBattery = asyncHandler(async (req, res) => {
-  const { barcode, serial, id } = req.query;
-  const code = barcode || serial || id;
-  const battery = store.findBatteryByBarcodeOrSerial(code);
+  const { barcode, serial, id, code } = req.query;
+  const rawCode = code || barcode || serial || id;
+
+  const identifier = normalizeBatteryIdentifier(rawCode);
+  if (!identifier) {
+    return res.status(400).json({ message: "A battery identifier is required" });
+  }
+
+  const battery = store.findBatteryByBarcodeOrSerial(identifier);
   if (!battery) {
     return res.status(404).json({ message: "No battery found for the provided identifier" });
   }
@@ -36,14 +47,28 @@ export const lookupBattery = asyncHandler(async (req, res) => {
 });
 
 // GET /api/batteries/:id/passport
+// Accepts an internal id, a barcode, a serial number, or a full EU DPP
+// QR payload URI. Fetches the battery record plus its related service /
+// maintenance history from the database and returns a structured passport.
 export const getBatteryPassport = asyncHandler(async (req, res) => {
-  const battery = store.getBatteryById(req.params.id);
+  const identifier = normalizeBatteryIdentifier(req.params.id);
+  if (!identifier) {
+    res.status(400);
+    throw new Error("A battery identifier is required");
+  }
+
+  const battery = resolveBatteryByIdentifier(store, identifier);
   if (!battery) {
     res.status(404);
     throw new Error("Battery not found");
   }
+
+  // Related records: service & maintenance history for this battery.
+  const serviceHistory = store.getServicesByBatteryId(battery.id);
+
   res.json({
     battery,
+    serviceHistory,
     generatedAt: new Date().toISOString(),
     qrUrl: battery.qrCode || `https://passport.battery-eu.org/passports/${battery.barcode}`,
   });

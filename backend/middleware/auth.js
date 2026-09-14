@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import config from "../config/app.js";
-import store from "../data/store.js";
+import store from "../data/index.js";
 
 export const protect = (req, res, next) => {
   const header = req.headers.authorization || "";

@@ -43,6 +43,9 @@ export const setBatteryTechnicianProfile = (profile) => {
 export const batteryTechnicianSignIn = (credentials) =>
   client("/battery-technician/login", { method: "POST", auth: false, body: credentials });
 
+export const batteryTechnicianGoogleSignIn = (credential) =>
+  client("/battery-technician/google", { method: "POST", auth: false, body: { credential } });
+
 export const fetchBatteryTechnicianMe = () =>
   client("/battery-technician/me", { batteryTechnician: true });
 

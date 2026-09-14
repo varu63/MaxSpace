@@ -103,10 +103,21 @@ MaxSpace lets fleet directors register batteries, track health metrics, book ser
 | **Animations**   | Canvas Confetti                             |
 | **Linting**      | Oxlint (React + OXC plugins)               |
 | **State**        | React Context API                           |
-| **Persistence**  | localStorage (browser)                      |
+| **Persistence**  | Express REST API + in-memory mock store (PostgreSQL-ready) |
 | **Fonts**        | Inter (UI) + JetBrains Mono (identifiers)   |
 
-> **No backend** — this is a fully client-side application. All data lives in the browser's `localStorage`.
+### Backend
+
+| Layer         | Technology                             |
+|---------------|-----------------------------------------|
+| **Runtime**   | Node.js + Express 5 (ES Modules)        |
+| **Auth**      | JWT (customer / admin / technician roles) |
+| **Storage**   | In-memory seeded store, `pg`-ready for PostgreSQL |
+| **Security**  | Helmet, CORS, rate limiting             |
+
+> The backend runs on a seeded in-memory store by default and is architected with
+> a pluggable data-source facade so switching to **PostgreSQL** is a config change.
+> See [PostgreSQL Migration Guide](docs/DATABASE_MIGRATION.md).
 
 ---
 
@@ -115,14 +126,34 @@ MaxSpace lets fleet directors register batteries, track health metrics, book ser
 ```
 MaxSpace/
 ├── README.md
+├── docker-compose.yaml        # PostgreSQL service (optional, future)
+├── docs/
+│   └── DATABASE_MIGRATION.md  # PostgreSQL integration guide
+├── backend/
+│   ├── index.js               # Express server entry
+│   ├── config/app.js          # Env-based config (port, JWT, data source)
+│   ├── controllers/           # Business logic per resource
+│   ├── routes/                # URL → controller mapping
+│   ├── middleware/            # auth, error handling, async wrapper
+│   ├── constants/             # shared service statuses
+│   ├── utils/                 # auth + date helpers
+│   ├── data/
+│   │   ├── index.js           # DATA SOURCE FACADE (mock ↔ postgres)
+│   │   ├── store.js           # in-memory seeded store
+│   │   ├── seedData.js        # seed datasets (mirrors frontend dummyData)
+│   │   └── postgres/          # future PostgreSQL repository scaffold
+│   ├── sql/schema.sql         # future PostgreSQL schema
+│   ├── .env.example
+│   └── package.json
 └── frontend/
     ├── index.html                  # HTML entry point
     ├── package.json                # Dependencies & scripts
-    ├── vite.config.js              # Vite + React plugin
+    ├── vite.config.js              # Vite + React plugin + /api proxy
     ├── tailwind.config.js          # Design tokens & theme
     ├── postcss.config.js           # Tailwind + Autoprefixer
     ├── .oxlintrc.json              # Linter config
     ├── .gitignore
+    ├── .env.example                # VITE_API_URL example
     ├── public/
     │   ├── Logo.png                # App logo
     │   ├── favicon.svg             # Browser tab icon
@@ -134,10 +165,20 @@ MaxSpace/
         ├── index.css               # Global styles + dark mode overrides
         │
         ├── context/
-        │   └── BatteryContext.jsx   # Global state provider (all app logic)
+        │   ├── BatteryContext.jsx            # Global customer state
+        │   ├── AdminContext.jsx              # Admin panel state
+        │   └── BatteryTechnicianContext.jsx  # Technician panel state
+        │
+        ├── services/
+        │   ├── client.js           # Shared fetch wrapper + JWT/session
+        │   ├── api.js              # Customer API layer
+        │   ├── adminApi.js         # Admin API layer
+        │   ├── batteryTechnicianApi.js  # Technician API layer
+        │   └── index.js            # Barrel export
         │
         ├── data/
-        │   └── dummyData.js         # Sample batteries, services, user profile
+        │   ├── dummyData.js         # Frontend mock data (mirrors backend seed)
+        │   └── serviceStatuses.js   # Shared status constants
         │
         ├── pages/
         │   ├── HomePage.jsx         # Fleet overview dashboard
@@ -148,11 +189,14 @@ MaxSpace/
         │   ├── ProfilePage.jsx      # Operator profile
         │   ├── SettingPage.jsx      # App settings
         │   ├── SignInPage.jsx       # Login form
-        │   └── SignUpPage.jsx       # Registration form
+        │   ├── SignUpPage.jsx       # Registration form
+        │   ├── admin/               # Admin panel pages + layout
+        │   └── battery-technician/  # Technician panel pages + layout
         │
         └── components/
             ├── common/             # Shared UI primitives
             │   ├── Card.jsx        # Card, IconBox, PageHeader, StatCard, etc.
+            │   ├── PageContainer.jsx # Shared page width/padding (all layouts)
             │   ├── DetailRow.jsx
             │   ├── InfoBlock.jsx
             │   ├── Modal.jsx
@@ -166,32 +210,13 @@ MaxSpace/
             │   ├── storeLinks.js
             │   └── index.js        # Barrel exports
             │
-            ├── home/
-            │   └── BatteryCard.jsx
+            ├── user/              # Customer-specific components
+            │   ├── home/          # BatteryCard.jsx
+            │   ├── profile/       # UserProfileView.jsx, EditProfileModal.jsx
+            │   ├── scanner/       # QRBarcodeScannerModal.jsx
+            │   └── services/      # Booking/table/filter components
             │
-            ├── scanner/
-            │   └── QRBarcodeScannerModal.jsx
-            │
-            ├── profile/
-            │   ├── UserProfileView.jsx
-            │   └── EditProfileModal.jsx
-            │
-            ├── services/
-            │   ├── BookServiceModal.jsx
-            │   ├── BatteryServiceModal.jsx
-            │   ├── ServiceTable.jsx
-            │   ├── ServiceMobileCards.jsx
-            │   ├── ServiceStats.jsx
-            │   ├── ServiceFilters.jsx
-            │   ├── ServiceInfoCards.jsx
-            │   └── status.js
-            │
-            └── analytics/
-                ├── AnalyticsStats.jsx
-                ├── BatteryHealthChart.jsx
-                ├── ServiceAnalytics.jsx
-                ├── BatteryPerformance.jsx
-                └── AnalyticsTable.jsx
+            └── admin/             # Admin components (sidebar, badges, utils)
 ```
 
 ---
@@ -210,27 +235,34 @@ MaxSpace/
 git clone https://github.com/your-username/MaxSpace.git
 cd MaxSpace
 
-# Navigate to the frontend directory
-cd frontend
-
-# Install dependencies
+# Install backend dependencies
+cd backend
 npm install
+cp .env.example .env
+
+# Install frontend dependencies
+cd ../frontend
+npm install
+cp .env.example .env
 ```
 
-### Development Server
+### Run the backend (API on http://localhost:5000)
 
 ```bash
+cd backend
 npm run dev
 ```
 
-Opens the app at [http://localhost:5173](http://localhost:5173) with hot module replacement.
+The backend seeds an in-memory dataset on startup (no database required).
 
-### Production Build
+### Development Server (frontend on http://localhost:5173)
 
 ```bash
-npm run build
-npm run preview
+cd frontend
+npm run dev
 ```
+
+Opens the app at [http://localhost:5173](http://localhost:5173) with hot module replacement. `/api` requests are proxied to the backend in dev.
 
 Outputs optimized static files to `frontend/dist/`. The preview command serves the built output locally.
 
@@ -284,16 +316,12 @@ All global state lives in **`BatteryContext.jsx`** via React Context. It provide
 
 ### Data Persistence
 
-All data is stored in the browser's `localStorage` under these keys:
+Data is served by the Express backend (`backend/`) which seeds an in-memory store
+from `backend/data/seedData.js` (mirroring `frontend/src/data/dummyData.js`).
+The backend is architected for a future PostgreSQL switch — see
+[docs/DATABASE_MIGRATION.md](docs/DATABASE_MIGRATION.md).
 
-| Key                          | Contents                    |
-|------------------------------|-----------------------------|
-| `maxspace_batteries`         | Battery array (JSON)        |
-| `maxspace_services`          | Service records (JSON)      |
-| `maxspace_user_profile`      | Operator profile (JSON)     |
-| `maxspace_auth`              | Auth flag (`true`/`false`)  |
-
-Changes persist automatically via `useEffect` watchers in the context provider.
+Browser `localStorage` is used only for session tokens and a cached profile copy for instant render.
 
 ---
 
@@ -413,8 +441,8 @@ Defined in `tailwind.config.js` with a warm cream/navy/gold palette:
 
 ## Known Limitations
 
-- **No backend** — all data is stored in `localStorage` and resets if the browser cache is cleared
-- **No real authentication** — sign in/sign up only sets a local flag; no credential verification
+- **Data is ephemeral by default** — the backend uses a seeded in-memory store; restarting the server resets it to the sample dataset. A PostgreSQL migration path is prepared (see [PostgreSQL Migration Guide](docs/DATABASE_MIGRATION.md)).
+- **No real auth provider** — authentication uses JWT against seeded demo accounts (`admin@maxspace.com` / `admin123`; customer `alex.rivera@maxspace-energy.com` / `password123`; technicians `employee123`). No email verification or password reset flow is implemented.
 - **Add Battery modal is unfinished** — the context state (`isAddBatteryOpen`) exists but no modal component is wired to render it
 - **No test suite** — no testing framework or test files are configured
 - **Store links are placeholders** — download buttons use `YOUR_APP_ID` placeholders

@@ -1,6 +1,7 @@
-import store from "../data/store.js";
+import store from "../data/index.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { signToken, sanitizeUser, matchesPassword } from "../utils/auth.js";
+import { verifyGoogleIdToken } from "../utils/googleAuth.js";
 import { VALID_STATUSES } from "../constants/serviceStatuses.js";
 
 /* Battery Technician status transitions — only these moves are allowed for employees */
@@ -31,6 +32,84 @@ export const batteryTechnicianLogin = asyncHandler(async (req, res) => {
   if (!ok) {
     res.status(401);
     throw new Error("Invalid email or password");
+  }
+
+  const token = signToken(user.id, user.role);
+
+  const servicePerson = user.servicePersonId
+    ? store.getServicePersonById(user.servicePersonId)
+    : null;
+
+  res.status(200).json({
+    token,
+    user: {
+      ...sanitizeUser(user),
+      servicePersonId: user.servicePersonId,
+      servicePerson: servicePerson
+        ? {
+            id: servicePerson.id,
+            name: servicePerson.name,
+            certification: servicePerson.certification,
+            specialization: servicePerson.specialization,
+            status: servicePerson.status,
+          }
+        : null,
+    },
+  });
+});
+
+// POST /api/battery-technician/google
+// Verify a Google Identity Services credential, then sign the user in as a
+// battery technician. The role is ALWAYS resolved from the existing database:
+// a Google account is only accepted if it matches an existing EMPLOYEE
+// account (by Google link first, then by verified email). Technicians are
+// never auto-created — that stays the admins' job — so a Google account
+// that has no matching technician record is rejected.
+export const batteryTechnicianGoogleLogin = asyncHandler(async (req, res) => {
+  const { credential } = req.body || {};
+
+  if (!credential) {
+    res.status(400);
+    throw new Error("Google sign-in requires a credential token");
+  }
+
+  const googleProfile = await verifyGoogleIdToken(credential);
+
+  // 1) Existing Google-linked technician → log them in.
+  let user = store.getUserByGoogleId(googleProfile.googleId);
+
+  // 2) No Google link yet, but an EMPLOYEE account already uses this
+  //    verified email → link Google to that account and log them in.
+  if (!user) {
+    const existing = store.getUserByEmail(googleProfile.email);
+    if (existing) {
+      if (existing.role !== "EMPLOYEE") {
+        res.status(403);
+        throw new Error(
+          "No battery technician account matches this Google account. Please use your MaxSpace technician account instead."
+        );
+      }
+      if (existing.authProvider === "google" && existing.googleId !== googleProfile.googleId) {
+        res.status(409);
+        throw new Error("This email is already linked to a different Google account");
+      }
+      store.updateUser(existing.id, {
+        googleId: googleProfile.googleId,
+        authProvider: "google",
+        avatar: googleProfile.avatar || existing.avatar,
+        name: existing.name || googleProfile.name,
+      });
+      user = store.getUserById(existing.id);
+    }
+  }
+
+  // A Google account must resolve to an existing EMPLOYEE with a service
+  // person record — technicians are never created through Google sign-in.
+  if (!user || user.role !== "EMPLOYEE" || !user.servicePersonId) {
+    res.status(403);
+    throw new Error(
+      "No battery technician account matches this Google account. Please sign in with your MaxSpace technician email or contact an administrator."
+    );
   }
 
   const token = signToken(user.id, user.role);

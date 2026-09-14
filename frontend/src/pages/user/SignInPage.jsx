@@ -14,9 +14,10 @@ import {
 
 import { useBattery } from "../../context/BatteryContext";
 import { forgotPassword } from "../../services/api";
+import GoogleSignInButton from "../../components/common/GoogleSignInButton";
 
 const SignInPage = () => {
-  const { signIn, addToast } = useBattery();
+  const { signIn, signInWithGoogle, addToast } = useBattery();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
@@ -74,6 +75,29 @@ const SignInPage = () => {
     setIsForgotOpen(true);
   };
 
+  const handleGoogleCredential = async (credential) => {
+    if (!credential) return; // user closed the Google dialog without completing
+    setSubmitting(true);
+    try {
+      const data = await signInWithGoogle(credential);
+      if (data?.isNewUser) {
+        addToast(
+          "Welcome to MaxSpace",
+          "No account existed for this Google email, so we created one for you.",
+          "info",
+        );
+      }
+      navigate("/home");
+    } catch (error) {
+      addToast(
+        "Google Sign-In Failed",
+        error?.message || "Could not sign in with Google.",
+        "error",
+      );
+      setSubmitting(false);
+    }
+  };
+
   const closeForgot = () => {
     setIsForgotOpen(false);
     setForgotEmail("");
@@ -124,6 +148,23 @@ const SignInPage = () => {
 
         {/* Card */}
         <div className="glass-card rounded-3xl p-6 sm:p-8">
+          {/* Continue with Google */}
+          <div>
+            <GoogleSignInButton
+              onCredential={handleGoogleCredential}
+              disabled={submitting}
+            />
+          </div>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3 my-5">
+            <div className="flex-1 h-px bg-[#E7E1D3]" />
+            <span className="text-[11px] font-semibold text-[#8A9096] uppercase">
+              or
+            </span>
+            <div className="flex-1 h-px bg-[#E7E1D3]" />
+          </div>
+
           <form onSubmit={handleSubmit} noValidate className="space-y-5">
             {/* Email */}
             <div>
@@ -258,17 +299,8 @@ const SignInPage = () => {
             </button>
           </form>
 
-          {/* Divider */}
-          <div className="flex items-center gap-3 my-6">
-            <div className="flex-1 h-px bg-[#E7E1D3]" />
-            <span className="text-[11px] font-semibold text-[#8A9096] uppercase">
-              or
-            </span>
-            <div className="flex-1 h-px bg-[#E7E1D3]" />
-          </div>
-
           {/* Sign up link */}
-          <div className="text-center">
+          <div className="text-center mt-6">
             <p className="text-sm text-[#747B83]">
               Don't have an account?{" "}
               <Link

@@ -350,7 +350,7 @@ const AdminServiceDetailsPage = () => {
             {[
               { label: "Name", value: service.customer?.name || "—", icon: User },
               { label: "Email", value: service.customer?.email || "—", icon: Mail },
-              { label: "Phone", value: service.mobileNumber || "—", icon: Phone },
+              { label: "Phone", value: service.customer?.phone || service.mobileNumber || "—", icon: Phone },
               { label: "Location", value: service.center || "—", icon: MapPin },
             ].map((row) => {
               const Icon = row.icon;

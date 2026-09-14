@@ -16,6 +16,9 @@ export const signIn = (credentials) =>
 export const signUp = (credentials) =>
   client("/auth/signup", { method: "POST", auth: false, body: credentials });
 
+export const googleSignIn = (credential) =>
+  client("/auth/google", { method: "POST", auth: false, body: { credential } });
+
 export const logout = () => client("/auth/logout", { method: "POST" });
 
 export const forgotPassword = (email) =>
@@ -37,7 +40,10 @@ export const deleteBattery = (id) =>
   client(`/batteries/${id}`, { method: "DELETE" });
 
 export const lookupBattery = (code) =>
-  client(`/batteries/lookup?barcode=${encodeURIComponent(code)}`);
+  client(`/batteries/lookup?code=${encodeURIComponent(code)}`);
+
+export const fetchBatteryPassport = (identifier) =>
+  client(`/batteries/${encodeURIComponent(identifier)}/passport`);
 
 /* ============================================================
    SERVICES

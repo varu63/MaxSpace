@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Battery,
   Wrench,
@@ -21,6 +22,7 @@ import {
 import { useBattery } from "../../context/BatteryContext";
 
 export default function HomePage() {
+  const navigate = useNavigate();
   const {
     batteries,
     stats,
@@ -87,7 +89,10 @@ export default function HomePage() {
           title="Fleet Status"
           subtitle="Current condition of your battery fleet"
           right={
-            <button className="flex items-center gap-2 text-sm font-semibold text-[#173B5C] hover:text-[#102F4A] transition">
+            <button
+              onClick={() => navigate("/analytics")}
+              className="flex items-center gap-2 text-sm font-semibold text-[#173B5C] hover:text-[#102F4A] transition"
+            >
               View Analytics
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -134,7 +139,10 @@ export default function HomePage() {
             </p>
           </div>
 
-          <button className="flex items-center gap-1 text-sm font-bold text-[#747B83] hover:text-[#173B5C] transition">
+          <button
+            onClick={() => navigate("/analytics")}
+            className="flex items-center gap-1 text-sm font-bold text-[#747B83] hover:text-[#173B5C] transition"
+          >
             See All
             <ChevronRight className="w-4 h-4" />
           </button>
