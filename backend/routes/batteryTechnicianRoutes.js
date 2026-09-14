@@ -1,6 +1,7 @@
 import express from "express";
 import {
   batteryTechnicianLogin,
+  batteryTechnicianGoogleLogin,
   batteryTechnicianMe,
   batteryTechnicianLogout,
   getAssignedServices,
@@ -13,6 +14,7 @@ const router = express.Router();
 
 // Public routes
 router.post("/login", batteryTechnicianLogin);
+router.post("/google", batteryTechnicianGoogleLogin);
 
 // Protected employee routes
 router.get("/me", protect, requireEmployee, batteryTechnicianMe);

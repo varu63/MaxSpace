@@ -1,4 +1,4 @@
-import store from "../data/store.js";
+import store from "../data/index.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { todayISO } from "../utils/date.js";
 import { VALID_STATUSES, isActiveStatus, isCancelled } from "../constants/serviceStatuses.js";
@@ -69,6 +69,7 @@ export const createService = asyncHandler(async (req, res) => {
     id: `srv-${Date.now()}`,
     ticketNumber: `SRV-${year}-${Math.floor(1000 + Math.random() * 9000)}`,
     batteryId: data.batteryId,
+    customerId: req.user?.id,
     batteryName: battery?.modelName || data.batteryName || "Unknown Battery",
     serviceType: data.serviceType || "Battery Inspection",
     center: data.center || "MaxSpace Service Center",

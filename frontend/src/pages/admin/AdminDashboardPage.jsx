@@ -1,33 +1,34 @@
 import { useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  ClipboardList,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  Activity,
-  UserCheck,
-  TrendingUp,
+  Home,
+  Battery,
   Wrench,
+  ShieldCheck,
+  AlertTriangle,
+  Activity,
+  Clock3,
+  TrendingUp,
   ChevronRight,
+  ClipboardList,
+  UserCheck,
 } from "lucide-react";
 
 import { useAdmin } from "../../context/AdminContext";
-import { PageHeader, Card, StatCard, SectionHeader } from "../../components/common";
+import { PageHeader, Card, StatCard, SectionHeader, IconBox } from "../../components/common";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
+import { ACTIVE_SERVICE_STATUSES } from "../../data/serviceStatuses";
 import { statusStyle, statusLabel, formatDate } from "../../components/admin/adminUtils";
 
 const AdminDashboardPage = () => {
-  const { services, analytics, loading } = useAdmin();
+  const { services, servicePersons, analytics, loading } = useAdmin();
   const navigate = useNavigate();
 
   const stats = useMemo(() => {
     const total = services.length;
     const pending = services.filter((s) => s.status === "Confirmed").length;
     const accepted = services.filter((s) => s.status === "Accepted").length;
-    const active = services.filter((s) =>
-      ["On The Way", "In Progress"].includes(s.status)
-    ).length;
+    const active = services.filter((s) => ACTIVE_SERVICE_STATUSES.includes(s.status)).length;
     const waitingApproval = services.filter(
       (s) => s.status === "Waiting for Admin Approval"
     ).length;
@@ -36,6 +37,26 @@ const AdminDashboardPage = () => {
 
     return { total, pending, accepted, active, waitingApproval, completed, cancelled };
   }, [services]);
+
+  const needsAttention = useMemo(
+    () =>
+      services.filter((s) =>
+        ["Confirmed", "Waiting for Admin Approval"].includes(s.status)
+      ).length,
+    [services]
+  );
+
+  const fleetStats = useMemo(() => {
+    const completionRate = stats.total
+      ? Math.round((stats.completed / stats.total) * 100)
+      : 0;
+
+    return [
+      { icon: Activity, label: "Active Services", value: stats.active, iconTone: "primary" },
+      { icon: Clock3, label: "Awaiting Action", value: needsAttention, iconTone: "accent" },
+      { icon: TrendingUp, label: "Completion Rate", value: `${completionRate}%`, iconTone: "primary" },
+    ];
+  }, [stats, needsAttention]);
 
   const recentServices = useMemo(
     () =>
@@ -62,51 +83,67 @@ const AdminDashboardPage = () => {
     return Object.entries(counts).filter(([, count]) => count > 0);
   }, [services]);
 
-  const statCards = [
-    { label: "Total Service Requests", value: stats.total, icon: ClipboardList, tone: "primary", description: "All fleet bookings" },
-    { label: "Pending Requests", value: stats.pending, icon: Clock, tone: "accent", description: "Awaiting acceptance" },
-    { label: "Accepted Services", value: stats.accepted, icon: CheckCircle2, tone: "primary", description: "Ready for technician" },
-    { label: "Active Services", value: stats.active, icon: Activity, tone: "accent", description: "In progress / en route" },
-    { label: "Awaiting Approval", value: stats.waitingApproval, icon: CheckCircle2, tone: "primary", description: "Finished by tech" },
-    { label: "Completed Services", value: stats.completed, icon: TrendingUp, tone: "primary", description: "Successfully closed" },
-    { label: "Cancelled Services", value: stats.cancelled, icon: XCircle, tone: "accent", description: "Terminated requests" },
-  ];
-
   if (loading && services.length === 0) {
     return <LoadingSpinner />;
   }
 
   return (
-  <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-
+  <div className="w-full space-y-8">
     {/* Page Header */}
     <PageHeader
-      icon={Wrench}
-      title="Dashboard"
-      subtitle="Overview of all customer service requests"
+      icon={Home}
+      title="Good Morning"
+      subtitle="Here's an overview of fleet operations and service requests."
       actions={
-        <Link
-          to="/admin/services"
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#173B5C] px-5 py-3 text-white font-semibold hover:bg-[#102F4A] transition-all shadow-sm text-sm"
-        >
-          View All Requests
-        </Link>
+        <span className="hidden md:inline-flex items-center gap-2 text-sm text-[#747B83]">
+          <span className="w-2 h-2 rounded-full bg-green-500" />
+          Live
+        </span>
       }
     />
 
     {/* Stats Grid */}
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-      {statCards.map((card) => (
-        <StatCard
-          key={card.label}
-          icon={card.icon}
-          value={card.value}
-          label={card.label}
-          description={card.description}
-          tone={card.tone}
-        />
-      ))}
-    </div>
+    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+      <StatCard icon={Battery} value={analytics?.totalBatteries ?? 0} label="Total Batteries" />
+      <StatCard icon={Wrench} value={stats.active} label="Active Service Requests" />
+      <StatCard icon={ShieldCheck} value={servicePersons.length} label="Battery Technicians" />
+      <StatCard icon={AlertTriangle} value={needsAttention} label="Needs Attention" tone="accent" />
+    </section>
+
+    {/* Fleet Status */}
+    <Card>
+      <SectionHeader
+        icon={Activity}
+        title="Fleet Status"
+        subtitle="Current state of fleet services and operations"
+        right={
+          <Link
+            to="/admin/analytics"
+            className="flex items-center gap-2 text-sm font-semibold text-[#173B5C] hover:text-[#102F4A] transition"
+          >
+            View Analytics
+            <ChevronRight className="w-4 h-4" />
+          </Link>
+        }
+      />
+
+      <div className="p-6 lg:p-7 flex flex-col lg:flex-row gap-6 items-center">
+        <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-5 w-full">
+          {fleetStats.map((stat) => (
+            <div
+              key={stat.label}
+              className="flex items-center justify-between rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3] p-5"
+            >
+              <div>
+                <p className="text-xs text-[#747B83]">{stat.label}</p>
+                <p className="text-xl font-bold text-[#16263A]">{stat.value}</p>
+              </div>
+              <IconBox icon={stat.icon} tone={stat.iconTone} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </Card>
 
     {/* Recent Services + Status Overview */}
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-stretch">

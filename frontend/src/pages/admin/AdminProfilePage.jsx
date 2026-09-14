@@ -22,8 +22,7 @@ const AdminProfilePage = () => {
         subtitle="Manage your administrator account credentials and access permissions"
       />
 
-      <div className="max-w-2xl">
-        <Card>
+      <Card>
           <div className="flex items-center gap-4 mb-6">
             <div className="w-16 h-16 rounded-2xl bg-[#173B5C] text-[#FBF1C9] flex items-center justify-center text-xl font-black shrink-0 shadow-sm">
               {getAvatarText(adminUser?.name)}
@@ -78,7 +77,6 @@ const AdminProfilePage = () => {
             </button>
           </div>
         </Card>
-      </div>
     </div>
   );
 };

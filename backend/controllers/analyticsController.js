@@ -1,4 +1,4 @@
-import store from "../data/store.js";
+import store from "../data/index.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { isCancelled } from "../constants/serviceStatuses.js";
 

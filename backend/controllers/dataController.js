@@ -1,4 +1,4 @@
-import store from "../data/store.js";
+import store from "../data/index.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 
 // POST /api/data/reset — restore the sample dataset for the current operator

@@ -13,9 +13,10 @@ import {
 } from "lucide-react";
 
 import { useBattery } from "../../context/BatteryContext";
+import GoogleSignInButton from "../../components/common/GoogleSignInButton";
 
 const SignUpPage = () => {
-  const { signUp, addToast } = useBattery();
+  const { signUp, signInWithGoogle, addToast } = useBattery();
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
@@ -104,6 +105,29 @@ const SignUpPage = () => {
     }
   };
 
+  const handleGoogleCredential = async (credential) => {
+    if (!credential) return;
+    setSubmitting(true);
+    try {
+      const data = await signInWithGoogle(credential);
+      if (data?.isNewUser === false) {
+        addToast(
+          "Account Already Exists",
+          "An account with this Google email already exists. You've been signed in to your existing account.",
+          "info",
+        );
+      }
+      navigate("/home");
+    } catch (error) {
+      addToast(
+        "Google Sign-Up Failed",
+        error?.message || "Could not complete Google sign-up.",
+        "error",
+      );
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#F8F2DE] text-[#16263A] px-4 py-10">
       <div className="w-full max-w-md">
@@ -125,6 +149,23 @@ const SignUpPage = () => {
         </div>
         {/* Card */}
         <div className="glass-card rounded-3xl p-6 sm:p-8">
+          {/* Continue with Google */}
+          <div>
+            <GoogleSignInButton
+              onCredential={handleGoogleCredential}
+              disabled={submitting}
+            />
+          </div>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3 my-5">
+            <div className="flex-1 h-px bg-[#E7E1D3]" />
+            <span className="text-[11px] font-semibold text-[#8A9096] uppercase">
+              or
+            </span>
+            <div className="flex-1 h-px bg-[#E7E1D3]" />
+          </div>
+
           <form onSubmit={handleSubmit} noValidate className="space-y-4">
             {/* Name */}
             <div>
@@ -352,17 +393,8 @@ const SignUpPage = () => {
             </button>
           </form>
 
-          {/* Divider */}
-          <div className="flex items-center gap-3 my-6">
-            <div className="flex-1 h-px bg-[#E7E1D3]" />
-            <span className="text-[11px] font-semibold text-[#8A9096] uppercase">
-              or
-            </span>
-            <div className="flex-1 h-px bg-[#E7E1D3]" />
-          </div>
-
           {/* Sign in link */}
-          <div className="text-center">
+          <div className="text-center mt-6">
             <p className="text-sm text-[#747B83]">
               Already have an account?{" "}
               <Link

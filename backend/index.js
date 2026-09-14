@@ -45,6 +45,8 @@ app.get("/", (req, res) => {
   res.json({
     message: "MaxSpace API is running",
     version: "1.0.0",
+    dataSource: config.db.dataSource,
+    databaseConfigured: Boolean(config.db.databaseUrl),
     endpoints: {
       auth: "/api/auth",
       admin: "/api/admin",
@@ -76,5 +78,6 @@ app.use(errorHandler);
 
 // Start server
 app.listen(config.port, () => {
-  console.log(`🚀 MaxSpace API running on http://localhost:${config.port}`);
+  const dbMode = config.db.dataSource === "postgres" ? "PostgreSQL" : "mock (in-memory seed)";
+  console.log(`🚀 MaxSpace API running on http://localhost:${config.port} (data source: ${dbMode})`);
 });

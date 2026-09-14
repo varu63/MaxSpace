@@ -40,9 +40,18 @@ class Store {
     );
   }
 
+  getUserByGoogleId(googleId) {
+    if (!googleId) return null;
+    return this.users.find((u) => u.googleId === googleId) || null;
+  }
+
   createUser(userData) {
-    this.users = [...this.users, userData];
-    return userData;
+    const user = {
+      authProvider: "local",
+      ...userData,
+    };
+    this.users = [...this.users, user];
+    return user;
   }
 
   updateUser(id, fields) {

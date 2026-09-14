@@ -13,9 +13,10 @@ import {
 
 import { useBatteryTechnician } from "../../context/BatteryTechnicianContext";
 import { getErrorMessage } from "../../services/batteryTechnicianApi";
+import GoogleSignInButton from "../../components/common/GoogleSignInButton";
 
 const BatteryTechnicianLoginPage = () => {
-  const { batteryTechnicianLogin } = useBatteryTechnician();
+  const { batteryTechnicianLogin, batteryTechnicianGoogleLogin } = useBatteryTechnician();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
@@ -46,6 +47,19 @@ const BatteryTechnicianLoginPage = () => {
     setSubmitting(true);
     try {
       await batteryTechnicianLogin({ email: email.trim(), password });
+      navigate("/battery-technician", { replace: true });
+    } catch (error) {
+      setFormError(getErrorMessage(error));
+      setSubmitting(false);
+    }
+  };
+
+  const handleGoogleCredential = async (credential) => {
+    if (!credential) return; // user closed the Google dialog without completing
+    setFormError("");
+    setSubmitting(true);
+    try {
+      await batteryTechnicianGoogleLogin(credential);
       navigate("/battery-technician", { replace: true });
     } catch (error) {
       setFormError(getErrorMessage(error));
@@ -84,6 +98,21 @@ const BatteryTechnicianLoginPage = () => {
 
         {/* Card */}
         <div className="glass-card rounded-3xl p-6 sm:p-8">
+          {/* Continue with Google */}
+          <div>
+            <GoogleSignInButton
+              onCredential={handleGoogleCredential}
+              disabled={submitting}
+            />
+          </div>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3 my-5">
+            <div className="flex-1 h-px bg-[#E7E1D3]" />
+            <Wrench className="w-4 h-4 text-[#B48611]" />
+            <div className="flex-1 h-px bg-[#E7E1D3]" />
+          </div>
+
           {formError && (
             <div className="mb-5 flex items-start gap-2.5 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 animate-expand">
               <span className="mt-0.5">⚠</span>
@@ -194,15 +223,8 @@ const BatteryTechnicianLoginPage = () => {
             </button>
           </form>
 
-          {/* Divider */}
-          <div className="flex items-center gap-3 my-6">
-            <div className="flex-1 h-px bg-[#E7E1D3]" />
-            <Wrench className="w-4 h-4 text-[#B48611]" />
-            <div className="flex-1 h-px bg-[#E7E1D3]" />
-          </div>
-
           {/* Back link */}
-          <div className="text-center">
+          <div className="text-center mt-6">
             <Link
               to="/home"
               className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#747B83] hover:text-[#16263A] transition-colors"

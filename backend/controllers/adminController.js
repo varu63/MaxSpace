@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import store from "../data/store.js";
+import store from "../data/index.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { signToken, sanitizeUser, matchesPassword } from "../utils/auth.js";
 import { todayISO } from "../utils/date.js";
@@ -382,7 +382,7 @@ export const getAdminAnalytics = asyncHandler(async (req, res) => {
     Cancelled: cancelledServices,
   };
 
-  const recentServices = services
+  const recentServices = [...services]
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     .slice(0, 5);
 

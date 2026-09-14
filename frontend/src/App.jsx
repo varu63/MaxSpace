@@ -10,8 +10,10 @@ import Sidebar from "./components/common/Sidebar";
 import Header from "./components/common/Header";
 import Footer from "./components/common/Footer";
 import LoadingSpinner from "./components/common/LoadingSpinner";
+import { PageContainer } from "./components/common/PageContainer";
 import { NotificationToast } from "./components/common/NotificationToast";
 import { QRBarcodeScannerModal } from "./components/user/scanner/QRBarcodeScannerModal";
+import AddBatteryModal from "./components/user/battery/AddBatteryModal";
 import FloatingDownloadButton from "./components/common/FloatingDownloadButton";
 
 const HomePage = lazy(() => import("./pages/user/HomePage"));
@@ -211,7 +213,7 @@ const MainLayout = () => {
       {!isFullScreenPage && <Sidebar />}
       {!isFullScreenPage && <Header />}
 
-      <main className={`flex-1 w-full ${isFullScreenPage ? "px-4 sm:px-6 lg:px-8 py-6" : "max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-12"}`}>
+      <PageContainer fullWidth={isFullScreenPage}>
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route
@@ -273,13 +275,14 @@ const MainLayout = () => {
             <Route path="*" element={<Navigate to="/home" replace />} />
           </Routes>
         </Suspense>
-      </main>
+      </PageContainer>
 
       {!isFullScreenPage && <Footer />}
       {!isFullScreenPage && <ScrollToTopButton />}
       {!isFullScreenPage && <FloatingDownloadButton />}
 
       <QRBarcodeScannerModal />
+      <AddBatteryModal />
     </div>
   );
 };

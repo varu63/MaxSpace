@@ -4,6 +4,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "../../components/common/Sidebar";
 import Header from "../../components/common/Header";
 import Footer from "../../components/common/Footer";
+import { PageContainer } from "../../components/common/PageContainer";
 
 import { useBatteryTechnician } from "../../context/BatteryTechnicianContext";
 
@@ -36,9 +37,9 @@ const BatteryTechnicianLayout = () => {
         setIsSidebarOpen={setIsSidebarOpen}
       />
 
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+      <PageContainer>
         <Outlet />
-      </main>
+      </PageContainer>
 
       <Footer panelText="MaxSpace Battery Technician Panel · Authorized personnel only" />
     </div>

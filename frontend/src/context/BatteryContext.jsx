@@ -54,9 +54,27 @@ export const BatteryProvider = ({ children }) => {
     return data.user;
   }, []);
 
+  const signInWithGoogle = useCallback(async (credential) => {
+    const data = await api.googleSignIn(credential);
+    api.setToken(data.token);
+    setUserProfile(data.user || {});
+    setIsAuthenticated(true);
+    // Return the full payload so callers can react to whether the account
+    // was freshly created (data.isNewUser) or matched an existing record.
+    return data;
+  }, []);
+
   const signOut = useCallback(async () => {
     setIsAuthenticated(false);
     api.setToken(null);
+    // Stop Google Identity Services from showing One Tap prompts after logout
+    try {
+      if (window.google?.accounts?.id) {
+        window.google.accounts.id.disableAutoSelect();
+      }
+    } catch {
+      // Google scripts may not be loaded — ignore
+    }
     try {
       await api.logout();
     } catch {
@@ -420,6 +438,7 @@ export const BatteryProvider = ({ children }) => {
       isAuthenticated,
       signIn,
       signUp,
+      signInWithGoogle,
       signOut,
 
       batteries,
@@ -473,6 +492,7 @@ export const BatteryProvider = ({ children }) => {
       isAuthenticated,
       signIn,
       signUp,
+      signInWithGoogle,
       signOut,
       batteries,
       services,
