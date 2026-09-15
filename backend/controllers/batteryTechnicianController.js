@@ -21,7 +21,7 @@ export const batteryTechnicianLogin = asyncHandler(async (req, res) => {
     throw new Error("Please provide email and password");
   }
 
-  const user = store.getUserByEmail(email);
+  const user = await store.getUserByEmail(email);
 
   if (!user || user.role !== "EMPLOYEE") {
     res.status(401);
@@ -37,7 +37,7 @@ export const batteryTechnicianLogin = asyncHandler(async (req, res) => {
   const token = signToken(user.id, user.role);
 
   const servicePerson = user.servicePersonId
-    ? store.getServicePersonById(user.servicePersonId)
+    ? await store.getServicePersonById(user.servicePersonId)
     : null;
 
   res.status(200).json({
@@ -76,12 +76,12 @@ export const batteryTechnicianGoogleLogin = asyncHandler(async (req, res) => {
   const googleProfile = await verifyGoogleIdToken(credential);
 
   // 1) Existing Google-linked technician → log them in.
-  let user = store.getUserByGoogleId(googleProfile.googleId);
+  let user = await store.getUserByGoogleId(googleProfile.googleId);
 
   // 2) No Google link yet, but an EMPLOYEE account already uses this
   //    verified email → link Google to that account and log them in.
   if (!user) {
-    const existing = store.getUserByEmail(googleProfile.email);
+    const existing = await store.getUserByEmail(googleProfile.email);
     if (existing) {
       if (existing.role !== "EMPLOYEE") {
         res.status(403);
@@ -93,13 +93,13 @@ export const batteryTechnicianGoogleLogin = asyncHandler(async (req, res) => {
         res.status(409);
         throw new Error("This email is already linked to a different Google account");
       }
-      store.updateUser(existing.id, {
+      await store.updateUser(existing.id, {
         googleId: googleProfile.googleId,
         authProvider: "google",
         avatar: googleProfile.avatar || existing.avatar,
         name: existing.name || googleProfile.name,
       });
-      user = store.getUserById(existing.id);
+      user = await store.getUserById(existing.id);
     }
   }
 
@@ -115,7 +115,7 @@ export const batteryTechnicianGoogleLogin = asyncHandler(async (req, res) => {
   const token = signToken(user.id, user.role);
 
   const servicePerson = user.servicePersonId
-    ? store.getServicePersonById(user.servicePersonId)
+    ? await store.getServicePersonById(user.servicePersonId)
     : null;
 
   res.status(200).json({
@@ -138,14 +138,14 @@ export const batteryTechnicianGoogleLogin = asyncHandler(async (req, res) => {
 
 // GET /api/battery-technician/me
 export const batteryTechnicianMe = asyncHandler(async (req, res) => {
-  const user = store.getUserById(req.user.id);
+  const user = await store.getUserById(req.user.id);
   if (!user || user.role !== "EMPLOYEE") {
     res.status(403);
     throw new Error("Access denied");
   }
 
   const servicePerson = user.servicePersonId
-    ? store.getServicePersonById(user.servicePersonId)
+    ? await store.getServicePersonById(user.servicePersonId)
     : null;
 
   res.json({
@@ -172,19 +172,19 @@ export const batteryTechnicianLogout = asyncHandler(async (req, res) => {
 
 // GET /api/battery-technician/services — get services assigned to this battery technician
 export const getAssignedServices = asyncHandler(async (req, res) => {
-  const user = store.getUserById(req.user.id);
+  const user = await store.getUserById(req.user.id);
   if (!user || !user.servicePersonId) {
     return res.json([]);
   }
 
-  const servicePerson = store.getServicePersonById(user.servicePersonId);
+  const servicePerson = await store.getServicePersonById(user.servicePersonId);
   if (!servicePerson) {
     return res.json([]);
   }
 
-  const allServices = store.getAllServices();
-  const batteries = store.getAllBatteries();
-  const users = store.getAllUsers();
+  const allServices = await store.getAllServices();
+  const batteries = await store.getAllBatteries();
+  const users = await store.getAllUsers();
 
   const assignedIds = servicePerson.assignedServices || [];
   const assigned = allServices.filter((s) => assignedIds.includes(s.id));
@@ -216,19 +216,19 @@ export const getAssignedServices = asyncHandler(async (req, res) => {
 
 // GET /api/battery-technician/services/:id — get a specific assigned service
 export const getAssignedServiceDetail = asyncHandler(async (req, res) => {
-  const user = store.getUserById(req.user.id);
+  const user = await store.getUserById(req.user.id);
   if (!user || !user.servicePersonId) {
     res.status(403);
     throw new Error("Access denied");
   }
 
-  const service = store.getServiceById(req.params.id);
+  const service = await store.getServiceById(req.params.id);
   if (!service) {
     res.status(404);
     throw new Error("Service not found");
   }
 
-  const servicePerson = store.getServicePersonById(user.servicePersonId);
+  const servicePerson = await store.getServicePersonById(user.servicePersonId);
   const assignedIds = servicePerson ? servicePerson.assignedServices || [] : [];
 
   if (!assignedIds.includes(service.id)) {
@@ -236,8 +236,8 @@ export const getAssignedServiceDetail = asyncHandler(async (req, res) => {
     throw new Error("This service is not assigned to you");
   }
 
-  const battery = store.getBatteryById(service.batteryId);
-  const customers = store.getCustomers();
+  const battery = await store.getBatteryById(service.batteryId);
+  const customers = await store.getCustomers();
   const customer = customers.find((u) => u.id === (service.customerId || "user-1"));
 
   res.json({
@@ -270,7 +270,7 @@ export const getAssignedServiceDetail = asyncHandler(async (req, res) => {
 
 // PATCH /api/battery-technician/services/:id/status — update service status (limited workflow)
 export const updateServiceStatus = asyncHandler(async (req, res) => {
-  const user = store.getUserById(req.user.id);
+  const user = await store.getUserById(req.user.id);
   if (!user || !user.servicePersonId) {
     res.status(403);
     throw new Error("Access denied");
@@ -288,13 +288,13 @@ export const updateServiceStatus = asyncHandler(async (req, res) => {
     throw new Error(`Invalid status. Must be one of: ${VALID_STATUSES.join(", ")}`);
   }
 
-  const service = store.getServiceById(req.params.id);
+  const service = await store.getServiceById(req.params.id);
   if (!service) {
     res.status(404);
     throw new Error("Service not found");
   }
 
-  const servicePerson = store.getServicePersonById(user.servicePersonId);
+  const servicePerson = await store.getServicePersonById(user.servicePersonId);
   const assignedIds = servicePerson ? servicePerson.assignedServices || [] : [];
 
   if (!assignedIds.includes(service.id)) {
@@ -310,9 +310,9 @@ export const updateServiceStatus = asyncHandler(async (req, res) => {
     );
   }
 
-  const updated = store.updateService(req.params.id, { status });
+  const updated = await store.updateService(req.params.id, { status });
 
-  store.addServiceHistory(req.params.id, {
+  await store.addServiceHistory(req.params.id, {
     status,
     action: `Service ${status}`,
     performedBy: "EMPLOYEE",
@@ -320,7 +320,7 @@ export const updateServiceStatus = asyncHandler(async (req, res) => {
     notes: `Status changed to ${status} by battery technician`,
   });
 
-  store.logActivity(
+  await store.logActivity(
     `Service ${status}`,
     `Ticket #${updated.ticketNumber} status changed to ${status} by battery technician`,
     "service"

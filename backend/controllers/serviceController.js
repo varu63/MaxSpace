@@ -6,7 +6,7 @@ import { VALID_STATUSES, isActiveStatus, isCancelled } from "../constants/servic
 // GET /api/services
 export const getServices = asyncHandler(async (req, res) => {
   const { batteryId, status } = req.query;
-  let services = store.getAllServices();
+  let services = await store.getAllServices();
   if (batteryId) {
     services = services.filter((s) => s.batteryId === batteryId);
   }
@@ -20,7 +20,7 @@ export const getServices = asyncHandler(async (req, res) => {
 
 // GET /api/services/:id
 export const getService = asyncHandler(async (req, res) => {
-  const service = store.getServiceById(req.params.id);
+  const service = await store.getServiceById(req.params.id);
   if (!service) {
     res.status(404);
     throw new Error("Service record not found");
@@ -30,15 +30,15 @@ export const getService = asyncHandler(async (req, res) => {
 
 // GET /api/services/battery/:batteryId/status  (derived per-battery status)
 export const getBatteryServiceStatus = asyncHandler(async (req, res) => {
-  const battery = store.getBatteryById(req.params.batteryId);
+  const battery = await store.getBatteryById(req.params.batteryId);
   if (!battery) {
     res.status(404);
     throw new Error("Battery not found");
   }
 
-  const records = store
-    .getServicesByBatteryId(req.params.batteryId)
-    .filter((s) => !isCancelled(s.status));
+  const records = (
+    await store.getServicesByBatteryId(req.params.batteryId)
+  ).filter((s) => !isCancelled(s.status));
 
   let status = "Pending";
   if (records.some((s) => isActiveStatus(s.status))) status = "Active";
@@ -57,7 +57,7 @@ export const createService = asyncHandler(async (req, res) => {
     throw new Error("batteryId is required to create a service");
   }
 
-  const battery = store.getBatteryById(data.batteryId);
+  const battery = await store.getBatteryById(data.batteryId);
   if (!battery) {
     res.status(400);
     throw new Error("Battery not found for the provided batteryId");
@@ -95,8 +95,8 @@ export const createService = asyncHandler(async (req, res) => {
     ],
   };
 
-  store.createService(newService);
-  store.logActivity(
+  await store.createService(newService);
+  await store.logActivity(
     "Service Booked",
     `Ticket #${newService.ticketNumber} for ${newService.batteryName}`,
     "service"
@@ -107,7 +107,7 @@ export const createService = asyncHandler(async (req, res) => {
 
 // PATCH /api/services/:id
 export const updateService = asyncHandler(async (req, res) => {
-  const existing = store.getServiceById(req.params.id);
+  const existing = await store.getServiceById(req.params.id);
   if (!existing) {
     res.status(404);
     throw new Error("Service record not found");
@@ -115,15 +115,32 @@ export const updateService = asyncHandler(async (req, res) => {
 
   const { status, ...restFields } = req.body || {};
 
-  if (status && !VALID_STATUSES.includes(status)) {
-    res.status(400);
-    throw new Error(`Invalid status. Must be one of: ${VALID_STATUSES.join(", ")}`);
+  if (status !== undefined && status !== null) {
+    if (!VALID_STATUSES.includes(status)) {
+      res.status(400);
+      throw new Error(`Invalid status. Must be one of: ${VALID_STATUSES.join(", ")}`);
+    }
+    // Users may only cancel a service; status advancement is restricted to
+    // admins (PUT /api/admin/services/:id) and battery technicians
+    // (PATCH /api/battery-technician/services/:id/status).
+    if (status !== "Cancelled") {
+      res.status(403);
+      throw new Error("You do not have permission to change service status to this value");
+    }
+    if (existing.status === "Cancelled") {
+      res.status(400);
+      throw new Error("Service is already cancelled");
+    }
+    if (existing.status === "Completed") {
+      res.status(400);
+      throw new Error("Cannot cancel a completed service");
+    }
   }
 
-  const updated = store.updateService(req.params.id, { ...restFields, ...(status ? { status } : {}) });
+  const updated = await store.updateService(req.params.id, { ...restFields, ...(status ? { status } : {}) });
 
   if (status) {
-    store.addServiceHistory(req.params.id, {
+    await store.addServiceHistory(req.params.id, {
       status,
       action: `Service ${status}`,
       performedBy: "USER",
@@ -132,14 +149,8 @@ export const updateService = asyncHandler(async (req, res) => {
     });
   }
 
-  if (status === "Completed") {
-    store.logActivity(
-      "Service Completed",
-      `Ticket #${updated.ticketNumber} marked completed`,
-      "service"
-    );
-  } else if (status === "Cancelled") {
-    store.logActivity(
+  if (status === "Cancelled") {
+    await store.logActivity(
       "Service Cancelled",
       `Ticket #${updated.ticketNumber} was cancelled`,
       "service"
@@ -151,7 +162,7 @@ export const updateService = asyncHandler(async (req, res) => {
 
 // DELETE /api/services/:id
 export const deleteService = asyncHandler(async (req, res) => {
-  const removed = store.deleteService(req.params.id);
+  const removed = await store.deleteService(req.params.id);
   if (!removed) {
     res.status(404);
     throw new Error("Service record not found");

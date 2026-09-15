@@ -1,9 +1,18 @@
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
+import fs from "fs";
+import path from "path";
 import store from "../data/index.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { signToken, sanitizeUser, matchesPassword } from "../utils/auth.js";
 import { verifyGoogleIdToken } from "../utils/googleAuth.js";
 import { todayISO } from "../utils/date.js";
+import config from "../config/app.js";
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const hashResetToken = (token) =>
+  crypto.createHash("sha256").update(String(token)).digest("hex");
 
 // POST /api/auth/signin
 export const signIn = asyncHandler(async (req, res) => {
@@ -14,7 +23,7 @@ export const signIn = asyncHandler(async (req, res) => {
     throw new Error("Please provide email and password");
   }
 
-  const user = store.getUserByEmail(email);
+  const user = await store.getUserByEmail(email);
 
   if (!user) {
     res.status(401);
@@ -56,30 +65,30 @@ export const googleSignIn = asyncHandler(async (req, res) => {
   let isNewUser = false;
 
   // 1) Existing Google-linked user → log them in.
-  let user = store.getUserByGoogleId(googleProfile.googleId);
+  let user = await store.getUserByGoogleId(googleProfile.googleId);
 
   // 2) No Google link yet, but an account already uses this verified
   //    email → link Google to that account and log them in.
   if (!user) {
-    const existing = store.getUserByEmail(googleProfile.email);
+    const existing = await store.getUserByEmail(googleProfile.email);
     if (existing) {
       if (existing.authProvider === "google" && existing.googleId !== googleProfile.googleId) {
         res.status(409);
         throw new Error("This email is already linked to a different Google account");
       }
-      store.updateUser(existing.id, {
+      await store.updateUser(existing.id, {
         googleId: googleProfile.googleId,
         authProvider: "google",
         avatar: googleProfile.avatar || existing.avatar,
         name: existing.name || googleProfile.name,
       });
-      user = store.getUserById(existing.id);
+      user = await store.getUserById(existing.id);
     }
   }
 
   // 3) Brand-new Google user → create a normal USER account.
   if (!user) {
-    const created = store.createUser({
+    const created = await store.createUser({
       id: `user-${Date.now()}`,
       name: googleProfile.name || googleProfile.email,
       email: googleProfile.email,
@@ -89,14 +98,14 @@ export const googleSignIn = asyncHandler(async (req, res) => {
       role: "USER",
       createdAt: todayISO(),
     });
-    user = store.getUserById(created.id);
+    user = await store.getUserById(created.id);
     isNewUser = true;
   }
 
   // Update the shared profile avatar/name so the profile UI reflects Google.
   if (googleProfile.avatar) {
-    const profile = store.getProfile();
-    store.updateProfile({
+    const profile = (await store.getProfile()) || {};
+    await store.updateProfile({
       avatar: googleProfile.avatar || profile.avatar,
       name: googleProfile.name || profile.name,
       email: googleProfile.email || profile.email,
@@ -121,19 +130,29 @@ export const signUp = asyncHandler(async (req, res) => {
     throw new Error("Please provide name, email, and password");
   }
 
+  if (!EMAIL_REGEX.test(String(email))) {
+    res.status(400);
+    throw new Error("Please provide a valid email address");
+  }
+
+  if (String(password).length < 6) {
+    res.status(400);
+    throw new Error("Password must be at least 6 characters");
+  }
+
   if (password !== confirmPassword) {
     res.status(400);
     throw new Error("Passwords do not match");
   }
 
-  if (store.getUserByEmail(email)) {
+  if (await store.getUserByEmail(email)) {
     res.status(409);
     throw new Error("An account with this email already exists");
   }
 
   const hashedPassword = await bcrypt.hash(String(password), 10);
 
-  const newUser = store.createUser({
+  const newUser = await store.createUser({
     id: `user-${Date.now()}`,
     name,
     email,
@@ -152,11 +171,28 @@ export const signUp = asyncHandler(async (req, res) => {
 
 // POST /api/auth/forgot-password
 export const forgotPassword = asyncHandler(async (req, res) => {
-  const { email } = req.body;
+  const { email } = req.body || {};
 
-  if (!email) {
+  if (!email || !EMAIL_REGEX.test(String(email))) {
     res.status(400);
-    throw new Error("Please provide your email address");
+    throw new Error("Please provide a valid email address");
+  }
+
+  const user = await store.getUserByEmail(email);
+
+  // Always respond the same way so email enumeration is not possible.
+  if (user) {
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+    await store.setPasswordResetToken(user.id, hashResetToken(token), expiresAt.toISOString());
+    // No SMTP is configured for this build; persist the reset link so the flow
+    // can be exercised in development. In production an email service would send it.
+    try {
+      const resetsLog = path.join(process.env.TEMP || "/tmp", "maxspace-reset-links.log");
+      fs.appendFileSync(resetsLog, `${new Date().toISOString()} ${user.email} ${config.clientUrl}/auth/reset-password?token=${token}\n`);
+    } catch {
+      // ignore logging failures
+    }
   }
 
   res.status(200).json({
@@ -164,9 +200,42 @@ export const forgotPassword = asyncHandler(async (req, res) => {
   });
 });
 
+// POST /api/auth/reset-password — consume a one-time reset token
+export const resetPassword = asyncHandler(async (req, res) => {
+  const { token, newPassword } = req.body || {};
+
+  if (!token || !newPassword) {
+    res.status(400);
+    throw new Error("Please provide the reset token and a new password");
+  }
+
+  if (String(newPassword).length < 6) {
+    res.status(400);
+    throw new Error("Password must be at least 6 characters");
+  }
+
+  const user = await store.getUserByPasswordResetToken(hashResetToken(token));
+
+  const expired =
+    !user ||
+    !user.resetTokenExpiresAt ||
+    new Date(user.resetTokenExpiresAt).getTime() < Date.now();
+
+  if (expired) {
+    res.status(400);
+    throw new Error("Invalid or expired reset token");
+  }
+
+  const hashed = await bcrypt.hash(String(newPassword), 10);
+  await store.updateUser(user.id, { password: hashed });
+  await store.clearPasswordResetToken(user.id);
+
+  res.status(200).json({ message: "Password reset successfully. You can now sign in." });
+});
+
 // GET /api/auth/me
 export const getMe = asyncHandler(async (req, res) => {
-  const user = store.getUserById(req.user.id);
+  const user = await store.getUserById(req.user.id);
   if (!user) {
     res.status(404);
     throw new Error("User not found");

@@ -13,15 +13,15 @@ export const getBatteries = asyncHandler(async (req, res) => {
   const { barcode } = req.query;
   if (barcode) {
     const code = normalizeBatteryIdentifier(barcode);
-    const battery = store.findBatteryByBarcodeOrSerial(code);
+    const battery = await store.findBatteryByBarcodeOrSerial(code);
     return res.json(battery ? [battery] : []);
   }
-  res.json(store.getAllBatteries());
+  res.json(await store.getAllBatteries());
 });
 
 // GET /api/batteries/:id
 export const getBattery = asyncHandler(async (req, res) => {
-  const battery = resolveBatteryByIdentifier(store, req.params.id);
+  const battery = await resolveBatteryByIdentifier(store, req.params.id);
   if (!battery) {
     res.status(404);
     throw new Error("Battery not found");
@@ -39,7 +39,7 @@ export const lookupBattery = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "A battery identifier is required" });
   }
 
-  const battery = store.findBatteryByBarcodeOrSerial(identifier);
+  const battery = await store.findBatteryByBarcodeOrSerial(identifier);
   if (!battery) {
     return res.status(404).json({ message: "No battery found for the provided identifier" });
   }
@@ -57,14 +57,14 @@ export const getBatteryPassport = asyncHandler(async (req, res) => {
     throw new Error("A battery identifier is required");
   }
 
-  const battery = resolveBatteryByIdentifier(store, identifier);
+  const battery = await resolveBatteryByIdentifier(store, identifier);
   if (!battery) {
     res.status(404);
     throw new Error("Battery not found");
   }
 
   // Related records: service & maintenance history for this battery.
-  const serviceHistory = store.getServicesByBatteryId(battery.id);
+  const serviceHistory = await store.getServicesByBatteryId(battery.id);
 
   res.json({
     battery,
@@ -76,7 +76,7 @@ export const getBatteryPassport = asyncHandler(async (req, res) => {
 
 // GET /api/batteries/:id/health-history
 export const getBatteryHealthHistory = asyncHandler(async (req, res) => {
-  const battery = store.getBatteryById(req.params.id);
+  const battery = await store.getBatteryById(req.params.id);
   if (!battery) {
     res.status(404);
     throw new Error("Battery not found");
@@ -156,8 +156,16 @@ export const createBattery = asyncHandler(async (req, res) => {
     ],
   };
 
-  store.createBattery(newBattery);
-  store.logActivity(
+  try {
+    await store.createBattery(newBattery);
+  } catch (err) {
+    if (err && (err.code === "23505" || /unique constraint/i.test(err.message || ""))) {
+      res.status(409);
+      throw new Error("A battery with this barcode or serial number already exists");
+    }
+    throw err;
+  }
+  await store.logActivity(
     "Battery Added & Passport Minted",
     `Registered ${newBattery.modelName} (${newBattery.barcode})`,
     "passport"
@@ -168,24 +176,24 @@ export const createBattery = asyncHandler(async (req, res) => {
 
 // PUT /api/batteries/:id
 export const updateBattery = asyncHandler(async (req, res) => {
-  const existing = store.getBatteryById(req.params.id);
+  const existing = await store.getBatteryById(req.params.id);
   if (!existing) {
     res.status(404);
     throw new Error("Battery not found");
   }
 
-  const updated = store.updateBattery(req.params.id, req.body);
+  const updated = await store.updateBattery(req.params.id, req.body);
   res.json(updated);
 });
 
 // DELETE /api/batteries/:id
 export const deleteBattery = asyncHandler(async (req, res) => {
-  const removed = store.deleteBattery(req.params.id);
+  const removed = await store.deleteBattery(req.params.id);
   if (!removed) {
     res.status(404);
     throw new Error("Battery not found");
   }
 
-  store.logActivity("Battery Removed", `Removed ${removed.modelName || removed.id} from fleet`, "general");
+  await store.logActivity("Battery Removed", `Removed ${removed.modelName || removed.id} from fleet`, "general");
   res.json({ message: "Battery removed successfully", id: req.params.id });
 });

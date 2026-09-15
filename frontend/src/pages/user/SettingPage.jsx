@@ -16,10 +16,8 @@ import {
   Download,
   KeyRound,
   FileText,
-  RefreshCcw,
   CheckCircle2,
   X,
-  Trash2,
   Building2,
   MapPin,
   AtSign,
@@ -114,7 +112,6 @@ const SettingsPage = () => {
   const {
     userProfile,
     updateProfile,
-    resetToSampleData,
     addToast,
     batteries,
     services,
@@ -156,9 +153,6 @@ const SettingsPage = () => {
     next: "",
     confirm: "",
   });
-
-  const [isResetModalOpen, setIsResetModalOpen] =
-    useState(false);
 
   /* =====================================================
      THEME SYNC
@@ -363,19 +357,6 @@ const SettingsPage = () => {
       "Export Complete",
       "Your data was downloaded as a JSON file."
     );
-  };
-
-  const openResetModal = () => {
-    setIsResetModalOpen(true);
-  };
-
-  const closeResetModal = () => {
-    setIsResetModalOpen(false);
-  };
-
-  const handleClearData = () => {
-    resetToSampleData();
-    closeResetModal();
   };
 
   /* =====================================================
@@ -1051,25 +1032,6 @@ const SettingsPage = () => {
                       and profile info as JSON.
                     </span>
                   </button>
-
-                  <button
-                    type="button"
-                    onClick={openResetModal}
-                    className="flex flex-col items-start gap-2 p-5 rounded-2xl border border-red-200 bg-red-50 hover:bg-red-100 transition shadow-sm text-left"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center">
-                      <RefreshCcw className="w-5 h-5" />
-                    </div>
-
-                    <span className="font-bold text-red-700">
-                      Restore Sample Data
-                    </span>
-
-                    <span className="text-sm text-red-600">
-                      Replace all current records with the
-                      original EU DPP sample dataset.
-                    </span>
-                  </button>
                 </div>
               </section>
             </>
@@ -1158,53 +1120,6 @@ const SettingsPage = () => {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Restore sample data confirmation modal */}
-      {isResetModalOpen && (
-        <div className="fixed inset-0 z-50 flex overflow-y-auto p-4">
-          <div
-            className="absolute inset-0 bg-[#16263A]/60 backdrop-blur-sm"
-            onClick={closeResetModal}
-          />
-
-          <div className="relative w-full max-w-md m-auto max-h-[90vh] overflow-y-auto bg-[#FFFDF8] rounded-3xl border border-[#EEE9DA] shadow-2xl p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-11 h-11 rounded-2xl bg-red-600 text-white flex items-center justify-center">
-                <Trash2 className="w-5 h-5" />
-              </div>
-
-              <div>
-                <h3 className="font-bold text-lg text-[#16263A]">
-                  Restore Sample Data?
-                </h3>
-
-                <p className="text-sm text-[#747B83]">
-                  This will replace all current records with the
-                  original sample dataset.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={closeResetModal}
-                className="flex-1 px-5 py-2.5 rounded-2xl border border-[#EEE9DA] text-[#16263A] font-semibold hover:bg-[#F5F1E7] transition"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={handleClearData}
-                className="flex-1 px-5 py-2.5 rounded-2xl bg-red-600 text-white font-semibold hover:bg-red-700 transition"
-              >
-                Yes, Restore
-              </button>
-            </div>
           </div>
         </div>
       )}

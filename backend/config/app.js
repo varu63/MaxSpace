@@ -5,14 +5,13 @@ dotenv.config();
 const config = {
   nodeEnv: process.env.NODE_ENV || "development",
   port: Number(process.env.PORT) || 5000,
-  jwtSecret:
-    process.env.JWT_SECRET ||
-    (() => {
-      if (process.env.NODE_ENV === "production") {
-        throw new Error("JWT_SECRET environment variable is required in production");
-      }
-      return "maxspace_super_secret_key";
-    })(),
+  jwtSecret: (() => {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error("JWT_SECRET environment variable is required");
+    }
+    return secret;
+  })(),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",
   clientUrl: process.env.FRONTEND_URL || process.env.CLIENT_URL || "http://localhost:5173",
   google: {

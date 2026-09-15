@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 import config from "../config/app.js";
 import store from "../data/index.js";
 
-export const protect = (req, res, next) => {
+export const protect = async (req, res, next) => {
   const header = req.headers.authorization || "";
 
   if (!header.startsWith("Bearer ")) {
@@ -13,7 +13,7 @@ export const protect = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, config.jwtSecret);
-    const user = store.getUserById(decoded.id);
+    const user = await store.getUserById(decoded.id);
     if (!user) {
       return res.status(401).json({ message: "Not authorized, user not found" });
     }

@@ -33,6 +33,7 @@ const mapUserRow = (row) =>
         googleId: row.google_id || null,
         authProvider: row.auth_provider || "local",
         avatar: row.avatar || "",
+        resetTokenExpiresAt: row.reset_token_expires_at || null,
         createdAt: row.created_at,
       }
     : null;
@@ -217,6 +218,28 @@ export const createPostgresStore = async ({ databaseUrl }) => {
         [String(googleId)]
       );
       return mapUserRow(rows[0]);
+    },
+
+    async setPasswordResetToken(userId, tokenHash, expiresAt) {
+      await pool.query(
+        `UPDATE users SET reset_token_hash = $2, reset_token_expires_at = $3 WHERE id = $1`,
+        [userId, tokenHash, expiresAt]
+      );
+    },
+
+    async getUserByPasswordResetToken(tokenHash) {
+      const { rows } = await pool.query(
+        "SELECT * FROM users WHERE reset_token_hash = $1 LIMIT 1",
+        [tokenHash]
+      );
+      return mapUserRow(rows[0]);
+    },
+
+    async clearPasswordResetToken(userId) {
+      await pool.query(
+        `UPDATE users SET reset_token_hash = NULL, reset_token_expires_at = NULL WHERE id = $1`,
+        [userId]
+      );
     },
 
     async createUser(userData) {

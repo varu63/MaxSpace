@@ -14,7 +14,7 @@ export const adminLogin = asyncHandler(async (req, res) => {
     throw new Error("Please provide email and password");
   }
 
-  const user = store.getUserByEmail(email);
+  const user = await store.getUserByEmail(email);
 
   if (!user || user.role !== "ADMIN") {
     res.status(401);
@@ -37,7 +37,7 @@ export const adminLogin = asyncHandler(async (req, res) => {
 
 // GET /api/admin/me
 export const adminMe = asyncHandler(async (req, res) => {
-  const user = store.getUserById(req.user.id);
+  const user = await store.getUserById(req.user.id);
   if (!user || user.role !== "ADMIN") {
     res.status(403);
     throw new Error("Access denied");
@@ -52,9 +52,9 @@ export const adminLogout = asyncHandler(async (req, res) => {
 
 // GET /api/admin/services
 export const getAdminServices = asyncHandler(async (req, res) => {
-  const services = store.getAllServices();
-  const batteries = store.getAllBatteries();
-  const users = store.getAllUsers();
+  const services = await store.getAllServices();
+  const batteries = await store.getAllBatteries();
+  const users = await store.getAllUsers();
 
   const enriched = services.map((s) => {
     const battery = batteries.find((b) => b.id === s.batteryId);
@@ -83,14 +83,14 @@ export const getAdminServices = asyncHandler(async (req, res) => {
 
 // GET /api/admin/services/:id
 export const getAdminService = asyncHandler(async (req, res) => {
-  const service = store.getServiceById(req.params.id);
+  const service = await store.getServiceById(req.params.id);
   if (!service) {
     res.status(404);
     throw new Error("Service not found");
   }
 
-  const battery = store.getBatteryById(service.batteryId);
-  const customers = store.getCustomers();
+  const battery = await store.getBatteryById(service.batteryId);
+  const customers = await store.getCustomers();
   const customer = customers.find((u) => u.id === (service.customerId || "user-1"));
 
   res.json({
@@ -123,7 +123,7 @@ export const getAdminService = asyncHandler(async (req, res) => {
 
 // PATCH /api/admin/services/:id/accept
 export const acceptService = asyncHandler(async (req, res) => {
-  const service = store.getServiceById(req.params.id);
+  const service = await store.getServiceById(req.params.id);
   if (!service) {
     res.status(404);
     throw new Error("Service not found");
@@ -134,14 +134,14 @@ export const acceptService = asyncHandler(async (req, res) => {
     throw new Error("Only pending services can be accepted");
   }
 
-  const updated = store.updateService(req.params.id, {
+  const updated = await store.updateService(req.params.id, {
     status: "Accepted",
     notes: service.notes
       ? `${service.notes} | Admin accepted.`
       : "Admin accepted the service request.",
   });
 
-  store.addServiceHistory(req.params.id, {
+  await store.addServiceHistory(req.params.id, {
     status: "Accepted",
     action: "Service Accepted",
     performedBy: "ADMIN",
@@ -149,7 +149,7 @@ export const acceptService = asyncHandler(async (req, res) => {
     notes: "Service request accepted by admin",
   });
 
-  store.logActivity(
+  await store.logActivity(
     "Service Accepted",
     `Ticket #${updated.ticketNumber} accepted by admin`,
     "service"
@@ -161,7 +161,7 @@ export const acceptService = asyncHandler(async (req, res) => {
 // PATCH /api/admin/services/:id/assign
 export const assignService = asyncHandler(async (req, res) => {
   const { servicePersonId } = req.body;
-  const service = store.getServiceById(req.params.id);
+  const service = await store.getServiceById(req.params.id);
 
   if (!service) {
     res.status(404);
@@ -173,7 +173,7 @@ export const assignService = asyncHandler(async (req, res) => {
     throw new Error("servicePersonId is required");
   }
 
-  const person = store.getServicePersonById(servicePersonId);
+  const person = await store.getServicePersonById(servicePersonId);
   if (!person) {
     res.status(404);
     throw new Error("Battery technician not found");
@@ -186,7 +186,7 @@ export const assignService = asyncHandler(async (req, res) => {
 
   const technicianLabel = `${person.name} (${person.certification})`;
 
-  const updated = store.updateService(req.params.id, {
+  const updated = await store.updateService(req.params.id, {
     status: "Assigned",
     technician: technicianLabel,
     assignedServicePersonId: servicePersonId,
@@ -195,12 +195,12 @@ export const assignService = asyncHandler(async (req, res) => {
   // Update battery technician's assigned services
   const assignedServices = person.assignedServices || [];
   if (!assignedServices.includes(req.params.id)) {
-    store.updateServicePerson(servicePersonId, {
+    await store.updateServicePerson(servicePersonId, {
       assignedServices: [...assignedServices, req.params.id],
     });
   }
 
-  store.addServiceHistory(req.params.id, {
+  await store.addServiceHistory(req.params.id, {
     status: "Assigned",
     action: "Service Assigned",
     performedBy: "ADMIN",
@@ -208,7 +208,7 @@ export const assignService = asyncHandler(async (req, res) => {
     notes: `Assigned to ${technicianLabel}`,
   });
 
-  store.logActivity(
+  await store.logActivity(
     "Service Assigned",
     `Ticket #${updated.ticketNumber} assigned to ${technicianLabel}`,
     "service"
@@ -220,7 +220,7 @@ export const assignService = asyncHandler(async (req, res) => {
 // PATCH /api/admin/services/:id/status
 export const updateServiceStatus = asyncHandler(async (req, res) => {
   const { status } = req.body;
-  const service = store.getServiceById(req.params.id);
+  const service = await store.getServiceById(req.params.id);
 
   if (!service) {
     res.status(404);
@@ -232,9 +232,9 @@ export const updateServiceStatus = asyncHandler(async (req, res) => {
     throw new Error(`Invalid status. Must be one of: ${VALID_STATUSES.join(", ")}`);
   }
 
-  const updated = store.updateService(req.params.id, { status });
+  const updated = await store.updateService(req.params.id, { status });
 
-  store.addServiceHistory(req.params.id, {
+  await store.addServiceHistory(req.params.id, {
     status,
     action: `Service ${status}`,
     performedBy: "ADMIN",
@@ -243,13 +243,13 @@ export const updateServiceStatus = asyncHandler(async (req, res) => {
   });
 
   if (status === "Completed") {
-    store.logActivity(
+    await store.logActivity(
       "Service Completed",
       `Ticket #${updated.ticketNumber} marked completed by admin`,
       "service"
     );
   } else if (status === "Cancelled") {
-    store.logActivity(
+    await store.logActivity(
       "Service Cancelled",
       `Ticket #${updated.ticketNumber} cancelled by admin`,
       "service"
@@ -261,8 +261,8 @@ export const updateServiceStatus = asyncHandler(async (req, res) => {
 
 // GET /api/admin/service-persons
 export const getServicePersons = asyncHandler(async (req, res) => {
-  const persons = store.getAllServicePersons();
-  const services = store.getAllServices();
+  const persons = await store.getAllServicePersons();
+  const services = await store.getAllServices();
 
   const enriched = persons.map((sp) => {
     const assigned = services.filter((s) => (sp.assignedServices || []).includes(s.id));
@@ -280,20 +280,26 @@ export const getServicePersons = asyncHandler(async (req, res) => {
 
 // POST /api/admin/service-persons
 export const createServicePerson = asyncHandler(async (req, res) => {
-  const { name, email, phone, certification, specialization } = req.body;
+  const { name, email, phone, certification, specialization, specializations, technicianId } = req.body || {};
 
   if (!name || !email) {
     res.status(400);
     throw new Error("Name and email are required");
   }
 
-  const newPerson = store.createServicePerson({
+  const techId =
+    (technicianId && String(technicianId).trim()) ||
+    `TECH-${Date.now()}`;
+
+  const newPerson = await store.createServicePerson({
     id: `sp-${Date.now()}`,
+    technicianId: techId,
     name,
     email,
     phone: phone || "",
     certification: certification || "",
-    specialization: specialization || "",
+    specializations: Array.isArray(specializations) ? specializations : (specialization ? [specialization] : []),
+    specialization: specialization || (Array.isArray(specializations) ? specializations[0] : "") || "",
     status: "active",
     assignedServices: [],
     createdAt: todayISO(),
@@ -304,20 +310,20 @@ export const createServicePerson = asyncHandler(async (req, res) => {
 
 // PATCH /api/admin/service-persons/:id
 export const updateServicePerson = asyncHandler(async (req, res) => {
-  const person = store.getServicePersonById(req.params.id);
+  const person = await store.getServicePersonById(req.params.id);
   if (!person) {
     res.status(404);
     throw new Error("Battery technician not found");
   }
 
-  const updated = store.updateServicePerson(req.params.id, req.body);
+  const updated = await store.updateServicePerson(req.params.id, req.body);
   res.json(updated);
 });
 
 // GET /api/admin/customers
 export const getCustomers = asyncHandler(async (req, res) => {
-  const customers = store.getCustomers();
-  const services = store.getAllServices();
+  const customers = await store.getCustomers();
+  const services = await store.getAllServices();
 
   const enriched = customers.map((c) => {
     const customerServices = services.filter(
@@ -352,10 +358,10 @@ export const getCustomers = asyncHandler(async (req, res) => {
 
 // GET /api/admin/analytics
 export const getAdminAnalytics = asyncHandler(async (req, res) => {
-  const services = store.getAllServices();
-  const customers = store.getCustomers();
-  const servicePersons = store.getAllServicePersons();
-  const batteries = store.getAllBatteries();
+  const services = await store.getAllServices();
+  const customers = await store.getCustomers();
+  const servicePersons = await store.getAllServicePersons();
+  const batteries = await store.getAllBatteries();
 
   const totalBookings = services.length;
   const pendingBookings = services.filter((s) => s.status === "Confirmed").length;
@@ -406,7 +412,7 @@ export const getAdminAnalytics = asyncHandler(async (req, res) => {
 
 // PATCH /api/admin/services/:id/approve — approve completed service from technician
 export const approveService = asyncHandler(async (req, res) => {
-  const service = store.getServiceById(req.params.id);
+  const service = await store.getServiceById(req.params.id);
   if (!service) {
     res.status(404);
     throw new Error("Service not found");
@@ -417,13 +423,13 @@ export const approveService = asyncHandler(async (req, res) => {
     throw new Error("Only services waiting for admin approval can be approved");
   }
 
-  const updated = store.updateService(req.params.id, {
+  const updated = await store.updateService(req.params.id, {
     status: "Completed",
     adminApprovedAt: new Date().toISOString(),
     approvedBy: req.user.id,
   });
 
-  store.addServiceHistory(req.params.id, {
+  await store.addServiceHistory(req.params.id, {
     status: "Completed",
     action: "Admin Approved Completion",
     performedBy: "ADMIN",
@@ -431,7 +437,7 @@ export const approveService = asyncHandler(async (req, res) => {
     notes: "Service completion approved by admin",
   });
 
-  store.logActivity(
+  await store.logActivity(
     "Service Completed",
     `Ticket #${updated.ticketNumber} completion approved by admin`,
     "service"
@@ -485,24 +491,24 @@ export const createTechnician = asyncHandler(async (req, res) => {
     throw new Error("Invalid phone number format");
   }
 
-  if (!store.isTechnicianIdUnique(technicianId.trim())) {
+  if (!(await store.isTechnicianIdUnique(technicianId.trim()))) {
     res.status(409);
     throw new Error("Technician ID already exists");
   }
 
-  const existingUser = store.getUserByEmail(email.trim());
+  const existingUser = await store.getUserByEmail(email.trim());
   if (existingUser) {
     res.status(409);
     throw new Error("A user with this email already exists");
   }
 
-  const existingTech = store.getTechnicianByEmail(email.trim());
+  const existingTech = await store.getTechnicianByEmail(email.trim());
   if (existingTech) {
     res.status(409);
     throw new Error("A technician with this email already exists");
   }
 
-  if (phone && !store.isPhoneUnique(phone.trim())) {
+  if (phone && !(await store.isPhoneUnique(phone.trim()))) {
     res.status(409);
     throw new Error("A technician with this phone number already exists");
   }
@@ -511,7 +517,7 @@ export const createTechnician = asyncHandler(async (req, res) => {
 
   const personId = `sp-${Date.now()}`;
 
-  const newPerson = store.createServicePerson({
+  const newPerson = await store.createServicePerson({
     id: personId,
     technicianId: technicianId.trim(),
     name: name.trim(),
@@ -526,7 +532,7 @@ export const createTechnician = asyncHandler(async (req, res) => {
   });
 
   const userId = `emp-${Date.now()}`;
-  const newUser = store.createUser({
+  const newUser = await store.createUser({
     id: userId,
     name: name.trim(),
     email: email.trim().toLowerCase(),
@@ -544,8 +550,8 @@ export const createTechnician = asyncHandler(async (req, res) => {
 
 // GET /api/admin/technicians — list all technicians
 export const getTechnicians = asyncHandler(async (req, res) => {
-  const persons = store.getAllTechnicians();
-  const services = store.getAllServices();
+  const persons = await store.getAllTechnicians();
+  const services = await store.getAllServices();
 
   const enriched = persons.map((sp) => {
     const assigned = services.filter((s) => (sp.assignedServices || []).includes(s.id));
@@ -563,13 +569,13 @@ export const getTechnicians = asyncHandler(async (req, res) => {
 
 // GET /api/admin/technicians/:id — get single technician
 export const getTechnician = asyncHandler(async (req, res) => {
-  const person = store.getTechnicianById(req.params.id);
+  const person = await store.getTechnicianById(req.params.id);
   if (!person) {
     res.status(404);
     throw new Error("Technician not found");
   }
 
-  const services = store.getAllServices();
+  const services = await store.getAllServices();
   const assignedServices = services.filter(
     (s) => (person.assignedServices || []).includes(s.id)
   );
@@ -583,7 +589,7 @@ export const getTechnician = asyncHandler(async (req, res) => {
 
 // PATCH /api/admin/technicians/:id — update technician
 export const updateTechnician = asyncHandler(async (req, res) => {
-  const person = store.getTechnicianById(req.params.id);
+  const person = await store.getTechnicianById(req.params.id);
   if (!person) {
     res.status(404);
     throw new Error("Technician not found");
@@ -592,26 +598,26 @@ export const updateTechnician = asyncHandler(async (req, res) => {
   const { name, email, phone, technicianId, specializations, certification, status } = req.body;
 
   if (technicianId && technicianId !== person.technicianId) {
-    if (!store.isTechnicianIdUnique(technicianId, person.id)) {
+    if (!(await store.isTechnicianIdUnique(technicianId, person.id))) {
       res.status(409);
       throw new Error("Technician ID already exists");
     }
   }
 
   if (phone && phone !== person.phone) {
-    if (!store.isPhoneUnique(phone, person.id)) {
+    if (!(await store.isPhoneUnique(phone, person.id))) {
       res.status(409);
       throw new Error("A technician with this phone number already exists");
     }
   }
 
   if (email && email !== person.email) {
-    const existingUser = store.getUserByEmail(email);
+    const existingUser = await store.getUserByEmail(email);
     if (existingUser) {
       res.status(409);
       throw new Error("A user with this email already exists");
     }
-    const existingTech = store.getTechnicianByEmail(email);
+    const existingTech = await store.getTechnicianByEmail(email);
     if (existingTech) {
       res.status(409);
       throw new Error("A technician with this email already exists");
@@ -630,16 +636,16 @@ export const updateTechnician = asyncHandler(async (req, res) => {
   if (certification !== undefined) fields.certification = certification;
   if (status !== undefined) fields.status = status;
 
-  const updated = store.updateServicePerson(req.params.id, fields);
+  const updated = await store.updateServicePerson(req.params.id, fields);
 
   const syncEmployeeUser = async () => {
-    const employee = store.getEmployeeByServicePersonId(person.id);
+    const employee = await store.getEmployeeByServicePersonId(person.id);
     if (!employee) return;
     const userFields = {};
     if (email && email !== person.email) userFields.email = email.trim().toLowerCase();
     if (name && name !== person.name) userFields.name = name.trim();
     if (Object.keys(userFields).length === 0) return;
-    store.updateUser(employee.id, userFields);
+    await store.updateUser(employee.id, userFields);
   };
   await syncEmployeeUser();
 
@@ -648,7 +654,7 @@ export const updateTechnician = asyncHandler(async (req, res) => {
 
 // PATCH /api/admin/technicians/:id/reset-password — reset technician password
 export const resetTechnicianPassword = asyncHandler(async (req, res) => {
-  const person = store.getTechnicianById(req.params.id);
+  const person = await store.getTechnicianById(req.params.id);
   if (!person) {
     res.status(404);
     throw new Error("Technician not found");
@@ -671,7 +677,7 @@ export const resetTechnicianPassword = asyncHandler(async (req, res) => {
     throw new Error("Passwords do not match");
   }
 
-  const employee = store.getEmployeeByServicePersonId(person.id);
+  const employee = await store.getEmployeeByServicePersonId(person.id);
   if (!employee) {
     res.status(404);
     throw new Error("Technician login account not found");
@@ -679,7 +685,7 @@ export const resetTechnicianPassword = asyncHandler(async (req, res) => {
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  store.updateUser(employee.id, { password: hashedPassword });
+  await store.updateUser(employee.id, { password: hashedPassword });
 
   res.json({ message: "Password reset successfully" });
 });

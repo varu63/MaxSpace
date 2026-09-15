@@ -1,4 +1,5 @@
 import express from "express";
+import rateLimit from "express-rate-limit";
 import {
   batteryTechnicianLogin,
   batteryTechnicianGoogleLogin,
@@ -12,9 +13,17 @@ import { protect, requireEmployee } from "../middleware/auth.js";
 
 const router = express.Router();
 
-// Public routes
-router.post("/login", batteryTechnicianLogin);
-router.post("/google", batteryTechnicianGoogleLogin);
+// Public routes (login is rate-limited to slow down credential stuffing)
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many login attempts from this IP, please try again later." },
+});
+
+router.post("/login", loginLimiter, batteryTechnicianLogin);
+router.post("/google", loginLimiter, batteryTechnicianGoogleLogin);
 
 // Protected employee routes
 router.get("/me", protect, requireEmployee, batteryTechnicianMe);

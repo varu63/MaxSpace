@@ -45,6 +45,20 @@ class Store {
     return this.users.find((u) => u.googleId === googleId) || null;
   }
 
+  setPasswordResetToken(userId, tokenHash, expiresAt) {
+    return this.updateUser(userId, { resetTokenHash: tokenHash, resetTokenExpiresAt: expiresAt });
+  }
+
+  getUserByPasswordResetToken(tokenHash) {
+    return (
+      this.users.find((u) => u.resetTokenHash === tokenHash) || null
+    );
+  }
+
+  clearPasswordResetToken(userId) {
+    return this.updateUser(userId, { resetTokenHash: null, resetTokenExpiresAt: null });
+  }
+
   createUser(userData) {
     const user = {
       authProvider: "local",

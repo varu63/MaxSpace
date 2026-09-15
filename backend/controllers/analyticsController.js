@@ -7,8 +7,8 @@ const getServiceCount = (batteryId, services) =>
 
 // GET /api/analytics/fleet-stats
 export const getFleetStats = asyncHandler(async (req, res) => {
-  const batteries = store.getAllBatteries();
-  const services = store.getAllServices();
+  const batteries = await store.getAllBatteries();
+  const services = await store.getAllServices();
 
   const totalBatteries = batteries.length;
 
@@ -60,7 +60,7 @@ export const getFleetStats = asyncHandler(async (req, res) => {
 
 // GET /api/analytics/services
 export const getServiceAnalytics = asyncHandler(async (req, res) => {
-  const services = store.getAllServices();
+  const services = await store.getAllServices();
 
   const booked = services.filter((s) => s.status === "Confirmed").length;
   const inProgress = services.filter((s) => s.status === "In Progress").length;
@@ -85,8 +85,8 @@ export const getServiceAnalytics = asyncHandler(async (req, res) => {
 
 // GET /api/analytics/batteries/performance
 export const getBatteryPerformance = asyncHandler(async (req, res) => {
-  const batteries = store.getAllBatteries();
-  const services = store.getAllServices();
+  const batteries = await store.getAllBatteries();
+  const services = await store.getAllServices();
 
   const rows = batteries.map((b) => ({
     battery: b,
@@ -101,8 +101,8 @@ export const getBatteryPerformance = asyncHandler(async (req, res) => {
 
 // GET /api/analytics (combined summary for dashboards)
 export const getAnalytics = asyncHandler(async (req, res) => {
-  const batteries = store.getAllBatteries();
-  const services = store.getAllServices();
+  const batteries = await store.getAllBatteries();
+  const services = await store.getAllServices();
 
   const withCounts = batteries.map((b) => ({
     ...b,

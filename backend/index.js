@@ -13,6 +13,7 @@ import analyticsRoutes from "./routes/analyticsRoutes.js";
 import dataRoutes from "./routes/dataRoutes.js";
 import batteryTechnicianRoutes from "./routes/batteryTechnicianRoutes.js";
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
+import { isDatabaseConnected } from "./data/index.js";
 
 const app = express();
 
@@ -41,22 +42,28 @@ const authLimiter = rateLimit({
 });
 
 // Health check
-app.get("/", (req, res) => {
-  res.json({
-    message: "MaxSpace API is running",
-    version: "1.0.0",
-    dataSource: config.db.dataSource,
-    databaseConfigured: Boolean(config.db.databaseUrl),
-    endpoints: {
-      auth: "/api/auth",
-      admin: "/api/admin",
-      batteries: "/api/batteries",
-      services: "/api/services",
-      profile: "/api/profile",
-      analytics: "/api/analytics",
-      batteryTechnician: "/api/battery-technician",
-    },
-  });
+app.get("/", async (req, res, next) => {
+  try {
+    const databaseConnected = await isDatabaseConnected();
+    res.json({
+      message: "MaxSpace API is running",
+      version: "1.0.0",
+      dataSource: config.db.dataSource,
+      databaseConfigured: Boolean(config.db.databaseUrl),
+      databaseConnected,
+      endpoints: {
+        auth: "/api/auth",
+        admin: "/api/admin",
+        batteries: "/api/batteries",
+        services: "/api/services",
+        profile: "/api/profile",
+        analytics: "/api/analytics",
+        batteryTechnician: "/api/battery-technician",
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 // API Routes

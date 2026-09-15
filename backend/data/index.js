@@ -23,6 +23,7 @@ import config from "../config/app.js";
 import mockStore from "./store.js";
 
 let activeStorePromise = null;
+let fallbackWarned = false;
 
 /* Await this when the storage layer may be async (postgres mode). */
 export const getStore = () => {
@@ -37,6 +38,17 @@ export const getStore = () => {
   return activeStorePromise;
 };
 
+const PING_TIMEOUT_MS = 3000;
+
+const pingWithTimeout = async (store) => {
+  await Promise.race([
+    store.ping(),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("database ping timed out")), PING_TIMEOUT_MS)
+    ),
+  ]);
+};
+
 /* PostgreSQL-mode loader with safe fallback to the mock store. */
 const loadPostgresStore = async () => {
   if (!config.db.databaseUrl) {
@@ -49,16 +61,34 @@ const loadPostgresStore = async () => {
       const store = await createPostgresStore({
         databaseUrl: config.db.databaseUrl,
       });
+      await pingWithTimeout(store);
       console.log("[data] Using PostgreSQL repository.");
       return store;
     } catch (error) {
-      console.warn(
-        `[data] PostgreSQL repository unavailable (${error.message}). Falling back to the seeded in-memory store (mock mode).`
-      );
+      if (!fallbackWarned) {
+        fallbackWarned = true;
+        console.warn(
+          `[data] PostgreSQL repository unavailable (${error.message}). Falling back to the seeded in-memory store (mock mode).`
+        );
+      }
     }
   }
 
   return mockStore;
+};
+
+/* Live connectivity check for the health endpoint. Returns true when the
+   postgres pool answers a ping, false when it is unreachable, and null in
+   mock mode (in-memory store, no database involved). */
+export const isDatabaseConnected = async () => {
+  const store = await getStore();
+  if (typeof store?.ping !== "function") return null;
+  try {
+    await pingWithTimeout(store);
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 /* Convenience export for tests / tooling. */
@@ -66,7 +96,10 @@ export const getMode = () => config.db.dataSource;
 
 /* Default export mirrors the old `import store from "../data/store.js"`
    surface so existing controllers keep working unchanged. When the
-   PostgreSQL repository is enabled, the default export is replaced
-   by the postgres store for new consumers; callers that need the
-   active instance (mock OR postgres) should `await getStore()`. */
-export default mockStore;
+   PostgreSQL repository is enabled (DATA_SOURCE=postgres), the default
+   export is the active postgres store; otherwise it stays the seeded
+   in-memory store. Because the postgres methods are async, controllers
+   should `await` each store call — awaiting a plain value (mock mode)
+   is a no-op, so the same code works for both data sources. */
+const activeStore = await getStore();
+export default activeStore;

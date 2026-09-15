@@ -37,13 +37,13 @@ export const normalizeBatteryIdentifier = (value) => {
 
 /* Resolve a raw scanned identifier to a battery record in the store.
    Tries id first, then barcode/serial (case-insensitive). */
-export const resolveBatteryByIdentifier = (store, rawValue) => {
+export const resolveBatteryByIdentifier = async (store, rawValue) => {
   const identifier = normalizeBatteryIdentifier(rawValue);
   if (!identifier) return null;
 
-  let battery = store.getBatteryById(identifier);
+  let battery = await store.getBatteryById(identifier);
   if (!battery) {
-    battery = store.findBatteryByBarcodeOrSerial(identifier);
+    battery = await store.findBatteryByBarcodeOrSerial(identifier);
   }
   return battery || null;
 };

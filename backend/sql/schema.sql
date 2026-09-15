@@ -24,8 +24,12 @@ CREATE TABLE IF NOT EXISTS users (
   google_id          TEXT UNIQUE,                           -- Google OAuth subject ID (Google-linked accounts)
   auth_provider      TEXT NOT NULL DEFAULT 'local' CHECK (auth_provider IN ('local','google')),
   avatar             TEXT DEFAULT '',                       -- profile picture URL (Google provides this)
+  reset_token_hash   TEXT,                                 -- sha256 hash of the password-reset token
+  reset_token_expires_at TIMESTAMPTZ,                      -- password-reset token expiry
   created_at         TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD')
 );
+
+CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users (reset_token_hash);
 
 -- Service persons (battery technicians)
 CREATE TABLE IF NOT EXISTS service_persons (

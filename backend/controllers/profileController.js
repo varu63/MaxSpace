@@ -5,21 +5,21 @@ import { sanitizeUser, matchesPassword } from "../utils/auth.js";
 
 // GET /api/profile
 export const getProfile = asyncHandler(async (req, res) => {
-  res.json({ profile: sanitizeUser(store.getProfile()) });
+  res.json({ profile: sanitizeUser(await store.getProfile()) });
 });
 
 // PUT /api/profile
 export const updateProfile = asyncHandler(async (req, res) => {
   const { password, ...allowed } = req.body || {};
-  const updated = store.updateProfile(allowed);
-  store.logActivity("Profile Updated", "Profile details and preferences saved", "general");
+  const updated = await store.updateProfile(allowed);
+  await store.logActivity("Profile Updated", "Profile details and preferences saved", "general");
   res.json({ profile: sanitizeUser(updated) });
 });
 
 // PUT /api/profile/notifications
 export const updateNotifications = asyncHandler(async (req, res) => {
-  const current = store.getProfile();
-  const updated = store.updateProfile({
+  const current = (await store.getProfile()) || {};
+  const updated = await store.updateProfile({
     notificationSettings: {
       ...(current.notificationSettings || {}),
       ...(req.body || {}),
@@ -45,7 +45,7 @@ export const changePassword = asyncHandler(async (req, res) => {
     throw new Error("New password must be at least 6 characters");
   }
 
-  const user = store.getUserById(req.user?.id);
+  const user = await store.getUserById(req.user?.id);
   if (!user) {
     res.status(404);
     throw new Error("User not found");
@@ -60,25 +60,26 @@ export const changePassword = asyncHandler(async (req, res) => {
   }
 
   const hashed = await bcrypt.hash(String(newPassword), 10);
-  store.updateUser(user.id, { password: hashed });
+  await store.updateUser(user.id, { password: hashed });
   // Keep the shared profile record in sync (password is stripped on sanitize)
-  store.updateProfile({ password: hashed });
-  store.logActivity("Password Changed", "Account password was updated", "general");
+  await store.updateProfile({ password: hashed });
+  await store.logActivity("Password Changed", "Account password was updated", "general");
 
-  res.json({ message: "Password updated successfully", profile: sanitizeUser(store.getProfile()) });
+  res.json({ message: "Password updated successfully", profile: sanitizeUser(await store.getProfile()) });
 });
 
 // GET /api/profile/activity
 export const getActivityLogs = asyncHandler(async (req, res) => {
-  res.json(store.getProfile().activityLogs || []);
+  const profile = (await store.getProfile()) || {};
+  res.json(profile.activityLogs || []);
 });
 
 // GET /api/profile/export
 export const exportProfileData = asyncHandler(async (req, res) => {
   res.json({
-    user: sanitizeUser(store.getProfile()),
-    batteries: store.getAllBatteries(),
-    services: store.getAllServices(),
+    user: sanitizeUser(await store.getProfile()),
+    batteries: await store.getAllBatteries(),
+    services: await store.getAllServices(),
     exportedAt: new Date().toISOString(),
   });
 });
