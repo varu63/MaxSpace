@@ -222,17 +222,31 @@ export const assignService = asyncHandler(async (req, res) => {
 
   const technicianLabel = `${person.name} (${person.certification})`;
 
+  // Remove the service from every technician's assigned-services list first,
+  // so only the newly assigned technician can see the service.
+  const allPersons = await store.getAllServicePersons();
+  for (const sp of allPersons) {
+    const list = sp.assignedServices || [];
+    if (list.includes(req.params.id)) {
+      await store.updateServicePerson(sp.id, {
+        assignedServices: list.filter((id) => id !== req.params.id),
+      });
+    }
+  }
+
   const updated = await store.updateService(req.params.id, {
     status: "Assigned",
     technician: technicianLabel,
     assignedServicePersonId: servicePersonId,
   });
 
-  // Update battery technician's assigned services
-  const assignedServices = person.assignedServices || [];
-  if (!assignedServices.includes(req.params.id)) {
+  // Update battery technician's assigned services (re-read after cleanup so the
+  // list is current — it may have been cleared in the loop above)
+  const freshPerson = await store.getServicePersonById(servicePersonId);
+  const freshAssigned = freshPerson.assignedServices || [];
+  if (!freshAssigned.includes(req.params.id)) {
     await store.updateServicePerson(servicePersonId, {
-      assignedServices: [...assignedServices, req.params.id],
+      assignedServices: [...freshAssigned, req.params.id],
     });
   }
 

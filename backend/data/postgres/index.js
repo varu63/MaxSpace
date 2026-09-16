@@ -11,6 +11,7 @@
 
 /* ---------- Row mappers (snake_case → camelCase) ---------- */
 
+import bcrypt from "bcryptjs";
 import {
   seedBatteries,
   seedServices,
@@ -158,6 +159,13 @@ export const createPostgresStore = async ({ databaseUrl }) => {
 
   const pool = new pg.Pool({ connectionString: databaseUrl });
 
+  /* Hash a password unless it is already a bcrypt hash (e.g. signup /
+     createTechnician pre-hash, or a re-seed of already-hashed data). */
+  const hashPassword = (password) => {
+    const raw = String(password || "");
+    return /^\$2[aby]\$/.test(raw) ? raw : bcrypt.hash(raw, 10);
+  };
+
   const store = {
     /* ---------- Connection lifecycle ---------- */
     async ping() {
@@ -243,6 +251,7 @@ export const createPostgresStore = async ({ databaseUrl }) => {
     },
 
     async createUser(userData) {
+      const passwordHash = await hashPassword(userData.password);
       const { rows } = await pool.query(
         `INSERT INTO users (id, name, email, password_hash, role, service_person_id, google_id, auth_provider, avatar, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
@@ -251,7 +260,7 @@ export const createPostgresStore = async ({ databaseUrl }) => {
           userData.id,
           userData.name,
           userData.email,
-          userData.password || "",
+          passwordHash,
           userData.role,
           userData.servicePersonId || null,
           userData.googleId || null,
@@ -267,6 +276,7 @@ export const createPostgresStore = async ({ databaseUrl }) => {
       const current = await store.getUserById(id);
       if (!current) return null;
       const next = { ...current, ...fields };
+      const passwordHash = await hashPassword(next.password);
       const { rows } = await pool.query(
         `UPDATE users
          SET name = $2, email = $3, password_hash = $4, role = $5, service_person_id = $6,
@@ -277,7 +287,7 @@ export const createPostgresStore = async ({ databaseUrl }) => {
           id,
           next.name,
           next.email,
-          next.password || "",
+          passwordHash,
           next.role,
           next.servicePersonId || null,
           next.googleId || null,

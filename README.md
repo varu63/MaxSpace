@@ -473,8 +473,8 @@ Contexts load batteries/services/profile from the API
 
 ### Password hashing
 
-- New passwords are hashed with `bcryptjs` (cost 10).
-- `matchesPassword` in `utils/auth.js` supports both bcrypt hashes and plain-text seeds so the demo dataset works without re-hashing.
+- New passwords are hashed with `bcryptjs` (cost 10) — including the PostgreSQL repository's `createUser` / `updateUser` / seed-reset paths, which hash on write and pass an already-bcrypt hash through unchanged (no double-hashing).
+- `matchesPassword` in `utils/auth.js` supports both bcrypt hashes and plain-text legacy seeds so old rows still log in without re-hashing.
 
 ### Protected routes
 
@@ -607,7 +607,7 @@ All others require `protect` + `requireAdmin`:
 | GET | `/services` | Services enriched with battery (warranty, barcode, manufacturer, location), customer (phone/location from profile), and assigned technician (from FK or service person's `assignedServices`) |
 | GET | `/services/:id` | Single enriched service |
 | PATCH | `/services/:id/accept` | `Confirmed` → `Accepted` |
-| PATCH | `/services/:id/assign` | `Accepted` → `Assigned` (+ service person) |
+| PATCH | `/services/:id/assign` | `Accepted` → `Assigned` (+ service person); the service is removed from every other technician's `assignedServices` so only the assigned tech can see it |
 | PATCH | `/services/:id/status` | Set any valid status |
 | PATCH | `/services/:id/approve` | `Waiting for Admin Approval` → `Completed` |
 | GET | `/service-persons` | Service persons with assigned/completed/active counts |
@@ -966,8 +966,60 @@ curl http://localhost:5000
 | Apply the DB schema | `docker compose exec -T postgres psql -U maxspace_user -d maxspace_db < backend/sql/schema.sql` |
 | Check the API health | `curl http://localhost:5000` |
 | Restore sample data | `POST /api/data/reset` (via the settings page or API, admin token) |
+| Run the API audit suite | start the backend, then `node <path-to>/audit-api-test.mjs` (see [Testing & QA](#testing--qa)) |
 
-There is **no test suite** configured in this repository.
+No automated unit/integration test runner is configured; the standalone audit suite below is the QA harness.
+
+---
+
+## Testing & QA
+
+### Frontend checks
+
+```bash
+cd frontend
+npm run lint    # Oxlint — 0 errors expected (existing pattern warnings are pre-existing)
+npm run build   # Vite production build must succeed
+```
+
+### API audit suite
+
+`audit-api-test.mjs` is a standalone **89-check** live test that exercises the whole stack against a running backend (user, admin, and technician flows, RBAC, full service lifecycle, data reset, password reset via the dev log, battery/service CRUD). It prints one `PASS`/`FAIL` line per check and exits `1` if any fail.
+
+```bash
+# 1. Start PostgreSQL and the backend (postgres mode)
+docker compose up -d postgres
+cd backend && node index.js &
+
+# 2. Run the suite (from anywhere)
+node C:\path\to\audit-api-test.mjs
+```
+
+Requirements / behavior:
+
+- Requires `DATA_SOURCE=postgres` with the schema applied; it asserts against the live DB.
+- Runs a `POST /api/data/reset` at the start to establish a known seed baseline, and again at the end to restore the sample dataset — so the DB is clean afterwards.
+- Any seeded-drift issues (e.g. a service in the wrong status) surface as failures.
+
+### Database integrity spot-checks
+
+```bash
+docker compose exec -T postgres psql -U maxspace_user -d maxspace_db
+
+# No plaintext passwords: every users.password_hash should start with $2 and be 60 chars
+SELECT email, left(password_hash, 7) AS prefix, length(password_hash) AS len FROM users;
+
+# Orphan check — all should return 0
+SELECT (SELECT count(*) FROM services s LEFT JOIN batteries b ON b.id=s.battery_id
+        WHERE s.battery_id IS NOT NULL AND b.id IS NULL) AS orphan_service_battery,
+       (SELECT count(*) FROM services s LEFT JOIN users u ON u.id=s.customer_id
+        WHERE s.customer_id IS NOT NULL AND u.id IS NULL) AS orphan_service_customer,
+       (SELECT count(*) FROM services s LEFT JOIN service_persons sp ON sp.id=s.assigned_service_person_id
+        WHERE s.assigned_service_person_id IS NOT NULL AND sp.id IS NULL) AS orphan_service_tech,
+       (SELECT count(*) FROM service_persons sp
+        CROSS JOIN jsonb_array_elements_text(COALESCE(sp.assigned_services,'[]'::jsonb)) svc
+        LEFT JOIN services s ON s.id=svc WHERE s.id IS NULL) AS stale_assignments;
+```
 
 ---
 
