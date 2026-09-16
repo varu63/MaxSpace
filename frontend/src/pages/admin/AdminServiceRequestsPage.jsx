@@ -6,16 +6,21 @@ import {
   CheckCircle2,
   UserPlus,
   ChevronDown,
+  ChevronUp,
   Filter,
   X,
   AlertCircle,
   Wrench,
   User,
+  Battery,
   MapPin,
   Calendar,
   HardHat,
   FileText,
   BadgeCheck,
+  Activity,
+  XCircle,
+  History,
 } from "lucide-react";
 
 import { useAdmin } from "../../context/AdminContext";
@@ -23,9 +28,152 @@ import { PageHeader, Card, EmptyState } from "../../components/common";
 import { Modal } from "../../components/common/Modal";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import StatusBadge from "../../components/admin/StatusBadge";
-import { formatDate } from "../../components/admin/adminUtils";
+import {
+  SERVICE_STATUS_FLOW,
+  formatDate,
+} from "../../components/admin/adminUtils";
 import { getErrorMessage } from "../../services/adminApi";
-import { STATUS_FILTER_OPTIONS } from "../../data/serviceStatuses";
+
+/* ============================================================
+   STATUS FILTER OPTIONS (page-specific)
+   The visible filter set for the admin Service Requests list.
+   "Waiting for Admin Approval" requests are still visible under
+   "All" and keep their Approve Completion action.
+============================================================ */
+const ADMIN_STATUS_FILTER_OPTIONS = [
+  "All",
+  "Confirmed",
+  "Accepted",
+  "Assigned",
+  "On The Way",
+  "In Progress",
+  "Completed",
+  "Cancelled",
+];
+
+const ADMIN_STATUS_TABS = [
+  "All",
+  "Confirmed",
+  "Accepted",
+  "Assigned",
+  "On The Way",
+  "In Progress",
+  "Completed",
+];
+
+/* ============================================================
+   Shared small building blocks for the expandable cards
+============================================================ */
+const SectionRow = ({ label, value }) => (
+  <div className="rounded-xl bg-[#FFFDF8] border border-[#E9E2D0] px-3.5 py-2.5">
+    <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A9096]">
+      {label}
+    </p>
+    <p className="text-sm font-semibold text-[#16263A] mt-0.5 break-words">
+      {value || "—"}
+    </p>
+  </div>
+);
+
+const ServiceSection = ({ icon: Icon, title, children }) => (
+  <div className="rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3] p-4">
+    <div className="flex items-center gap-2.5 mb-3">
+      <div className="w-8 h-8 rounded-lg bg-[#173B5C] flex items-center justify-center shrink-0">
+        <Icon className="w-4 h-4 text-white" />
+      </div>
+      <h4 className="text-xs font-bold uppercase tracking-wide text-[#16263A]">
+        {title}
+      </h4>
+    </div>
+    <div className="space-y-2">{children}</div>
+  </div>
+);
+
+/* ============================================================
+   Service Progress Timeline (compact, responsive)
+   Vertical list derived from the shared SERVICE_STATUS_FLOW with
+   the real timestamps from the service history where available.
+============================================================ */
+const ServiceProgressTimeline = ({ service }) => {
+  const flow = SERVICE_STATUS_FLOW;
+  const history = service.history || [];
+  const isCancelled = service.status === "Cancelled";
+  const currentIdx = flow.indexOf(service.status);
+
+  const timestamps = {};
+  history.forEach((entry) => {
+    if (entry.status && !timestamps[entry.status]) {
+      timestamps[entry.status] = entry.timestamp;
+    }
+  });
+
+  return (
+    <div>
+      {flow.map((step, idx) => {
+        let state;
+        if (isCancelled) {
+          state = "pending";
+        } else if (idx < currentIdx) {
+          state = "done";
+        } else if (idx === currentIdx) {
+          state = "active";
+        } else {
+          state = "pending";
+        }
+
+        const ts = timestamps[step];
+
+        return (
+          <div
+            key={step}
+            className="flex gap-3 relative"
+          >
+            {idx < flow.length - 1 && (
+              <div className="absolute left-[7px] top-5 w-[2px] h-full bg-[#E7E1D3]" />
+            )}
+            <div className="relative z-10 shrink-0 mt-0.5">
+              <div
+                className={`w-4 h-4 rounded-full flex items-center justify-center ${
+                  state === "done"
+                    ? "bg-green-500"
+                    : state === "active"
+                    ? "bg-[#173B5C] ring-4 ring-[#173B5C]/20"
+                    : "bg-[#E7E1D3]"
+                }`}
+              >
+                {state === "done" && (
+                  <CheckCircle2 className="w-2.5 h-2.5 text-white" />
+                )}
+              </div>
+            </div>
+            <div className="pb-2.5 min-w-0">
+              <p
+                className={`text-xs font-bold ${
+                  state === "active"
+                    ? "text-[#173B5C]"
+                    : state === "done"
+                    ? "text-[#16263A]"
+                    : "text-[#8A9096]"
+                }`}
+              >
+                {step}
+              </p>
+              <p className="text-[11px] text-[#8A9096] mt-0.5">
+                {state === "done" && ts
+                  ? formatDate(ts)
+                  : state === "active"
+                  ? isCancelled
+                    ? "Service was cancelled"
+                    : "Current operational phase"
+                  : "Pending prerequisite steps"}
+              </p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 /* ============================================================
    Assign Battery Technician Modal
@@ -170,21 +318,44 @@ const AssignModal = ({ service, servicePersons, onAssign, onClose }) => {
 };
 
 /* ============================================================
-   Admin Control Modals
+   Confirm action modal — accept, reject, or approve
 ============================================================ */
+const CONFIRM_CONFIGS = {
+  accept: {
+    title: "Accept Service Request",
+    description:
+      "Accepting this request moves it to the next stage, where you can assign a battery technician.",
+    button: "Accept Request",
+    icon: BadgeCheck,
+    iconBox: "bg-[#173B5C]",
+    accent: "bg-[#173B5C] hover:bg-[#102F4A]",
+  },
+  reject: {
+    title: "Reject Service Request",
+    description:
+      "Rejecting this request marks the ticket as cancelled and notifies the customer. This action cannot be undone.",
+    button: "Reject Request",
+    icon: XCircle,
+    iconBox: "bg-red-600",
+    accent: "bg-red-600 hover:bg-red-700",
+  },
+  approve: {
+    title: "Approve Completion",
+    description:
+      "The battery technician has finished this service. Confirm to mark this service as COMPLETED.",
+    button: "Approve Completion",
+    icon: BadgeCheck,
+    iconBox: "bg-green-600",
+    accent: "bg-green-600 hover:bg-green-700",
+  },
+};
+
 const ConfirmActionModal = ({ service, type, onConfirm, onClose }) => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const isAccept = type === "accept";
-  const isApprove = type === "approve";
-
-  const title = isAccept ? "Accept Service Request" : isApprove ? "Approve Completion" : "";
-  const description = isAccept
-    ? "Accepting this request moves it to the next stage, where you can assign a battery technician."
-    : isApprove
-    ? "The battery technician has finished this service. Confirm to mark this service as COMPLETED."
-    : "";
+  const config = CONFIRM_CONFIGS[type] || CONFIRM_CONFIGS.accept;
+  const Icon = config.icon;
 
   const handleConfirm = async () => {
     setSubmitting(true);
@@ -212,21 +383,21 @@ const ConfirmActionModal = ({ service, type, onConfirm, onClose }) => {
 
         <div className="flex items-center gap-3.5 mb-5">
           <div
-            className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
-              isApprove ? "bg-green-600" : "bg-[#173B5C]"
-            }`}
+            className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${config.iconBox}`}
           >
-            <BadgeCheck className="w-6 h-6 text-white" />
+            <Icon className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h3 className="font-bold text-lg text-[#16263A]">{title}</h3>
+            <h3 className="font-bold text-lg text-[#16263A]">{config.title}</h3>
             <p className="text-xs text-[#747B83] mt-0.5">
               Ticket {service.ticketNumber}
             </p>
           </div>
         </div>
 
-        <p className="text-sm text-[#747B83] leading-relaxed mb-6">{description}</p>
+        <p className="text-sm text-[#747B83] leading-relaxed mb-6">
+          {config.description}
+        </p>
 
         {error && (
           <div className="mb-5 flex items-start gap-2 rounded-2xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
@@ -247,17 +418,9 @@ const ConfirmActionModal = ({ service, type, onConfirm, onClose }) => {
             type="button"
             onClick={handleConfirm}
             disabled={submitting}
-            className={`flex-1 py-3 rounded-2xl text-white font-bold text-sm transition-colors shadow-sm disabled:opacity-60 ${
-              isApprove
-                ? "bg-green-600 hover:bg-green-700"
-                : "bg-[#173B5C] hover:bg-[#102F4A]"
-            }`}
+            className={`flex-1 py-3 rounded-2xl text-white font-bold text-sm transition-colors shadow-sm disabled:opacity-60 ${config.accent}`}
           >
-            {submitting
-              ? "Processing…"
-              : isApprove
-              ? "Approve Completion"
-              : "Accept Request"}
+            {submitting ? "Processing…" : config.button}
           </button>
         </div>
       </div>
@@ -266,30 +429,35 @@ const ConfirmActionModal = ({ service, type, onConfirm, onClose }) => {
 };
 
 /* ============================================================
-   Admin "View All" action button (opens full record)
+   Expandable Service Request Card
 ============================================================ */
-const ViewAllButton = ({ service }) => {
-  const navigate = useNavigate();
-  return (
-    <button
-      type="button"
-      onClick={() => navigate(`/admin/services/${service.id}`)}
-      className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#173B5C] text-white text-xs font-bold hover:bg-[#102F4A] transition-colors shadow-sm"
-    >
-      <Eye className="w-3.5 h-3.5" />
-      View Details
-    </button>
-  );
-};
-
-/* ============================================================
-   Service Card — shown on ALL screen sizes
-============================================================ */
-const ServiceCard = ({ service, onAccept, onApprove, onAssign, onUpdateStatus }) => {
+const ServiceRequestCard = ({
+  service,
+  onAccept,
+  onReject,
+  onApprove,
+  onAssign,
+  onUpdateStatus,
+}) => {
+  const [expanded, setExpanded] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const navigate = useNavigate();
 
-  const canCancel = !["Completed", "Cancelled"].includes(service.status);
+  const battery = service.battery || {};
+  const customer = service.customer || {};
+  const tech = service.technician || null;
+  const history = service.history || [];
+
+  const canCancel =
+    !["Completed", "Cancelled", "Confirmed"].includes(service.status);
+
+  const assignedEntry = history.find(
+    (h) => h.status === "Assigned" || h.action === "Service Assigned"
+  );
+  const lastUpdated = history.length
+    ? formatDate(history[history.length - 1].timestamp)
+    : formatDate(service.createdAt);
 
   const handleStatusUpdate = async (status) => {
     setStatusUpdating(true);
@@ -301,9 +469,180 @@ const ServiceCard = ({ service, onAccept, onApprove, onAssign, onUpdateStatus })
     }
   };
 
+  /* Status-specific primary actions */
+  const statusActions = [];
+  const actionPrimaryClass =
+    "flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-white text-xs font-bold transition-colors shadow-sm";
+  const actionNeutralClass =
+    "flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors shadow-sm border";
+
+  switch (service.status) {
+    case "Confirmed":
+      statusActions.push({
+        key: "accept",
+        node: (
+          <button
+            key="accept"
+            type="button"
+            onClick={() => onAccept(service)}
+            className={`${actionPrimaryClass} bg-green-600 hover:bg-green-700`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Accept Request
+          </button>
+        ),
+      });
+      statusActions.push({
+        key: "reject",
+        node: (
+          <button
+            key="reject"
+            type="button"
+            onClick={() => onReject(service)}
+            className={`${actionNeutralClass} bg-[#F5F1E7] text-red-700 border-red-200 hover:bg-red-50`}
+          >
+            <XCircle className="w-3.5 h-3.5" />
+            Reject Request
+          </button>
+        ),
+      });
+      break;
+
+    case "Accepted":
+      statusActions.push({
+        key: "assign",
+        node: (
+          <button
+            key="assign"
+            type="button"
+            onClick={() => onAssign(service)}
+            className={`${actionPrimaryClass} bg-[#B48611] hover:bg-[#9A8240]`}
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            Assign Technician
+          </button>
+        ),
+      });
+      break;
+
+    case "Assigned":
+      statusActions.push({
+        key: "tech",
+        node: (
+          <button
+            key="tech"
+            type="button"
+            onClick={() => navigate("/admin/service-persons")}
+            className={`${actionNeutralClass} bg-[#F5F1E7] text-[#16263A] border-[#E7E1D3] hover:bg-[#E7E1D3]`}
+          >
+            <HardHat className="w-3.5 h-3.5" />
+            View Technician
+          </button>
+        ),
+      });
+      statusActions.push({
+        key: "track",
+        node: (
+          <button
+            key="track"
+            type="button"
+            onClick={() => navigate(`/admin/services/${service.id}`)}
+            className={`${actionPrimaryClass} bg-[#173B5C] hover:bg-[#102F4A]`}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            Track Service
+          </button>
+        ),
+      });
+      break;
+
+    case "On The Way":
+    case "In Progress":
+      statusActions.push({
+        key: "view",
+        node: (
+          <button
+            key="view"
+            type="button"
+            onClick={() => setExpanded(true)}
+            className={`${actionNeutralClass} bg-[#F5F1E7] text-[#16263A] border-[#E7E1D3] hover:bg-[#E7E1D3]`}
+          >
+            <Eye className="w-3.5 h-3.5" />
+            View Details
+          </button>
+        ),
+      });
+      statusActions.push({
+        key: "track",
+        node: (
+          <button
+            key="track"
+            type="button"
+            onClick={() => navigate(`/admin/services/${service.id}`)}
+            className={`${actionPrimaryClass} bg-[#173B5C] hover:bg-[#102F4A]`}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            Track Progress
+          </button>
+        ),
+      });
+      break;
+
+    case "Waiting for Admin Approval":
+      statusActions.push({
+        key: "approve",
+        node: (
+          <button
+            key="approve"
+            type="button"
+            onClick={() => onApprove(service)}
+            className={`${actionPrimaryClass} bg-green-600 hover:bg-green-700`}
+          >
+            <BadgeCheck className="w-3.5 h-3.5" />
+            Approve Completion
+          </button>
+        ),
+      });
+      break;
+
+    case "Completed":
+      statusActions.push({
+        key: "details",
+        node: (
+          <button
+            key="details"
+            type="button"
+            onClick={() => setExpanded(true)}
+            className={`${actionPrimaryClass} bg-[#173B5C] hover:bg-[#102F4A]`}
+          >
+            <Eye className="w-3.5 h-3.5" />
+            View Service Details
+          </button>
+        ),
+      });
+      statusActions.push({
+        key: "history",
+        node: (
+          <button
+            key="history"
+            type="button"
+            onClick={() => navigate(`/admin/services/${service.id}`)}
+            className={`${actionNeutralClass} bg-[#F5F1E7] text-[#16263A] border-[#E7E1D3] hover:bg-[#E7E1D3]`}
+          >
+            <History className="w-3.5 h-3.5" />
+            View Service History
+          </button>
+        ),
+      });
+      break;
+
+    default:
+      break;
+  }
+
   return (
     <Card padded={false} className="overflow-hidden">
-      {/* Card header */}
+      {/* ── Card header ─────────────────────────────── */}
       <div className="p-6 lg:p-7 border-b border-[#EEE9DA]">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3.5 min-w-0">
@@ -323,10 +662,9 @@ const ServiceCard = ({ service, onAccept, onApprove, onAssign, onUpdateStatus })
         </div>
       </div>
 
-      {/* Card body — key info only */}
+      {/* ── Collapsed summary ───────────────────────── */}
       <div className="p-6 lg:p-7">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          {/* Customer */}
           <div className="flex items-start gap-3 rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3] p-4">
             <User className="w-4 h-4 text-[#B48611] shrink-0 mt-0.5" />
             <div className="min-w-0">
@@ -334,20 +672,22 @@ const ServiceCard = ({ service, onAccept, onApprove, onAssign, onUpdateStatus })
                 Customer
               </p>
               <p className="text-sm font-semibold text-[#16263A] truncate mt-0.5">
-                {service.customer?.name || "—"}
+                {customer.name || "—"}
+              </p>
+              <p className="text-[11px] text-[#8A9096] truncate">
+                {customer.email || "—"}
               </p>
             </div>
           </div>
 
-          {/* Battery */}
           <div className="flex items-start gap-3 rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3] p-4">
-            <Wrench className="w-4 h-4 text-[#B48611] shrink-0 mt-0.5" />
+            <Battery className="w-4 h-4 text-[#B48611] shrink-0 mt-0.5" />
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wide text-[#8A9096]">
                 Battery
               </p>
               <p className="text-sm font-semibold text-[#16263A] truncate mt-0.5">
-                {service.battery?.modelName || service.batteryName || "—"}
+                {battery.modelName || battery.name || service.batteryName || "—"}
               </p>
               <p className="text-[11px] text-[#8A9096] font-mono truncate">
                 {service.batteryId}
@@ -355,7 +695,6 @@ const ServiceCard = ({ service, onAccept, onApprove, onAssign, onUpdateStatus })
             </div>
           </div>
 
-          {/* Service type */}
           <div className="flex items-start gap-3 rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3] p-4 sm:col-span-2">
             <Wrench className="w-4 h-4 text-[#B48611] shrink-0 mt-0.5" />
             <div className="min-w-0">
@@ -368,20 +707,6 @@ const ServiceCard = ({ service, onAccept, onApprove, onAssign, onUpdateStatus })
             </div>
           </div>
 
-          {/* Location */}
-          <div className="flex items-start gap-3 rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3] p-4">
-            <MapPin className="w-4 h-4 text-[#B48611] shrink-0 mt-0.5" />
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-[#8A9096]">
-                Service Location
-              </p>
-              <p className="text-sm font-semibold text-[#16263A] truncate mt-0.5">
-                {service.center || service.battery?.location || "—"}
-              </p>
-            </div>
-          </div>
-
-          {/* Scheduled */}
           <div className="flex items-start gap-3 rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3] p-4">
             <Calendar className="w-4 h-4 text-[#B48611] shrink-0 mt-0.5" />
             <div className="min-w-0">
@@ -396,59 +721,117 @@ const ServiceCard = ({ service, onAccept, onApprove, onAssign, onUpdateStatus })
               </p>
             </div>
           </div>
-
-          {/* Technician */}
-          <div className="flex items-start gap-3 rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3] p-4 sm:col-span-2">
-            <HardHat className="w-4 h-4 text-[#B48611] shrink-0 mt-0.5" />
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-[#8A9096]">
-                Battery Technician
-              </p>
-              <p className="text-sm font-semibold text-[#16263A] truncate mt-0.5">
-                {service.technician || "Not yet assigned"}
-              </p>
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* Card footer — actions */}
+      {/* ── Expanded details ────────────────────────── */}
+      {expanded && (
+        <div className="px-6 lg:px-7 pb-6 lg:pb-7 pt-0">
+          <div className="border-t border-[#EEE9DA] pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Customer Information */}
+              <ServiceSection icon={User} title="Customer Information">
+                <SectionRow label="Customer Name" value={customer.name} />
+                <SectionRow label="Customer Email" value={customer.email} />
+                <SectionRow
+                  label="Customer Phone"
+                  value={customer.phone || service.mobileNumber}
+                />
+              </ServiceSection>
+
+              {/* Battery Information */}
+              <ServiceSection icon={Battery} title="Battery Information">
+                <SectionRow label="Battery ID" value={service.batteryId} />
+                <SectionRow
+                  label="Battery Model"
+                  value={battery.modelName || battery.name || service.batteryName}
+                />
+                <SectionRow label="Battery Type" value={battery.type} />
+                <SectionRow label="Battery Chemistry" value={battery.chemistry} />
+                <SectionRow
+                  label="Serial Number"
+                  value={battery.serialNumber}
+                />
+              </ServiceSection>
+
+              {/* Service Information */}
+              <ServiceSection icon={Wrench} title="Service Information">
+                <SectionRow label="Service Type" value={service.serviceType} />
+                <SectionRow
+                  label="Service Description"
+                  value={service.notes || service.description}
+                />
+                <SectionRow
+                  label="Request Date"
+                  value={formatDate(service.createdAt)}
+                />
+                <SectionRow
+                  label="Scheduled Date"
+                  value={`${formatDate(service.scheduledDate)}${
+                    service.scheduledTime
+                      ? ` · ${service.scheduledTime}`
+                      : ""
+                  }`}
+                />
+                <SectionRow
+                  label="Warranty Status"
+                  value={battery.warranty?.status}
+                />
+              </ServiceSection>
+
+              {/* Service Location */}
+              <ServiceSection icon={MapPin} title="Service Location">
+                <SectionRow label="Service Location" value={service.center} />
+                <SectionRow
+                  label="Address / City, Country"
+                  value={battery.location || battery.assemblyLocation}
+                />
+              </ServiceSection>
+
+              {/* Technician Information */}
+              <ServiceSection icon={HardHat} title="Technician Information">
+                <SectionRow
+                  label="Assigned Technician"
+                  value={tech?.name || service.technician || "Not yet assigned"}
+                />
+                <SectionRow label="Technician ID" value={tech?.technicianId} />
+                <SectionRow
+                  label="Technician Contact"
+                  value={tech?.phone || tech?.email}
+                />
+                <SectionRow
+                  label="Assignment Date"
+                  value={
+                    assignedEntry ? formatDate(assignedEntry.timestamp) : ""
+                  }
+                />
+              </ServiceSection>
+
+              {/* Service Progress */}
+              <ServiceSection icon={Activity} title="Service Progress">
+                <div className="rounded-xl bg-[#FFFDF8] border border-[#E9E2D0] px-3.5 py-2.5 flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A9096]">
+                    Current Status
+                  </p>
+                  <StatusBadge status={service.status} />
+                </div>
+                <SectionRow label="Last Updated" value={lastUpdated} />
+                <div className="rounded-xl bg-[#FFFDF8] border border-[#E9E2D0] px-3.5 py-3 mt-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A9096] mb-2.5">
+                    Status Timeline
+                  </p>
+                  <ServiceProgressTimeline service={service} />
+                </div>
+              </ServiceSection>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Card footer — actions ───────────────────── */}
       <div className="px-6 lg:px-7 py-4 border-t border-[#EEE9DA] bg-[#FBF8F0]/60">
         <div className="flex items-center gap-2.5 flex-wrap">
-          <ViewAllButton service={service} />
-
-          {service.status === "Confirmed" && (
-            <button
-              type="button"
-              onClick={() => onAccept(service)}
-              className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-green-600 text-white text-xs font-bold hover:bg-green-700 transition-colors shadow-sm"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              Accept Request
-            </button>
-          )}
-
-          {service.status === "Accepted" && (
-            <button
-              type="button"
-              onClick={() => onAssign(service)}
-              className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#B48611] text-white text-xs font-bold hover:bg-[#9A8240] transition-colors shadow-sm"
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              Assign Technician
-            </button>
-          )}
-
-          {service.status === "Waiting for Admin Approval" && (
-            <button
-              type="button"
-              onClick={() => onApprove(service)}
-              className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-green-600 text-white text-xs font-bold hover:bg-green-700 transition-colors shadow-sm"
-            >
-              <BadgeCheck className="w-3.5 h-3.5" />
-              Approve Completion
-            </button>
-          )}
+          {statusActions.map((action) => action.node)}
 
           {canCancel && (
             <div className="relative">
@@ -459,7 +842,11 @@ const ServiceCard = ({ service, onAccept, onApprove, onAssign, onUpdateStatus })
                 className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#F5F1E7] text-[#16263A] border border-[#E7E1D3] text-xs font-bold hover:bg-[#E7E1D3] transition-colors disabled:opacity-60"
               >
                 More
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${statusOpen ? "rotate-180" : ""}`} />
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform ${
+                    statusOpen ? "rotate-180" : ""
+                  }`}
+                />
               </button>
 
               {statusOpen && (
@@ -485,6 +872,19 @@ const ServiceCard = ({ service, onAccept, onApprove, onAssign, onUpdateStatus })
               )}
             </div>
           )}
+
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            className="ml-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#F5F1E7] text-[#16263A] border border-[#E7E1D3] text-xs font-bold hover:bg-[#E7E1D3] transition-colors"
+          >
+            {expanded ? "Hide Details" : "View Details"}
+            {expanded ? (
+              <ChevronUp className="w-3.5 h-3.5" />
+            ) : (
+              <ChevronDown className="w-3.5 h-3.5" />
+            )}
+          </button>
         </div>
       </div>
     </Card>
@@ -538,14 +938,12 @@ const AdminServiceRequestsPage = () => {
       const q = search.toLowerCase();
       list = list.filter(
         (s) =>
-          (s.ticketNumber || "").toLowerCase().includes(q) ||
           (s.id || "").toLowerCase().includes(q) ||
-          (s.batteryName || "").toLowerCase().includes(q) ||
-          (s.battery?.modelName || "").toLowerCase().includes(q) ||
+          (s.ticketNumber || "").toLowerCase().includes(q) ||
           (s.batteryId || "").toLowerCase().includes(q) ||
-          (s.serviceType || "").toLowerCase().includes(q) ||
           (s.customer?.name || "").toLowerCase().includes(q) ||
-          (s.center || "").toLowerCase().includes(q)
+          (s.battery?.modelName || s.batteryName || "").toLowerCase().includes(q) ||
+          (s.serviceType || "").toLowerCase().includes(q)
       );
     }
 
@@ -557,15 +955,26 @@ const AdminServiceRequestsPage = () => {
     setConfirmModal({ type: "accept", service });
   };
 
+  const handleReject = async (service) => {
+    setActionError("");
+    setConfirmModal({ type: "reject", service });
+  };
+
+  const handleApprove = async (service) => {
+    setActionError("");
+    setConfirmModal({ type: "approve", service });
+  };
+
   const confirmAccept = async () => {
     const svc = confirmModal?.service;
     if (!svc) return;
     await acceptService(svc.id);
   };
 
-  const handleApprove = async (service) => {
-    setActionError("");
-    setConfirmModal({ type: "approve", service });
+  const confirmReject = async () => {
+    const svc = confirmModal?.service;
+    if (!svc) return;
+    await updateServiceStatus(svc.id, "Cancelled");
   };
 
   const confirmApprove = async () => {
@@ -596,8 +1005,10 @@ const AdminServiceRequestsPage = () => {
     <div className="space-y-8">
       <PageHeader
         icon={Wrench}
-        title="Service Records"
-        subtitle={`${services.length} total bookings across the fleet`}
+        title="Service Requests"
+        subtitle={`${services.length} total service request${
+          services.length === 1 ? "" : "s"
+        } across the fleet`}
       />
 
       {actionError && (
@@ -616,7 +1027,7 @@ const AdminServiceRequestsPage = () => {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by ticket, battery, type, customer…"
+              placeholder="Search by ticket, battery, customer…"
               className="w-full h-12 pl-11 pr-10 rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3] outline-none text-sm text-[#16263A] placeholder:text-[#8A9096] focus:border-[#173B5C] transition"
             />
             {search && (
@@ -637,7 +1048,7 @@ const AdminServiceRequestsPage = () => {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="w-full bg-transparent text-sm font-medium text-[#16263A] focus:outline-none cursor-pointer"
             >
-              {STATUS_FILTER_OPTIONS.map((s) => (
+              {ADMIN_STATUS_FILTER_OPTIONS.map((s) => (
                 <option key={s} value={s}>
                   {s === "All" ? "All Statuses" : s}
                 </option>
@@ -646,10 +1057,12 @@ const AdminServiceRequestsPage = () => {
           </div>
         </div>
 
-        {/* Quick Filter Pills */}
+        {/* Quick Filter Tabs */}
         <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[#EEE9DA]/60">
-          <span className="text-xs font-semibold text-[#747B83] mr-1">Filter:</span>
-          {STATUS_FILTER_OPTIONS.slice(0, 6).map((status) => (
+          <span className="text-xs font-semibold text-[#747B83] mr-1">
+            Filter:
+          </span>
+          {ADMIN_STATUS_TABS.map((status) => (
             <button
               key={status}
               type="button"
@@ -666,24 +1079,25 @@ const AdminServiceRequestsPage = () => {
         </div>
       </Card>
 
-      {/* Service cards — all screen sizes */}
+      {/* Service request cards — all screen sizes */}
       {filtered.length === 0 ? (
         <EmptyState
           icon={Wrench}
-          title="No Service Records Found"
+          title="No Service Requests Found"
           description={
             search || statusFilter !== "All"
-              ? "No services match your current filters."
+              ? "No service requests match your current filters."
               : "New customer service requests will appear here."
           }
         />
       ) : (
         <div className="space-y-4">
           {filtered.map((service) => (
-            <ServiceCard
+            <ServiceRequestCard
               key={service.id}
               service={service}
               onAccept={handleAccept}
+              onReject={handleReject}
               onApprove={handleApprove}
               onAssign={setAssignModal}
               onUpdateStatus={handleUpdateStatus}
@@ -707,7 +1121,13 @@ const AdminServiceRequestsPage = () => {
         <ConfirmActionModal
           service={confirmModal.service}
           type={confirmModal.type}
-          onConfirm={confirmModal.type === "approve" ? confirmApprove : confirmAccept}
+          onConfirm={
+            confirmModal.type === "approve"
+              ? confirmApprove
+              : confirmModal.type === "reject"
+              ? confirmReject
+              : confirmAccept
+          }
           onClose={() => setConfirmModal(null)}
         />
       )}

@@ -108,6 +108,7 @@ It answers "is my fleet healthy, and which batteries need attention or servicing
 - Book, view, and manage service appointments with ticket numbers (`SRV-YYYY-####`).
 - Full lifecycle statuses: **Confirmed → Accepted → Assigned → On The Way → In Progress → Waiting for Admin Approval → Completed** (plus **Cancelled**).
 - Filtering and search by status, battery, or location; mobile cards + desktop table.
+- Admin **Service Requests** page lists every request as an expandable card with search, status tabs/dropdown, and inline actions (`accept`, `assign`, `approve`, `reject`).
 - Customer, admin, and technician views of the same service records.
 
 ### Analytics Dashboard
@@ -370,6 +371,7 @@ Conventions worth knowing:
 | `AddBatteryModal` | "Register New Battery" form. | Used by the scanner flow to register unknown batteries. |
 | `GoogleSignInButton` | Google Identity Services button. | Loads the GIS script once; never fabricates a successful login without a real client ID. |
 | `StatusBadge` | Admin status chip. | Uses `statusStyle(status)`. |
+| `AdminServiceRequestsPage` | Admin "Service Requests" list. | Card-based, expandable six-section details (customer, battery, service, location, technician, progress timeline), search box, status dropdown + filter tabs, status-specific actions (accept, assign, approve, reject, cancel) via modals. |
 
 ---
 
@@ -601,7 +603,7 @@ All others require `protect` + `requireAdmin`:
 |--------|----------|---------|
 | GET | `/me` | Current admin |
 | POST | `/logout` | Best-effort logout |
-| GET | `/services` | Services enriched with battery + customer |
+| GET | `/services` | Services enriched with battery (warranty, barcode, manufacturer, location), customer (phone/location from profile), and assigned technician (from FK or service person's `assignedServices`) |
 | GET | `/services/:id` | Single enriched service |
 | PATCH | `/services/:id/accept` | `Confirmed` → `Accepted` |
 | PATCH | `/services/:id/assign` | `Accepted` → `Assigned` (+ service person) |

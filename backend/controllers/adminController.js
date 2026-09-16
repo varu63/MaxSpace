@@ -55,25 +55,61 @@ export const getAdminServices = asyncHandler(async (req, res) => {
   const services = await store.getAllServices();
   const batteries = await store.getAllBatteries();
   const users = await store.getAllUsers();
+  const servicePersons = await store.getAllServicePersons();
+  const profile = await store.getProfile();
 
   const enriched = services.map((s) => {
     const battery = batteries.find((b) => b.id === s.batteryId);
     const customer = users.find(
       (u) => u.id === (s.customerId || "user-1")
     );
+    // Resolve the assigned battery technician from the service person's
+    // record — either via the explicit FK or the assigned-services list
+    // (which is what the seeded dataset uses).
+    let technician =
+      s.assignedServicePersonId
+        ? servicePersons.find((sp) => sp.id === s.assignedServicePersonId) || null
+        : null;
+    if (!technician) {
+      technician =
+        servicePersons.find((sp) => (sp.assignedServices || []).includes(s.id)) || null;
+    }
+
     return {
       ...s,
       battery: battery
         ? {
             id: battery.id,
+            name: battery.name,
             modelName: battery.modelName,
             chemistry: battery.chemistry,
             type: battery.type,
             serialNumber: battery.serialNumber,
+            barcode: battery.barcode,
+            manufacturer: battery.manufacturer,
+            location: battery.location,
+            warranty: battery.warranty || null,
           }
         : null,
       customer: customer
-        ? { id: customer.id, name: customer.name, email: customer.email }
+        ? {
+            id: customer.id,
+            name: customer.name,
+            email: customer.email,
+            phone: customer.phone || (profile && profile.id === customer.id ? profile.phone : "") || "",
+            location: customer.location || (profile && profile.id === customer.id ? profile.location : "") || "",
+          }
+        : null,
+      technician: technician
+        ? {
+            id: technician.id,
+            technicianId: technician.technicianId,
+            name: technician.name,
+            phone: technician.phone || "",
+            email: technician.email,
+            certification: technician.certification,
+            specialization: technician.specialization,
+          }
         : null,
     };
   });
