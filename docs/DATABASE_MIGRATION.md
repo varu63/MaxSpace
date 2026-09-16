@@ -1,14 +1,14 @@
-# MaxSpace — PostgreSQL Migration Guide (Future)
+# MaxSpace — PostgreSQL Guide
 
-This document explains how MaxSpace is architected for a future switch from the
-in-memory mock store to a **PostgreSQL** database, and exactly what to do when
-the database layer is ready to be enabled. Nothing in this document needs to be
-performed for the app to run today — the app works out of the box on the seeded
-mock store.
+This document explains how MaxSpace switches between the in-memory mock store
+and a **PostgreSQL** database. The PostgreSQL repository
+(`backend/data/postgres/index.js`) is **fully implemented** — enabling it is a
+configuration change. The app still works out of the box on the seeded mock
+store by default.
 
 ---
 
-## 1. Current architecture (mock mode — default)
+## 1. Current architecture
 
 ```
 frontend/src/services/        → centralized API layer (client.js, api.js,
@@ -22,12 +22,14 @@ backend/controllers/*         → business logic (reads/writes via the store)
         ▼
 backend/data/index.js         → DATA SOURCE FACADE (single import point)
         │   default: mock store (backend/data/store.js)
+        │   "postgres": PostgreSQL repository (backend/data/postgres/index.js)
         ▼
 backend/data/store.js         → in-memory seeded store (from data/seedData.js)
+backend/data/postgres/        → pg-pool repository (fully implemented)
 ```
 
 **Key rule:** controllers `import store from "../data/index.js"`. They never
-import `store.js` or the future PostgreSQL repository directly. Swapping the
+import `store.js` or the PostgreSQL repository directly. Swapping the
 persistence layer is therefore a configuration change, not a code change.
 
 ## 2. How the data-source switch works
@@ -42,7 +44,7 @@ persistence layer is therefore a configuration change, not a code change.
   store** — it never crashes at boot.
 - The health endpoint (`GET /`) reports `dataSource` and `databaseConfigured`.
 
-## 3. What a future switch to PostgreSQL looks like
+## 3. Switching to PostgreSQL (enabling the live database)
 
 1. Start PostgreSQL (Docker is already prepared in `docker-compose.yaml`):
    ```bash
@@ -53,18 +55,18 @@ persistence layer is therefore a configuration change, not a code change.
    DATA_SOURCE=postgres
    DATABASE_URL=postgresql://maxspace_user:maxspace_password@localhost:5432/maxspace_db
    ```
-3. Install the postgres driver (only needed in postgres mode):
-   ```bash
-   cd backend && npm install pg
-   ```
+3. The `pg` driver is already a backend dependency — no install needed.
 4. Apply the schema:
    ```bash
    psql "$DATABASE_URL" -f backend/sql/schema.sql
    ```
-5. Implement the repository methods in `backend/data/postgres/index.js`.
-   Every method maps 1:1 to the mock store interface, so controllers do not
-   change. Start with a `ping()` + `getAllUsers()` + `getAllBatteries()` +
-   `getAllServices()` to bring the dashboards online, then port the rest.
+   or with Docker:
+   ```bash
+   docker compose exec -T postgres psql -U maxspace_user -d maxspace_db < backend/sql/schema.sql
+   ```
+5. All repository methods are already implemented in
+   `backend/data/postgres/index.js` and map 1:1 to the mock store interface, so
+   controllers do not change.
 6. Restart the backend and verify:
    ```bash
    cd backend && npm run dev   # expect: "Using PostgreSQL repository."
@@ -72,6 +74,9 @@ persistence layer is therefore a configuration change, not a code change.
    ```
 
 The frontend does **not** change at all — it only talks to the same REST API.
+
+> If PostgreSQL is unreachable at boot, the data-source facade logs a warning
+> and falls back to the seeded mock store so the app never crashes.
 
 ## 4. Frontend service layer
 
@@ -111,10 +116,11 @@ Service status values are shared as constants on both sides
 
 ## 7. Checklist before enabling PostgreSQL in production
 
-- [ ] `pg` installed in `backend/` (not required in mock mode)
+- [ ] `pg` is installed in `backend/` (a listed dependency)
 - [ ] `backend/sql/schema.sql` applied
-- [ ] All methods in `backend/data/postgres/index.js` implemented (no
-      `not implemented for PostgreSQL yet` errors)
+- [ ] Repository methods in `backend/data/postgres/index.js` cover the flows you
+      need (all are implemented; verify auth, batteries, services, profile,
+      admin analytics, and the technician flow against the DB)
 - [ ] Backend smoke-tested: login, battery list, service list/status updates,
       admin analytics, technician flow against the DB
 - [ ] `DATA_SOURCE=postgres` + `DATABASE_URL` set in production `.env`

@@ -369,6 +369,10 @@ const App = () => {
               <Route path="/service-man/login" element={<Navigate to="/battery-technician/login" replace />} />
               <Route path="/service-man/*" element={<Navigate to="/battery-technician" replace />} />
 
+              {/* Catch-all: every unmatched customer path renders MainLayout,
+                  which declares its OWN nested <Routes> so the shared
+                  Sidebar/Header/Footer chrome stays mounted while only the
+                  page component swaps. */}
               <Route path="/*" element={<MainLayout />} />
             </Routes>
           </Suspense>

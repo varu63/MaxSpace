@@ -13,6 +13,9 @@ export const protect = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, config.jwtSecret);
+    // Re-fetch the user on every request (not just the token payload) so a
+    // disabled/removed account or an updated role takes effect immediately –
+    // JWTs themselves are stateless and cannot be revoked.
     const user = await store.getUserById(decoded.id);
     if (!user) {
       return res.status(401).json({ message: "Not authorized, user not found" });
