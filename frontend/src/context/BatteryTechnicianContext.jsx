@@ -42,15 +42,6 @@ export const BatteryTechnicianProvider = ({ children }) => {
     return data.user;
   }, []);
 
-  const batteryTechnicianGoogleLogin = useCallback(async (credential) => {
-    const data = await batteryTechnicianApi.batteryTechnicianGoogleSignIn(credential);
-    batteryTechnicianApi.setBatteryTechnicianToken(data.token);
-    batteryTechnicianApi.setBatteryTechnicianProfile(data.user);
-    setBatteryTechnicianUser(data.user || null);
-    setIsBatteryTechnicianAuthenticated(true);
-    return data.user;
-  }, []);
-
   const batteryTechnicianLogout = useCallback(async () => {
     setIsBatteryTechnicianAuthenticated(false);
     setBatteryTechnicianUser(null);
@@ -172,7 +163,6 @@ export const BatteryTechnicianProvider = ({ children }) => {
       isSidebarOpen,
       setIsSidebarOpen,
       batteryTechnicianLogin,
-      batteryTechnicianGoogleLogin,
       batteryTechnicianLogout,
       loadServices,
       refreshServices,
@@ -188,7 +178,6 @@ export const BatteryTechnicianProvider = ({ children }) => {
       isSidebarOpen,
       setIsSidebarOpen,
       batteryTechnicianLogin,
-      batteryTechnicianGoogleLogin,
       batteryTechnicianLogout,
       loadServices,
       refreshServices,

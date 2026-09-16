@@ -125,7 +125,7 @@ It answers "is my fleet healthy, and which batteries need attention or servicing
 - Responsive layout (desktop sidebar + mobile cards).
 - Code-splitting with `React.lazy()` for fast initial load.
 - Confetti on battery registration and service booking.
-- Google Sign-In (ID-token verification) for customers and technicians.
+- Google Sign-In (ID-token verification) for customer accounts.
 
 ---
 
@@ -403,7 +403,7 @@ Conventions worth knowing:
 | `batteryController.js` | CRUD + passport + health history | Auto ID/barcode/serial/QR generation; DPP defaults; duplicate detection (Postgres unique-violation → 409). |
 | `serviceController.js` | Service CRUD + per-battery status | Users may only set status to `Cancelled`; admins/technicians advance it elsewhere. |
 | `adminController.js` | Admin login, service workflow, service persons, technicians, customers, analytics | Service accept/assign/status/approve; technician creation = `service_person` + `EMPLOYEE` user pair; uniqueness checks. |
-| `batteryTechnicianController.js` | Technician login (incl. Google), assigned services, status updates | `EMPLOYEE_ALLOWED_TRANSITIONS` whitelist enforces the field workflow. |
+| `batteryTechnicianController.js` | Technician login (email + password), assigned services, status updates | `EMPLOYEE_ALLOWED_TRANSITIONS` whitelist enforces the field workflow. |
 | `analyticsController.js` | Fleet stats, service analytics, performance, combined summary | Pure in-memory aggregations over the store data. |
 | `profileController.js` | Profile CRUD, notifications, password change, activity, export | Password change verifies current password; export returns user + batteries + services. |
 | `dataController.js` | `POST /api/data/reset` | Re-seeds the dataset to the sample state. |
@@ -463,10 +463,10 @@ Contexts load batteries/services/profile from the API
 
 ### Google Sign-In (ID-token flow)
 
-- The frontend uses **Google Identity Services**; the browser receives an ID token, which is posted to `/api/auth/google` (users) or `/api/battery-technician/google` (employees).
+- The frontend uses **Google Identity Services**; the browser receives an ID token, which is posted to `/api/auth/google` (customers).
 - The backend verifies the token with `google-auth-library` against the configured `GOOGLE_CLIENT_ID`, checks the audience, and requires a Google-verified email. User-submitted profile fields are never trusted.
 - Users: a new Google email creates a USER account; an existing account with the same email is linked to Google (never duplicated).
-- Technicians: a Google account is only accepted if it matches an existing `EMPLOYEE` account (by Google link, then by verified email). Technicians are **never auto-created** — creation stays an admin job.
+- Battery Technicians sign in with their MaxSpace **email + password** only. Google Sign-In is reserved for customer accounts — there is no `/api/battery-technician/google` route.
 
 ### Password hashing
 
@@ -620,7 +620,7 @@ All others require `protect` + `requireAdmin`:
 
 ### Battery Technician — `/api/battery-technician`
 
-Public: `POST /login`, `POST /google` (rate-limited).
+Public: `POST /login` (rate-limited).
 
 All others require `protect` + `requireEmployee`:
 
@@ -832,7 +832,7 @@ Analytics — fleet + service KPIs
 ### Technician workflow
 
 ```
-Log in (/battery-technician/login, email/Google)
+Log in (/battery-technician/login, email + password)
    ↓
 Dashboard — prioritized assigned-queue
    ↓
@@ -840,6 +840,13 @@ Service detail — advance status (accept → on the way → in progress → fin
    ↓
 Finish Service → "Waiting for Admin Approval" → admin approves → Completed
 ```
+
+Battery Technician authentication and data all come from the backend API:
+
+- **Sign-in** is email + password against the `users` table (bcrypt hash verified server-side). There is no Google/third-party option; the login page renders only the credential form.
+- On login the backend returns a short-lived `EMPLOYEE` JWT plus the linked `service_persons` record stored in the `maxspace_battery_technician_token` token slot.
+- `BatteryTechnicianContext` never stores batteries/services locally — `/me`, `/services`, and `/services/:id` are fetched from `/api/battery-technician/*`, and status changes go through `PATCH /services/:id/status` (only the technician assigned to the service may update it).
+- Servicing against PostgreSQL: with `DATA_SOURCE=postgres` the same endpoints read/write the `maxspace_db` tables (`users`, `service_persons`, `services`, `batteries`).
 
 ---
 

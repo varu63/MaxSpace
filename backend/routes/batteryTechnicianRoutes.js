@@ -2,7 +2,6 @@ import express from "express";
 import rateLimit from "express-rate-limit";
 import {
   batteryTechnicianLogin,
-  batteryTechnicianGoogleLogin,
   batteryTechnicianMe,
   batteryTechnicianLogout,
   getAssignedServices,
@@ -23,7 +22,6 @@ const loginLimiter = rateLimit({
 });
 
 router.post("/login", loginLimiter, batteryTechnicianLogin);
-router.post("/google", loginLimiter, batteryTechnicianGoogleLogin);
 
 // Protected employee routes
 router.get("/me", protect, requireEmployee, batteryTechnicianMe);
