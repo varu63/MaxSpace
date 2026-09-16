@@ -372,6 +372,7 @@ Conventions worth knowing:
 | `GoogleSignInButton` | Google Identity Services button. | Loads the GIS script once; never fabricates a successful login without a real client ID. |
 | `StatusBadge` | Admin status chip. | Uses `statusStyle(status)`. |
 | `AdminServiceRequestsPage` | Admin "Service Requests" list. | Card-based, expandable six-section details (customer, battery, service, location, technician, progress timeline), search box, status dropdown + filter tabs, status-specific actions (accept, assign, approve, reject, cancel) via modals. |
+| `ServiceAssignmentCard` | Battery technician service card. | Two-column card grid on the technician Services page and Dashboard; ticket badge, battery name/ID, status badge, request ID, customer/location/type/scheduled info cells, full-width "View Details" button that opens the detail page. |
 
 ---
 
@@ -630,7 +631,7 @@ All others require `protect` + `requireEmployee`:
 |--------|----------|---------|
 | GET | `/me` | Current technician + service-person record |
 | POST | `/logout` | Best-effort logout |
-| GET | `/services` | Services assigned to this technician |
+| GET | `/services` | Services assigned to this technician (only the caller's `assignedServices`; enriched with battery model/barcode/location and customer name/phone) |
 | GET | `/services/:id` | Assigned service detail (403 if not assigned) |
 | PATCH | `/services/:id/status` | Advance status — **only** Assigned→Accepted, Accepted→On The Way, On The Way→In Progress, In Progress→Waiting for Admin Approval (or Cancelled) |
 

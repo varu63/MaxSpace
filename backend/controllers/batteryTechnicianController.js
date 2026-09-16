@@ -106,6 +106,7 @@ export const getAssignedServices = asyncHandler(async (req, res) => {
   const allServices = await store.getAllServices();
   const batteries = await store.getAllBatteries();
   const users = await store.getAllUsers();
+  const profile = await store.getProfile();
 
   const assignedIds = servicePerson.assignedServices || [];
   const assigned = allServices.filter((s) => assignedIds.includes(s.id));
@@ -120,14 +121,23 @@ export const getAssignedServices = asyncHandler(async (req, res) => {
       battery: battery
         ? {
             id: battery.id,
+            name: battery.name,
             modelName: battery.modelName,
             chemistry: battery.chemistry,
             type: battery.type,
             serialNumber: battery.serialNumber,
+            barcode: battery.barcode,
+            location: battery.location,
           }
         : null,
       customer: customer
-        ? { id: customer.id, name: customer.name, email: customer.email }
+        ? {
+            id: customer.id,
+            name: customer.name,
+            email: customer.email,
+            phone: customer.phone || (profile && profile.id === customer.id ? profile.phone : "") || "",
+            location: customer.location || (profile && profile.id === customer.id ? profile.location : "") || "",
+          }
         : null,
     };
   });
