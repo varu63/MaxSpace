@@ -72,12 +72,7 @@ const AdminLoginPage = () => {
             />
           </div>
 
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FBF1C9] border border-[#F0E6C8] mb-3">
-            <ShieldCheck className="w-3.5 h-3.5 text-[#B48611]" />
-            <span className="text-[11px] font-bold text-[#A77A08] uppercase tracking-wide">
-              Admin Access
-            </span>
-          </div>
+         
 
           <h1 className="text-2xl font-black tracking-tight text-[#16263A]">
             Admin Sign In

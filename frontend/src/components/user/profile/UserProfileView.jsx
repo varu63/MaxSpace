@@ -165,12 +165,12 @@ export const UserProfileView = () => {
           {/* Name & Role */}
           <div className="flex flex-wrap items-center justify-center gap-2">
             <h1 className="text-2xl sm:text-3xl font-bold text-[#16263A]">
-              {profile.name || "admin"}
+              {profile.name || ""}
             </h1>
           </div>
 
           <p className="mt-1 text-sm font-semibold text-[#8A7A4A]">
-            {profile.title || "Administrator"}
+            {profile.title || ""}
           </p>
 
           {/* Contact Details Centered */}
@@ -194,7 +194,7 @@ export const UserProfileView = () => {
             <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#F5F1E7] border border-[#EEE9DA] text-xs font-mono text-[#16263A]">
               <Globe className="w-4 h-4 text-[#8A7A4A]" />
               EU Operator ID:
-              <strong className="text-[#173B5C]">{profile.euOperatorId || "EU-DPP-8821"}</strong>
+              <strong className="text-[#173B5C]">{profile.euOperatorId || "—"}</strong>
             </div>
 
             <button
@@ -225,13 +225,13 @@ export const UserProfileView = () => {
             <div className="rounded-2xl bg-[#F5F1E7] border border-[#EEE9DA] p-4 text-center">
               <History className="w-5 h-5 text-[#B48611] mx-auto" />
               <p className="mt-2 text-xs text-[#747B83]">Service Records</p>
-              <p className="mt-1 text-2xl font-bold text-[#16263A]">{stats.totalServices || 759}</p>
+              <p className="mt-1 text-2xl font-bold text-[#16263A]">{stats.totalServices ?? 0}</p>
             </div>
 
             <div className="rounded-2xl bg-[#F5F1E7] border border-[#EEE9DA] p-4 text-center">
               <HeartPulse className="w-5 h-5 text-[#173B5C] mx-auto" />
               <p className="mt-2 text-xs text-[#747B83]">Fleet SoH</p>
-              <p className="mt-1 text-2xl font-bold text-[#16263A]">{stats.avgHealth || 92}%</p>
+              <p className="mt-1 text-2xl font-bold text-[#16263A]">{stats.avgHealth ?? 0}%</p>
             </div>
 
             <div className="rounded-2xl bg-[#F5F1E7] border border-[#EEE9DA] p-4 text-center">

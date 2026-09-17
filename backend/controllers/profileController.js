@@ -3,14 +3,57 @@ import store from "../data/index.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { sanitizeUser, matchesPassword } from "../utils/auth.js";
 
+const DEFAULT_NOTIFICATION_SETTINGS = {
+  warrantyAlerts: true,
+  healthThresholdAlerts: true,
+  serviceReminders: true,
+  euComplianceUpdates: true,
+  smsAlerts: false,
+};
+
+/* Guarantee every authenticated user has their OWN profile row, seeded from
+   the users table (the source of truth for identity) so the UI always shows
+   the email used to log in — never another account's record. */
+const ensureProfile = async (userId) => {
+  const user = await store.getUserById(userId);
+  if (!user) return null;
+
+  const current = (await store.getProfile(userId)) || {};
+
+  // No profile row yet (e.g. legacy account) -> create one from the user.
+  if (!current.id) {
+    return store.updateProfile(userId, {
+      name: user.name,
+      email: user.email,
+      avatar: user.avatar || "",
+      memberSince: new Date().toLocaleString("en-US", { month: "long", year: "numeric" }),
+      notificationSettings: { ...DEFAULT_NOTIFICATION_SETTINGS },
+    });
+  }
+
+  // Keep identity in sync with users.email so the displayed email always
+  // matches the credentials used to log in.
+  if (current.email !== user.email || !current.name) {
+    return store.updateProfile(userId, {
+      name: current.name || user.name,
+      email: user.email,
+    });
+  }
+
+  return current;
+};
+
 // GET /api/profile
 export const getProfile = asyncHandler(async (req, res) => {
-  res.json({ profile: sanitizeUser(await store.getProfile(req.user.id)) });
+  res.json({ profile: sanitizeUser(await ensureProfile(req.user.id)) });
 });
 
 // PUT /api/profile
 export const updateProfile = asyncHandler(async (req, res) => {
-  const { password, ...allowed } = req.body || {};
+  // email and password are managed on the users record; never let a request
+  // override the login email with a client-supplied value.
+  const { password, email, ...allowed } = req.body || {};
+  await ensureProfile(req.user.id);
   const updated = await store.updateProfile(req.user.id, allowed);
   await store.logActivity(req.user.id, "Profile Updated", "Profile details and preferences saved", "general");
   res.json({ profile: sanitizeUser(updated) });

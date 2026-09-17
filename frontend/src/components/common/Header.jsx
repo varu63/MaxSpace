@@ -23,7 +23,7 @@ const Header = ({ role = "user", onOpenSidebar, onNavigateProfile, onLogout, sho
 
   const profile = role === "admin" ? admin.adminUser : role === "battery-technician" ? tech.batteryTechnicianUser : battery.userProfile;
   const name = profile?.name || (role === "admin" ? "Admin" : role === "battery-technician" ? "Technician" : "User");
-  const email = role === "user" ? profile?.email || "user@email.com" : profile?.email || "";
+  const email = profile?.email || "";
 
   const openSidebar = () => {
     if (role === "user") battery.setIsSidebarOpen(true);
