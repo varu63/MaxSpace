@@ -6,6 +6,7 @@
 export const seedBatteries = [
   {
     id: "batt-1",
+    ownerId: "user-1",
     barcode: "BATT-EV-9823-LFP",
     qrCode: "https://passport.battery-eu.org/passports/BATT-EV-9823-LFP",
     name: "MaxVolt UltraPack 820",
@@ -60,6 +61,7 @@ export const seedBatteries = [
   },
   {
     id: "batt-2",
+    ownerId: "user-1",
     barcode: "BATT-ESS-4410-NMC",
     qrCode: "https://passport.battery-eu.org/passports/BATT-ESS-4410-NMC",
     name: "SolarStorage PowerCell 15k",
@@ -115,6 +117,7 @@ export const seedBatteries = [
   },
   {
     id: "batt-3",
+    ownerId: "user-1",
     barcode: "BATT-EBIKE-201-LIFEPO4",
     qrCode: "https://passport.battery-eu.org/passports/BATT-EBIKE-201-LIFEPO4",
     name: "UrbanMoto Sprint Pack 3.2",
@@ -168,6 +171,7 @@ export const seedBatteries = [
   },
   {
     id: "batt-4",
+    ownerId: "user-1",
     barcode: "BATT-FLEET-500-NCA",
     qrCode: "https://passport.battery-eu.org/passports/BATT-FLEET-500-NCA",
     name: "FleetHauler HeavyPack 120",
@@ -221,6 +225,7 @@ export const seedBatteries = [
   },
   {
     id: "batt-5",
+    ownerId: "user-1",
     barcode: "BATT-DRONE-220-LFPQ",
     qrCode: "https://passport.battery-eu.org/passports/BATT-DRONE-220-LFPQ",
     name: "Skyline UAV Power Pack 6.4",
@@ -273,6 +278,7 @@ export const seedBatteries = [
   },
   {
     id: "batt-6",
+    ownerId: "user-1",
     barcode: "BATT-TOOL-180-PROMO",
     qrCode: "https://passport.battery-eu.org/passports/BATT-TOOL-180-PROMO",
     name: "ProTeleMax Worksite Power 18",
@@ -325,6 +331,7 @@ export const seedBatteries = [
   },
   {
     id: "batt-7",
+    ownerId: "user-1",
     barcode: "BATT-FORK-460-LFP",
     qrCode: "https://passport.battery-eu.org/passports/BATT-FORK-460-LFP",
     name: "WarehouseMax Forklift Cell 40",
@@ -383,6 +390,7 @@ export const seedServices = [
     id: "srv-101",
     ticketNumber: "SRV-2026-9012",
     batteryId: "batt-1",
+    customerId: "user-1",
     batteryName: "MaxVolt UltraPack 820",
     serviceType: "Periodic Health Diagnostic & BMS Firmware Update",
     center: "EcoVolt Certified Hub - Central Berlin",
@@ -399,6 +407,7 @@ export const seedServices = [
     id: "srv-105",
     ticketNumber: "SRV-2026-9520",
     batteryId: "batt-5",
+    customerId: "user-1",
     batteryName: "Skyline UAV Power Pack 6.4",
     serviceType: "Propulsion Performance Validation",
     center: "Voltaic Air Service Hangar - Munich",
@@ -415,6 +424,7 @@ export const seedServices = [
     id: "srv-106",
     ticketNumber: "SRV-2026-9371",
     batteryId: "batt-6",
+    customerId: "user-1",
     batteryName: "ProTeleMax Worksite Power 18",
     serviceType: "Capacity Recovery & Pack Rebalancing",
     center: "BlueCharge Mobile Workshop - Rotterdam",
@@ -431,6 +441,7 @@ export const seedServices = [
     id: "srv-107",
     ticketNumber: "SRV-2026-9204",
     batteryId: "batt-7",
+    customerId: "user-1",
     batteryName: "WarehouseMax Forklift Cell 40",
     serviceType: "In-Site Health Diagnostics",
     center: "HafenPower On-Site Service - Hamburg",
@@ -448,6 +459,7 @@ export const seedServices = [
     id: "srv-102",
     ticketNumber: "SRV-2026-8845",
     batteryId: "batt-3",
+    customerId: "user-1",
     batteryName: "UrbanMoto Sprint Pack 3.2",
     serviceType: "Cell Balancing & Connector Reseating",
     center: "Ampere Mobility Care - Paris/Lyon",
@@ -464,6 +476,7 @@ export const seedServices = [
     id: "srv-103",
     ticketNumber: "SRV-2026-7721",
     batteryId: "batt-4",
+    customerId: "user-1",
     batteryName: "FleetHauler HeavyPack 120",
     serviceType: "Second-Life Stationary Storage Repurposing Assessment",
     center: "Nordic Circular Energy Labs - Gothenburg",

@@ -56,13 +56,21 @@ export const getAdminServices = asyncHandler(async (req, res) => {
   const batteries = await store.getAllBatteries();
   const users = await store.getAllUsers();
   const servicePersons = await store.getAllServicePersons();
-  const profile = await store.getProfile();
+
+  // Per-customer profile map (phone/location live on the customer's own profile).
+  const profileMap = {};
+  await Promise.all(
+    users
+      .filter((u) => u.role === "USER")
+      .map(async (c) => {
+        profileMap[c.id] = await store.getProfile(c.id);
+      })
+  );
 
   const enriched = services.map((s) => {
     const battery = batteries.find((b) => b.id === s.batteryId);
-    const customer = users.find(
-      (u) => u.id === (s.customerId || "user-1")
-    );
+    const customer = users.find((u) => u.id === s.customerId);
+    const customerProfile = profileMap[s.customerId];
     // Resolve the assigned battery technician from the service person's
     // record — either via the explicit FK or the assigned-services list
     // (which is what the seeded dataset uses).
@@ -96,8 +104,8 @@ export const getAdminServices = asyncHandler(async (req, res) => {
             id: customer.id,
             name: customer.name,
             email: customer.email,
-            phone: customer.phone || (profile && profile.id === customer.id ? profile.phone : "") || "",
-            location: customer.location || (profile && profile.id === customer.id ? profile.location : "") || "",
+            phone: customer.phone || (customerProfile && customerProfile.phone) || "",
+            location: customer.location || (customerProfile && customerProfile.location) || "",
           }
         : null,
       technician: technician
@@ -127,7 +135,7 @@ export const getAdminService = asyncHandler(async (req, res) => {
 
   const battery = await store.getBatteryById(service.batteryId);
   const customers = await store.getCustomers();
-  const customer = customers.find((u) => u.id === (service.customerId || "user-1"));
+  const customer = customers.find((u) => u.id === service.customerId);
 
   res.json({
     ...service,
@@ -186,6 +194,7 @@ export const acceptService = asyncHandler(async (req, res) => {
   });
 
   await store.logActivity(
+    req.user.id,
     "Service Accepted",
     `Ticket #${updated.ticketNumber} accepted by admin`,
     "service"
@@ -259,6 +268,7 @@ export const assignService = asyncHandler(async (req, res) => {
   });
 
   await store.logActivity(
+    req.user.id,
     "Service Assigned",
     `Ticket #${updated.ticketNumber} assigned to ${technicianLabel}`,
     "service"
@@ -294,12 +304,14 @@ export const updateServiceStatus = asyncHandler(async (req, res) => {
 
   if (status === "Completed") {
     await store.logActivity(
+      req.user.id,
       "Service Completed",
       `Ticket #${updated.ticketNumber} marked completed by admin`,
       "service"
     );
   } else if (status === "Cancelled") {
     await store.logActivity(
+      req.user.id,
       "Service Cancelled",
       `Ticket #${updated.ticketNumber} cancelled by admin`,
       "service"
@@ -376,9 +388,7 @@ export const getCustomers = asyncHandler(async (req, res) => {
   const services = await store.getAllServices();
 
   const enriched = customers.map((c) => {
-    const customerServices = services.filter(
-      (s) => s.customerId === c.id || (!s.customerId && c.id === "user-1")
-    );
+    const customerServices = services.filter((s) => s.customerId === c.id);
     const lastService =
       customerServices.length > 0
         ? customerServices.sort(
@@ -488,6 +498,7 @@ export const approveService = asyncHandler(async (req, res) => {
   });
 
   await store.logActivity(
+    req.user.id,
     "Service Completed",
     `Ticket #${updated.ticketNumber} completion approved by admin`,
     "service"

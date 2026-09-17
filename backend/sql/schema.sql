@@ -49,8 +49,12 @@ CREATE TABLE IF NOT EXISTS service_persons (
 -- Batteries (Digital Battery Passports)
 CREATE TABLE IF NOT EXISTS batteries (
   id                       TEXT PRIMARY KEY,
+  owner_id                 TEXT REFERENCES users(id),          -- owning customer (user isolation)
   barcode                  TEXT NOT NULL UNIQUE,
   qr_code                  TEXT,
+  modal_id                 TEXT,                               -- QR payload "Modal ID"
+  hang_status              TEXT,                               -- QR payload "Hang Status"
+  overall_status           TEXT,                               -- QR payload "Overall Status"
   name                     TEXT NOT NULL,
   model_name               TEXT,
   model                    TEXT,
@@ -115,7 +119,7 @@ CREATE INDEX IF NOT EXISTS idx_services_battery ON services (battery_id);
 CREATE INDEX IF NOT EXISTS idx_services_status ON services (status);
 CREATE INDEX IF NOT EXISTS idx_services_customer ON services (customer_id);
 
--- Operator profile (single default user profile for this build)
+-- Operator profiles (one row per user; created at signup).
 CREATE TABLE IF NOT EXISTS profiles (
   user_id                TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   name                   TEXT,
@@ -131,6 +135,45 @@ CREATE TABLE IF NOT EXISTS profiles (
   notification_settings  JSONB NOT NULL DEFAULT '{}'::jsonb,
   activity_logs          JSONB NOT NULL DEFAULT '[]'::jsonb
 );
+
+-- ============================================================
+-- MIGRATION (idempotent — safe to run against an existing DB)
+-- Adds the ownership + QR fields introduced for user isolation
+-- and complete battery QR mapping, then backfills legacy rows.
+--
+-- Ownership backfill behavior (documented):
+--   • Batteries whose id matches "batt-<timestamp>" are owned by
+--     the user "user-<timestamp>" (the account that created them,
+--     sibling id prefix). This preserves the pre-isolation records.
+--   • Any remaining orphan batteries (e.g. seed fleet batt-1..N)
+--     are assigned to "user-1", the seeded demo fleet owner.
+--   • Nothing is duplicated or assigned at random.
+-- ============================================================
+ALTER TABLE batteries ADD COLUMN IF NOT EXISTS owner_id TEXT REFERENCES users(id);
+ALTER TABLE batteries ADD COLUMN IF NOT EXISTS modal_id TEXT;
+ALTER TABLE batteries ADD COLUMN IF NOT EXISTS hang_status TEXT;
+ALTER TABLE batteries ADD COLUMN IF NOT EXISTS overall_status TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_batteries_owner ON batteries (owner_id);
+CREATE INDEX IF NOT EXISTS idx_batteries_modal ON batteries (modal_id);
+
+UPDATE batteries b SET owner_id = COALESCE(
+  (SELECT u.id FROM users u WHERE u.id = 'user-' || SUBSTRING(b.id FROM '^batt-([0-9]+)$')),
+  'user-1'
+) WHERE owner_id IS NULL;
+
+-- Backfill QR fields from legacy rows whose barcode stored the raw
+-- multiline payload (e.g. "Battery ID: MVAE0014036\nModel: ...\nModal ID: ...\nHang Status: ...\nOverall Status: ...").
+UPDATE batteries SET
+  modal_id      = COALESCE(SUBSTRING(barcode FROM 'Modal[:\s]+ID:\s*([^\r\n]+)'),
+                           SUBSTRING(barcode FROM 'Battery[:\s]+ID:\s*([^\r\n]+)'), modal_id),
+  hang_status   = COALESCE(SUBSTRING(barcode FROM 'Hang[:\s]+Status:\s*([^\r\n]+)'), hang_status),
+  overall_status= COALESCE(SUBSTRING(barcode FROM 'Overall[:\s]+Status:\s*([^\r\n]+)'), overall_status),
+  model_name    = COALESCE(SUBSTRING(barcode FROM 'Model:\s*([^\r\n]+)'), model_name)
+WHERE barcode LIKE '%Battery ID%';
+
+-- Seed services belong to the demo fleet owner so user-1 keeps the sample data.
+UPDATE services SET customer_id = 'user-1' WHERE customer_id IS NULL;
 
 -- ============================================================
 -- Optional: mirror the mock seed dataset (same records as

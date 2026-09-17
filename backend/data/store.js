@@ -18,7 +18,7 @@ class Store {
   constructor() {
     this.batteries = [...seedBatteries];
     this.services = [...seedServices];
-    this.userProfile = { ...seedUserProfile };
+    this.profiles = { "user-1": { ...seedUserProfile } };
     this.users = [...seedAdminUsers, ...seedRegularUsers, ...seedEmployeeUsers];
     this.servicePersons = [...seedServicePersons];
   }
@@ -85,24 +85,32 @@ class Store {
   }
 
   /* ---------- Batteries ---------- */
-  getAllBatteries() {
+  getAllBatteries(ownerId = null) {
+    if (ownerId) return this.batteries.filter((b) => b.ownerId === ownerId);
     return this.batteries;
   }
 
-  getBatteryById(id) {
-    return this.batteries.find((b) => b.id === id) || null;
+  getBatteryById(id, ownerId = null) {
+    const battery = this.batteries.find((b) => b.id === id) || null;
+    if (!battery) return null;
+    if (ownerId && battery.ownerId !== ownerId) return null;
+    return battery;
   }
 
-  findBatteryByBarcodeOrSerial(code) {
+  findBatteryByBarcodeOrSerial(code, ownerId = null) {
     const clean = String(code || "").trim().toUpperCase();
     if (!clean) return null;
     return (
-      this.batteries.find(
-        (b) =>
+      this.batteries.find((b) => {
+        const matches =
           String(b.barcode || "").toUpperCase() === clean ||
           String(b.serialNumber || "").toUpperCase() === clean ||
-          String(b.id || "").toUpperCase() === clean
-      ) || null
+          String(b.modalId || "").toUpperCase() === clean ||
+          String(b.id || "").toUpperCase() === clean;
+        if (!matches) return false;
+        if (ownerId && b.ownerId !== ownerId) return false;
+        return true;
+      }) || null
     );
   }
 
@@ -133,6 +141,11 @@ class Store {
   /* ---------- Services ---------- */
   getAllServices() {
     return this.services;
+  }
+
+  getServicesByCustomerId(customerId) {
+    if (!customerId) return [];
+    return this.services.filter((s) => s.customerId === customerId);
   }
 
   getServicesByBatteryId(batteryId) {
@@ -229,13 +242,17 @@ class Store {
   }
 
   /* ---------- Profile ---------- */
-  getProfile() {
-    return this.userProfile;
+  getProfile(userId = null) {
+    if (!userId) return this.profiles["user-1"] || null;
+    return this.profiles[userId] || null;
   }
 
-  updateProfile(fields) {
-    this.userProfile = { ...this.userProfile, ...fields };
-    return this.userProfile;
+  updateProfile(userId, fields = {}) {
+    const { id, ...rest } = fields || {};
+    if (rest.password) delete rest.password;
+    const existing = this.profiles[userId] || { id: userId };
+    this.profiles[userId] = { ...existing, ...rest };
+    return this.profiles[userId];
   }
 
   /* ---------- Service History ---------- */
@@ -267,7 +284,7 @@ class Store {
   }
 
   /* ---------- Activity Logs ---------- */
-  logActivity(action, details, type = "general") {
+  logActivity(userId, action, details, type = "general") {
     const log = {
       id: `act-${Date.now()}`,
       action,
@@ -275,9 +292,10 @@ class Store {
       timestamp: "Just now",
       type,
     };
-    this.userProfile = {
-      ...this.userProfile,
-      activityLogs: [log, ...(this.userProfile.activityLogs || [])].slice(0, 20),
+    const profile = this.profiles[userId] || { id: userId, activityLogs: [] };
+    this.profiles[userId] = {
+      ...profile,
+      activityLogs: [log, ...(profile.activityLogs || [])].slice(0, 20),
     };
     return log;
   }
@@ -286,7 +304,7 @@ class Store {
   reset() {
     this.batteries = [...seedBatteries];
     this.services = [...seedServices];
-    this.userProfile = { ...seedUserProfile };
+    this.profiles = { "user-1": { ...seedUserProfile } };
     this.users = [...seedAdminUsers, ...seedRegularUsers, ...seedEmployeeUsers];
     this.servicePersons = [...seedServicePersons];
   }

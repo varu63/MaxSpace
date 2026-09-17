@@ -5,21 +5,21 @@ import { sanitizeUser, matchesPassword } from "../utils/auth.js";
 
 // GET /api/profile
 export const getProfile = asyncHandler(async (req, res) => {
-  res.json({ profile: sanitizeUser(await store.getProfile()) });
+  res.json({ profile: sanitizeUser(await store.getProfile(req.user.id)) });
 });
 
 // PUT /api/profile
 export const updateProfile = asyncHandler(async (req, res) => {
   const { password, ...allowed } = req.body || {};
-  const updated = await store.updateProfile(allowed);
-  await store.logActivity("Profile Updated", "Profile details and preferences saved", "general");
+  const updated = await store.updateProfile(req.user.id, allowed);
+  await store.logActivity(req.user.id, "Profile Updated", "Profile details and preferences saved", "general");
   res.json({ profile: sanitizeUser(updated) });
 });
 
 // PUT /api/profile/notifications
 export const updateNotifications = asyncHandler(async (req, res) => {
-  const current = (await store.getProfile()) || {};
-  const updated = await store.updateProfile({
+  const current = (await store.getProfile(req.user.id)) || {};
+  const updated = await store.updateProfile(req.user.id, {
     notificationSettings: {
       ...(current.notificationSettings || {}),
       ...(req.body || {}),
@@ -61,25 +61,23 @@ export const changePassword = asyncHandler(async (req, res) => {
 
   const hashed = await bcrypt.hash(String(newPassword), 10);
   await store.updateUser(user.id, { password: hashed });
-  // Keep the shared profile record in sync (password is stripped on sanitize)
-  await store.updateProfile({ password: hashed });
-  await store.logActivity("Password Changed", "Account password was updated", "general");
+  await store.logActivity(req.user.id, "Password Changed", "Account password was updated", "general");
 
-  res.json({ message: "Password updated successfully", profile: sanitizeUser(await store.getProfile()) });
+  res.json({ message: "Password updated successfully", profile: sanitizeUser(await store.getProfile(req.user.id)) });
 });
 
 // GET /api/profile/activity
 export const getActivityLogs = asyncHandler(async (req, res) => {
-  const profile = (await store.getProfile()) || {};
+  const profile = (await store.getProfile(req.user.id)) || {};
   res.json(profile.activityLogs || []);
 });
 
 // GET /api/profile/export
 export const exportProfileData = asyncHandler(async (req, res) => {
   res.json({
-    user: sanitizeUser(await store.getProfile()),
-    batteries: await store.getAllBatteries(),
-    services: await store.getAllServices(),
+    user: sanitizeUser(await store.getProfile(req.user.id)),
+    batteries: await store.getAllBatteries(req.user.id),
+    services: await store.getServicesByCustomerId(req.user.id),
     exportedAt: new Date().toISOString(),
   });
 });

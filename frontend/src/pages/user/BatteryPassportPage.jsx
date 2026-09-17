@@ -229,6 +229,7 @@ export default function BatteryPassportPage() {
             variant="passport"
           />
           <DetailRow icon={Hash} label="Barcode / BPAN" value={valueOr(battery.barcode)} variant="passport" />
+          <DetailRow icon={Hash} label="Modal ID (QR)" value={valueOr(battery.modalId)} variant="passport" />
           <DetailRow icon={Hash} label="Battery Type" value={valueOr(battery.type)} variant="passport" />
         </InfoBlock>
 
@@ -278,6 +279,8 @@ export default function BatteryPassportPage() {
           <DetailRow icon={Activity} label="Cycle Count" value={valueOr(battery.cycleCount)} variant="passport" />
           <DetailRow icon={Activity} label="Max Rated Cycles" value={valueOr(battery.maxRatedCycles)} variant="passport" />
           <DetailRow icon={Activity} label="Operating Temperature" value={battery.operatingTempC != null ? `${battery.operatingTempC}°C` : "—"} variant="passport" />
+          <DetailRow icon={Activity} label="Hang Status (QR)" value={valueOr(battery.hangStatus)} variant="passport" />
+          <DetailRow icon={Activity} label="Overall Status (QR)" value={valueOr(battery.overallStatus)} variant="passport" />
           <DetailRow icon={MapPin} label="Current Location" value={valueOr(battery.location)} variant="passport" />
           <DetailRow icon={Wrench} label="Last Service Date" value={formatDate(derived.lastServiceDate)} variant="passport" />
         </InfoBlock>

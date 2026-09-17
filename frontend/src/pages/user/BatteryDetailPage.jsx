@@ -156,6 +156,7 @@ export default function BatteryDetailPage() {
         <DetailRow icon={MapPin} label="Assembly Location" value={battery.assemblyLocation} />
         <DetailRow icon={Hash} label="Serial Number" value={battery.serialNumber} />
         <DetailRow icon={Hash} label="Barcode" value={battery.barcode} />
+        <DetailRow icon={Hash} label="Modal ID (QR)" value={battery.modalId} />
         <DetailRow icon={Shield} label="Manufacturer" value={battery.manufacturer} />
       </InfoBlock>
 

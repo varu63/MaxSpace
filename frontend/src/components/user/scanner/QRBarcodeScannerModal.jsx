@@ -24,12 +24,34 @@ import {
    - Barcode           → BATT-EV-9823-LFP
    - Serial number     → SN-2024-EV-88390
    - EU DPP QR URI     → https://passport.battery-eu.org/passports/BATT-EV-9823-LFP
+   - Physical QR       → "Battery ID: MVAE0014036\nModel: 12.8V 100AH ...\n..."
    Anything much shorter than that is not a usable battery identifier. */
 const isPlausibleBatteryCode = (value) => {
   const clean = String(value || "").trim();
   if (!clean) return false;
   return clean.length >= 4 && /\S/.test(clean);
 };
+
+/* Parse a physical QR payload ("Battery ID: X\nModel: Y ...") into structured
+   fields so the real identifier is sent for lookup and the scanned values are
+   prefilled when a brand-new passport is minted. */
+const parseQrPayload = (value) => {
+  const clean = String(value || "").trim();
+  const grab = (pattern) => {
+    const match = clean.match(pattern);
+    return match && match[1] ? match[1].trim() : null;
+  };
+  return {
+    batteryId: grab(/Battery\s+ID:\s*([^\r\n]+)/i),
+    model: grab(/Model:\s*([^\r\n]+)/i),
+    modalId: grab(/Modal\s+ID:\s*([^\r\n]+)/i),
+    serialNumber: grab(/Serial(?:\s+Number)?:\s*([^\r\n]+)/i),
+    hangStatus: grab(/Hang\s+Status:\s*([^\r\n]+)/i),
+    overallStatus: grab(/Overall\s+Status:\s*([^\r\n]+)/i),
+  };
+};
+const hasQrIdentifier = (parsed) =>
+  Boolean(parsed && (parsed.batteryId || parsed.modalId || parsed.serialNumber));
 
 /* Cooldown between auto-detections from the live camera stream so a single
    QR held in front of the lens does not fire the lookup repeatedly. */
@@ -65,6 +87,9 @@ export const QRBarcodeScannerModal = () => {
         return;
       }
 
+      // Clear any previous scan result so a new QR never shows stale data.
+      setRecentScanResult(null);
+
       if (!isPlausibleBatteryCode(code)) {
         setRecentScanResult({
           status: 'error',
@@ -75,10 +100,19 @@ export const QRBarcodeScannerModal = () => {
         return;
       }
 
+      // Physical QR payloads carry the identifier inside key: value lines —
+      // look it up by the real Battery/Modal ID while keeping the raw payload
+      // for the prefill when the unit is not registered yet.
+      const parsed = parseQrPayload(code);
+      const payloadFields = hasQrIdentifier(parsed) ? parsed : null;
+      const lookupId =
+        payloadFields?.batteryId || payloadFields?.modalId || payloadFields?.serialNumber || code;
+
       setLookingUp(true);
       try {
-        // Look up the decoded value against the fleet API (barcode | serial | id | EU QR URI)
-        const existingBattery = await findBatteryByBarcode(code);
+        // Look up the decoded value against the fleet API (barcode | serial | id | EU QR URI |
+        // physical QR payload identifier).
+        const existingBattery = await findBatteryByBarcode(lookupId);
 
         if (existingBattery) {
           setRecentScanResult({
@@ -90,9 +124,10 @@ export const QRBarcodeScannerModal = () => {
         } else {
           setRecentScanResult({
             status: 'new',
-            code
+            code,
+            parsedPayload: payloadFields
           });
-          addToast('New Battery Scanned', `Barcode ${code} is ready for passport creation.`, 'info');
+          addToast('New Battery Scanned', `Barcode ${lookupId} is ready for passport creation.`, 'info');
         }
       } catch (error) {
         setRecentScanResult({
@@ -214,8 +249,16 @@ export const QRBarcodeScannerModal = () => {
       navigate(`/battery/${b.id}/passport`);
     } else if (recentScanResult.status === 'new') {
       const code = recentScanResult.code;
+      const parsed = recentScanResult.parsedPayload || {};
       closeScanner();
-      openAddBattery({ barcode: code, modelName: `Battery Pack (${code})` });
+      openAddBattery({
+        barcode: parsed.batteryId || parsed.modalId || parsed.serialNumber || code,
+        modelName: parsed.model || `Battery Pack (${code})`,
+        modalId: parsed.modalId || null,
+        hangStatus: parsed.hangStatus || null,
+        overallStatus: parsed.overallStatus || null,
+        serialNumber: parsed.serialNumber || "",
+      });
     }
   };
 

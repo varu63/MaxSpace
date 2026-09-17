@@ -21,6 +21,9 @@ const EMPTY_FORM = {
   capacityKwh: "",
   stateOfHealth: "",
   stateOfCharge: "",
+  modalId: "",
+  hangStatus: "",
+  overallStatus: "",
 };
 
 const AddBatteryModal = () => {
@@ -38,6 +41,10 @@ const AddBatteryModal = () => {
       ...EMPTY_FORM,
       modelName: addBatteryPrefill?.modelName || "",
       barcode: addBatteryPrefill?.barcode || "",
+      serialNumber: addBatteryPrefill?.serialNumber || "",
+      modalId: addBatteryPrefill?.modalId || "",
+      hangStatus: addBatteryPrefill?.hangStatus || "",
+      overallStatus: addBatteryPrefill?.overallStatus || "",
     });
   } else if (!isAddBatteryOpen && prevOpen) {
     setPrevOpen(false);
@@ -64,6 +71,9 @@ const AddBatteryModal = () => {
       capacityKwh: Number(form.capacityKwh) || undefined,
       stateOfHealth: Number(form.stateOfHealth) || undefined,
       stateOfCharge: Number(form.stateOfCharge) || undefined,
+      modalId: form.modalId.trim() || undefined,
+      hangStatus: form.hangStatus.trim() || undefined,
+      overallStatus: form.overallStatus.trim() || undefined,
     });
     setSubmitting(false);
 

@@ -106,16 +106,23 @@ export const getAssignedServices = asyncHandler(async (req, res) => {
   const allServices = await store.getAllServices();
   const batteries = await store.getAllBatteries();
   const users = await store.getAllUsers();
-  const profile = await store.getProfile();
 
   const assignedIds = servicePerson.assignedServices || [];
   const assigned = allServices.filter((s) => assignedIds.includes(s.id));
 
+  const profileMap = {};
+  await Promise.all(
+    users
+      .filter((u) => u.role === "USER")
+      .map(async (c) => {
+        profileMap[c.id] = await store.getProfile(c.id);
+      })
+  );
+
   const enriched = assigned.map((s) => {
     const battery = batteries.find((b) => b.id === s.batteryId);
-    const customer = users.find(
-      (u) => u.id === (s.customerId || "user-1")
-    );
+    const customer = users.find((u) => u.id === s.customerId);
+    const customerProfile = profileMap[s.customerId];
     return {
       ...s,
       battery: battery
@@ -135,8 +142,8 @@ export const getAssignedServices = asyncHandler(async (req, res) => {
             id: customer.id,
             name: customer.name,
             email: customer.email,
-            phone: customer.phone || (profile && profile.id === customer.id ? profile.phone : "") || "",
-            location: customer.location || (profile && profile.id === customer.id ? profile.location : "") || "",
+            phone: customer.phone || (customerProfile && customerProfile.phone) || "",
+            location: customer.location || (customerProfile && customerProfile.location) || "",
           }
         : null,
     };
@@ -169,7 +176,7 @@ export const getAssignedServiceDetail = asyncHandler(async (req, res) => {
 
   const battery = await store.getBatteryById(service.batteryId);
   const customers = await store.getCustomers();
-  const customer = customers.find((u) => u.id === (service.customerId || "user-1"));
+  const customer = customers.find((u) => u.id === service.customerId);
 
   res.json({
     ...service,
@@ -251,6 +258,7 @@ export const updateServiceStatus = asyncHandler(async (req, res) => {
   });
 
   await store.logActivity(
+    req.user.id,
     `Service ${status}`,
     `Ticket #${updated.ticketNumber} status changed to ${status} by battery technician`,
     "service"

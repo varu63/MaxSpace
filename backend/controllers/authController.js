@@ -11,6 +11,26 @@ import config from "../config/app.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const DEFAULT_NOTIFICATION_SETTINGS = {
+  warrantyAlerts: true,
+  healthThresholdAlerts: true,
+  serviceReminders: true,
+  euComplianceUpdates: true,
+  smsAlerts: false,
+};
+
+/* Create the new user's own profile record so /api/profile never falls
+   back to another account's data (user isolation). */
+const createDefaultProfile = async (userId, { name, email, avatar = "" }) => {
+  await store.updateProfile(userId, {
+    name,
+    email,
+    avatar,
+    memberSince: new Date().toLocaleString("en-US", { month: "long", year: "numeric" }),
+    notificationSettings: { ...DEFAULT_NOTIFICATION_SETTINGS },
+  });
+};
+
 const hashResetToken = (token) =>
   crypto.createHash("sha256").update(String(token)).digest("hex");
 
@@ -100,12 +120,17 @@ export const googleSignIn = asyncHandler(async (req, res) => {
     });
     user = await store.getUserById(created.id);
     isNewUser = true;
+    await createDefaultProfile(user.id, {
+      name: user.name,
+      email: user.email,
+      avatar: googleProfile.avatar || "",
+    });
   }
 
-  // Update the shared profile avatar/name so the profile UI reflects Google.
+  // Update the account's own profile avatar/name so the profile UI reflects Google.
   if (googleProfile.avatar) {
-    const profile = (await store.getProfile()) || {};
-    await store.updateProfile({
+    const profile = (await store.getProfile(user.id)) || {};
+    await store.updateProfile(user.id, {
       avatar: googleProfile.avatar || profile.avatar,
       name: googleProfile.name || profile.name,
       email: googleProfile.email || profile.email,
@@ -160,6 +185,8 @@ export const signUp = asyncHandler(async (req, res) => {
     role: "USER",
     createdAt: todayISO(),
   });
+
+  await createDefaultProfile(newUser.id, { name, email });
 
   const token = signToken(newUser.id, newUser.role);
 

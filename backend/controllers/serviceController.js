@@ -6,7 +6,7 @@ import { VALID_STATUSES, isActiveStatus, isCancelled } from "../constants/servic
 // GET /api/services
 export const getServices = asyncHandler(async (req, res) => {
   const { batteryId, status } = req.query;
-  let services = await store.getAllServices();
+  let services = await store.getServicesByCustomerId(req.user.id);
   if (batteryId) {
     services = services.filter((s) => s.batteryId === batteryId);
   }
@@ -21,7 +21,7 @@ export const getServices = asyncHandler(async (req, res) => {
 // GET /api/services/:id
 export const getService = asyncHandler(async (req, res) => {
   const service = await store.getServiceById(req.params.id);
-  if (!service) {
+  if (!service || service.customerId !== req.user?.id) {
     res.status(404);
     throw new Error("Service record not found");
   }
@@ -30,7 +30,7 @@ export const getService = asyncHandler(async (req, res) => {
 
 // GET /api/services/battery/:batteryId/status  (derived per-battery status)
 export const getBatteryServiceStatus = asyncHandler(async (req, res) => {
-  const battery = await store.getBatteryById(req.params.batteryId);
+  const battery = await store.getBatteryById(req.params.batteryId, req.user.id);
   if (!battery) {
     res.status(404);
     throw new Error("Battery not found");
@@ -57,7 +57,7 @@ export const createService = asyncHandler(async (req, res) => {
     throw new Error("batteryId is required to create a service");
   }
 
-  const battery = await store.getBatteryById(data.batteryId);
+  const battery = await store.getBatteryById(data.batteryId, req.user.id);
   if (!battery) {
     res.status(400);
     throw new Error("Battery not found for the provided batteryId");
@@ -69,7 +69,7 @@ export const createService = asyncHandler(async (req, res) => {
     id: `srv-${Date.now()}`,
     ticketNumber: `SRV-${year}-${Math.floor(1000 + Math.random() * 9000)}`,
     batteryId: data.batteryId,
-    customerId: req.user?.id,
+    customerId: req.user.id,
     batteryName: battery?.modelName || data.batteryName || "Unknown Battery",
     serviceType: data.serviceType || "Battery Inspection",
     center: data.center || "MaxSpace Service Center",
@@ -97,6 +97,7 @@ export const createService = asyncHandler(async (req, res) => {
 
   await store.createService(newService);
   await store.logActivity(
+    req.user.id,
     "Service Booked",
     `Ticket #${newService.ticketNumber} for ${newService.batteryName}`,
     "service"
@@ -108,7 +109,7 @@ export const createService = asyncHandler(async (req, res) => {
 // PATCH /api/services/:id
 export const updateService = asyncHandler(async (req, res) => {
   const existing = await store.getServiceById(req.params.id);
-  if (!existing) {
+  if (!existing || existing.customerId !== req.user?.id) {
     res.status(404);
     throw new Error("Service record not found");
   }
@@ -151,6 +152,7 @@ export const updateService = asyncHandler(async (req, res) => {
 
   if (status === "Cancelled") {
     await store.logActivity(
+      req.user.id,
       "Service Cancelled",
       `Ticket #${updated.ticketNumber} was cancelled`,
       "service"
@@ -162,6 +164,11 @@ export const updateService = asyncHandler(async (req, res) => {
 
 // DELETE /api/services/:id
 export const deleteService = asyncHandler(async (req, res) => {
+  const existing = await store.getServiceById(req.params.id);
+  if (!existing || existing.customerId !== req.user?.id) {
+    res.status(404);
+    throw new Error("Service record not found");
+  }
   const removed = await store.deleteService(req.params.id);
   if (!removed) {
     res.status(404);

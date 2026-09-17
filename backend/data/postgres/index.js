@@ -60,8 +60,12 @@ const mapBatteryRow = (row) =>
   row
     ? {
         id: row.id,
+        ownerId: row.owner_id,
         barcode: row.barcode,
         qrCode: row.qr_code,
+        modalId: row.modal_id,
+        hangStatus: row.hang_status,
+        overallStatus: row.overall_status,
         name: row.name,
         modelName: row.model_name,
         model: row.model,
@@ -191,7 +195,7 @@ export const createPostgresStore = async ({ databaseUrl }) => {
           await store.createUser(u);
         }
         for (const sp of seedServicePersons) await store.createServicePerson(sp);
-        await store.updateProfile(seedUserProfile);
+        await store.updateProfile(seedUserProfile.id, seedUserProfile);
         await pool.query("COMMIT");
       } catch (error) {
         await pool.query("ROLLBACK");
@@ -306,24 +310,31 @@ export const createPostgresStore = async ({ databaseUrl }) => {
     },
 
     /* ---------- Batteries ---------- */
-    async getAllBatteries() {
-      const { rows } = await pool.query("SELECT * FROM batteries ORDER BY created_at");
+    async getAllBatteries(ownerId = null) {
+      const { rows } = await pool.query(
+        `SELECT * FROM batteries ${ownerId ? "WHERE owner_id = $1" : ""} ORDER BY created_at`,
+        ownerId ? [ownerId] : []
+      );
       return rows.map(mapBatteryRow);
     },
 
-    async getBatteryById(id) {
-      const { rows } = await pool.query("SELECT * FROM batteries WHERE id = $1 LIMIT 1", [id]);
+    async getBatteryById(id, ownerId = null) {
+      const { rows } = await pool.query(
+        `SELECT * FROM batteries WHERE id = $1 ${ownerId ? "AND owner_id = $2" : ""} LIMIT 1`,
+        ownerId ? [id, ownerId] : [id]
+      );
       return mapBatteryRow(rows[0]);
     },
 
-    async findBatteryByBarcodeOrSerial(code) {
+    async findBatteryByBarcodeOrSerial(code, ownerId = null) {
       const clean = String(code || "").trim().toUpperCase();
       if (!clean) return null;
       const { rows } = await pool.query(
         `SELECT * FROM batteries
-         WHERE UPPER(barcode) = $1 OR UPPER(serial_number) = $1 OR UPPER(id) = $1
+         WHERE (UPPER(barcode) = $1 OR UPPER(serial_number) = $1 OR UPPER(id) = $1 OR UPPER(modal_id) = $1)
+         ${ownerId ? "AND owner_id = $2" : ""}
          LIMIT 1`,
-        [clean]
+        ownerId ? [clean, ownerId] : [clean]
       );
       return mapBatteryRow(rows[0]);
     },
@@ -331,7 +342,8 @@ export const createPostgresStore = async ({ databaseUrl }) => {
     async createBattery(battery) {
       const { rows } = await pool.query(
         `INSERT INTO batteries (
-           id, barcode, qr_code, name, model_name, model, type, manufacturer,
+           id, owner_id, barcode, qr_code, modal_id, hang_status, overall_status,
+           name, model_name, model, type, manufacturer,
            serial_number, chemistry, capacity_kwh, capacity, nominal_voltage, voltage,
            weight_kg, dimensions_mm, manufacture_date, assembly_location, location,
            cells, state_of_health, state_of_charge, cycle_count, max_rated_cycles,
@@ -339,13 +351,18 @@ export const createPostgresStore = async ({ databaseUrl }) => {
            recycled_content, warranty, compliance_standards, dismantling_manual, health_history
          ) VALUES (
            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-           $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32
+           $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32,
+           $33, $34, $35, $36
          )
          RETURNING *`,
         [
           battery.id,
+          battery.ownerId || null,
           battery.barcode,
           battery.qrCode || null,
+          battery.modalId || null,
+          battery.hangStatus || null,
+          battery.overallStatus || null,
           battery.name,
           battery.modelName,
           battery.model,
@@ -386,22 +403,26 @@ export const createPostgresStore = async ({ databaseUrl }) => {
       const next = { ...current, ...fields };
       const { rows } = await pool.query(
         `UPDATE batteries SET
-           barcode = $2, qr_code = $3, name = $4, model_name = $5, model = $6,
-           type = $7, manufacturer = $8, serial_number = $9, chemistry = $10,
-           capacity_kwh = $11, capacity = $12, nominal_voltage = $13, voltage = $14,
-           weight_kg = $15, dimensions_mm = $16, manufacture_date = $17,
-           assembly_location = $18, location = $19, cells = $20,
-           state_of_health = $21, state_of_charge = $22, cycle_count = $23,
-           max_rated_cycles = $24, internal_resistance_mohms = $25,
-           operating_temp_c = $26, carbon_footprint_kg_per_kwh = $27,
-           recycled_content = $28, warranty = $29, compliance_standards = $30,
-           dismantling_manual = $31, health_history = $32
+           barcode = $2, qr_code = $3, modal_id = $4, hang_status = $5, overall_status = $6,
+           name = $7, model_name = $8, model = $9,
+           type = $10, manufacturer = $11, serial_number = $12, chemistry = $13,
+           capacity_kwh = $14, capacity = $15, nominal_voltage = $16, voltage = $17,
+           weight_kg = $18, dimensions_mm = $19, manufacture_date = $20,
+           assembly_location = $21, location = $22, cells = $23,
+           state_of_health = $24, state_of_charge = $25, cycle_count = $26,
+           max_rated_cycles = $27, internal_resistance_mohms = $28,
+           operating_temp_c = $29, carbon_footprint_kg_per_kwh = $30,
+           recycled_content = $31, warranty = $32, compliance_standards = $33,
+           dismantling_manual = $34, health_history = $35
          WHERE id = $1
          RETURNING *`,
         [
           id,
           next.barcode,
           next.qrCode || null,
+          next.modalId || null,
+          next.hangStatus || null,
+          next.overallStatus || null,
           next.name,
           next.modelName,
           next.model,
@@ -447,6 +468,15 @@ export const createPostgresStore = async ({ databaseUrl }) => {
     /* ---------- Services ---------- */
     async getAllServices() {
       const { rows } = await pool.query("SELECT * FROM services ORDER BY created_at");
+      return rows.map(mapServiceRow);
+    },
+
+    async getServicesByCustomerId(customerId) {
+      if (!customerId) return [];
+      const { rows } = await pool.query(
+        "SELECT * FROM services WHERE customer_id = $1 ORDER BY created_at",
+        [customerId]
+      );
       return rows.map(mapServiceRow);
     },
 
@@ -649,13 +679,17 @@ export const createPostgresStore = async ({ databaseUrl }) => {
     },
 
     /* ---------- Profile ---------- */
-    async getProfile() {
-      const { rows } = await pool.query("SELECT * FROM profiles LIMIT 1");
-      return mapProfileRow(rows[0]) || null;
+    async getProfile(userId = null) {
+      if (!userId) return null;
+      const { rows } = await pool.query(
+        "SELECT * FROM profiles WHERE user_id = $1 LIMIT 1",
+        [userId]
+      );
+      return mapProfileRow(rows[0]);
     },
 
-    async updateProfile(fields) {
-      const current = (await store.getProfile()) || { id: "user-1" };
+    async updateProfile(userId, fields = {}) {
+      const current = (await store.getProfile(userId)) || {};
       const next = { ...current, ...fields };
       if (next.password) delete next.password;
       const { rows } = await pool.query(
@@ -673,7 +707,7 @@ export const createPostgresStore = async ({ databaseUrl }) => {
            activity_logs = EXCLUDED.activity_logs
          RETURNING *`,
         [
-          next.id,
+          userId,
           next.name || null,
           next.title || null,
           next.email || null,
@@ -712,11 +746,11 @@ export const createPostgresStore = async ({ databaseUrl }) => {
     },
 
     /* ---------- Activity logs ---------- */
-    async logActivity(action, details, type = "general") {
-      const profile = (await store.getProfile()) || { id: "user-1", activityLogs: [] };
+    async logActivity(userId, action, details, type = "general") {
+      const profile = (await store.getProfile(userId)) || { activityLogs: [] };
       const log = { id: `act-${Date.now()}`, action, details, timestamp: "Just now", type };
       const activityLogs = [log, ...(profile.activityLogs || [])].slice(0, 20);
-      await store.updateProfile({ id: profile.id, activityLogs });
+      await store.updateProfile(userId, { activityLogs });
       return log;
     },
   };

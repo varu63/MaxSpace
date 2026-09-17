@@ -4,6 +4,9 @@ import { todayISO, todayMonth } from "../utils/date.js";
 import {
   normalizeBatteryIdentifier,
   resolveBatteryByIdentifier,
+  isBatteryQrPayload,
+  parseBatteryQrPayload,
+  getBatteryPayloadIdentifier,
 } from "../utils/batteryIdentifier.js";
 
 const barcodePrefix = "BATT-GEN";
@@ -13,15 +16,15 @@ export const getBatteries = asyncHandler(async (req, res) => {
   const { barcode } = req.query;
   if (barcode) {
     const code = normalizeBatteryIdentifier(barcode);
-    const battery = await store.findBatteryByBarcodeOrSerial(code);
+    const battery = await store.findBatteryByBarcodeOrSerial(code, req.user.id);
     return res.json(battery ? [battery] : []);
   }
-  res.json(await store.getAllBatteries());
+  res.json(await store.getAllBatteries(req.user.id));
 });
 
 // GET /api/batteries/:id
 export const getBattery = asyncHandler(async (req, res) => {
-  const battery = await resolveBatteryByIdentifier(store, req.params.id);
+  const battery = await resolveBatteryByIdentifier(store, req.params.id, req.user.id);
   if (!battery) {
     res.status(404);
     throw new Error("Battery not found");
@@ -39,7 +42,7 @@ export const lookupBattery = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "A battery identifier is required" });
   }
 
-  const battery = await store.findBatteryByBarcodeOrSerial(identifier);
+  const battery = await store.findBatteryByBarcodeOrSerial(identifier, req.user.id);
   if (!battery) {
     return res.status(404).json({ message: "No battery found for the provided identifier" });
   }
@@ -57,7 +60,7 @@ export const getBatteryPassport = asyncHandler(async (req, res) => {
     throw new Error("A battery identifier is required");
   }
 
-  const battery = await resolveBatteryByIdentifier(store, identifier);
+  const battery = await resolveBatteryByIdentifier(store, identifier, req.user.id);
   if (!battery) {
     res.status(404);
     throw new Error("Battery not found");
@@ -76,7 +79,7 @@ export const getBatteryPassport = asyncHandler(async (req, res) => {
 
 // GET /api/batteries/:id/health-history
 export const getBatteryHealthHistory = asyncHandler(async (req, res) => {
-  const battery = await store.getBatteryById(req.params.id);
+  const battery = await store.getBatteryById(req.params.id, req.user.id);
   if (!battery) {
     res.status(404);
     throw new Error("Battery not found");
@@ -88,21 +91,44 @@ export const getBatteryHealthHistory = asyncHandler(async (req, res) => {
 export const createBattery = asyncHandler(async (req, res) => {
   const data = req.body || {};
   const today = todayISO();
-  const barcode =
-    data.barcode || `${barcodePrefix}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+  // Raw multiline QR payloads may be submitted directly (fallback path);
+  // normally the scanner extracts these fields before submission.
+  const parsed = data.barcode && isBatteryQrPayload(data.barcode)
+    ? parseBatteryQrPayload(data.barcode)
+    : null;
+  const payloadId =
+    parsed ? getBatteryPayloadIdentifier(data.barcode) : normalizeBatteryIdentifier(data.barcode);
+
   const year = new Date().getFullYear();
+  const barcode =
+    payloadId || data.barcode || `${barcodePrefix}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+  // Prevent duplicate registration using the extracted battery identifier.
+  if (payloadId) {
+    const existing = await store.findBatteryByBarcodeOrSerial(payloadId, req.user.id);
+    if (existing) {
+      res.status(409);
+      throw new Error("This battery is already registered. Open its existing passport instead.");
+    }
+  }
 
   const newBattery = {
     id: `batt-${Date.now()}`,
+    ownerId: req.user.id,
     barcode,
     qrCode: `https://passport.battery-eu.org/passports/${barcode}`,
-    name: data.modelName || "New Battery System",
-    modelName: data.modelName || "New Battery System",
-    model: data.modelName || "New Battery System",
+    modalId: data.modalId || parsed?.modalId || null,
+    hangStatus: data.hangStatus || parsed?.hangStatus || null,
+    overallStatus: data.overallStatus || parsed?.overallStatus || null,
+    name: data.modelName || parsed?.model || "New Battery System",
+    modelName: data.modelName || parsed?.model || "New Battery System",
+    model: data.modelName || parsed?.model || "New Battery System",
     type: data.type || "Electric Vehicle (EV)",
     manufacturer: data.manufacturer || "EcoVolt Certified Partner",
     serialNumber:
       data.serialNumber ||
+      parsed?.serialNumber ||
       `SN-${year}-${Math.floor(10000 + Math.random() * 90000)}`,
     chemistry: data.chemistry || "LFP (Lithium Iron Phosphate)",
     capacityKwh: Number(data.capacityKwh) || 60,
@@ -166,6 +192,7 @@ export const createBattery = asyncHandler(async (req, res) => {
     throw err;
   }
   await store.logActivity(
+    req.user.id,
     "Battery Added & Passport Minted",
     `Registered ${newBattery.modelName} (${newBattery.barcode})`,
     "passport"
@@ -176,7 +203,7 @@ export const createBattery = asyncHandler(async (req, res) => {
 
 // PUT /api/batteries/:id
 export const updateBattery = asyncHandler(async (req, res) => {
-  const existing = await store.getBatteryById(req.params.id);
+  const existing = await store.getBatteryById(req.params.id, req.user.id);
   if (!existing) {
     res.status(404);
     throw new Error("Battery not found");
@@ -188,12 +215,18 @@ export const updateBattery = asyncHandler(async (req, res) => {
 
 // DELETE /api/batteries/:id
 export const deleteBattery = asyncHandler(async (req, res) => {
+  const existing = await store.getBatteryById(req.params.id, req.user.id);
+  if (!existing) {
+    res.status(404);
+    throw new Error("Battery not found");
+  }
+
   const removed = await store.deleteBattery(req.params.id);
   if (!removed) {
     res.status(404);
     throw new Error("Battery not found");
   }
 
-  await store.logActivity("Battery Removed", `Removed ${removed.modelName || removed.id} from fleet`, "general");
+  await store.logActivity(req.user.id, "Battery Removed", `Removed ${removed.modelName || removed.id} from fleet`, "general");
   res.json({ message: "Battery removed successfully", id: req.params.id });
 });

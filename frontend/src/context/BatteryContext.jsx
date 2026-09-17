@@ -9,10 +9,28 @@ import {
 } from "react";
 import confetti from "canvas-confetti";
 
-import { initialUserProfile, getBatteryServiceStatus, getBatteryServiceCount } from "../data/dummyData";
+import { getBatteryServiceStatus, getBatteryServiceCount } from "../data/dummyData";
 import * as api from "../services/api";
 
 const BatteryContext = createContext(null);
+
+/* Neutral profile used before sign-in / when the API returns no profile.
+   Never leaks another account's data (the old dummy demo profile). */
+const EMPTY_USER_PROFILE = {
+  id: "",
+  name: "",
+  title: "",
+  email: "",
+  phone: "",
+  location: "",
+  memberSince: "",
+  avatar: "",
+  fleetType: "",
+  totalCapacityKwh: 0,
+  euOperatorId: "",
+  notificationSettings: {},
+  activityLogs: [],
+};
 
 /* =========================================================
    PROVIDER
@@ -28,7 +46,7 @@ export const BatteryProvider = ({ children }) => {
   const [userProfile, setUserProfile] = useState(() =>
     // Prefill from a stored copy so auth pages render instantly,
     // then sync with the server once loaded.
-    api.getToken() ? (loadProfileFromStorage() || initialUserProfile) : initialUserProfile
+    api.getToken() ? (loadProfileFromStorage() || EMPTY_USER_PROFILE) : EMPTY_USER_PROFILE
   );
   const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(api.getToken()));
   const [loading, setLoading] = useState(false);
@@ -80,7 +98,7 @@ export const BatteryProvider = ({ children }) => {
     } catch {
       // Stateless JWT — the server call is best-effort
     }
-    setUserProfile(initialUserProfile);
+    setUserProfile(EMPTY_USER_PROFILE);
     setBatteries([]);
     setServices([]);
     clearProfileFromStorage();
@@ -100,8 +118,8 @@ export const BatteryProvider = ({ children }) => {
       ]);
       setBatteries(batts || []);
       setServices(servs || []);
-      setUserProfile(prof?.profile || initialUserProfile);
-      saveProfileToStorage(prof?.profile || initialUserProfile);
+      setUserProfile(prof?.profile || EMPTY_USER_PROFILE);
+      saveProfileToStorage(prof?.profile || EMPTY_USER_PROFILE);
     } catch (error) {
       // Invalid/expired token — drop back to unauthenticated
       if (isAuthError(error)) {
