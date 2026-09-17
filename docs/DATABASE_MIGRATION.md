@@ -125,3 +125,90 @@ Service status values are shared as constants on both sides
       admin analytics, technician flow against the DB
 - [ ] `DATA_SOURCE=postgres` + `DATABASE_URL` set in production `.env`
 - [ ] `JWT_SECRET` set to a strong value in production
+
+---
+
+## 8. "maxspace-pro" (maxvolt_prod) data migration
+
+The legacy production database referred to as **maxspace-pro** is the
+PostgreSQL database `maxvolt_prod`. There is no database literally named
+`maxspace-pro`. Its data was migrated into the single app database
+`maxspace_db` without disturbing the MaxSpace schema.
+
+### 8.1 Why a separate schema
+
+`maxvolt_prod` and MaxSpace (`public`) both use the table names `users` and
+`batteries` but with **incompatible columns**. Overwriting `public.batteries`
+would break the app, so the entire legacy database is replicated verbatim
+(names, keys, data types, indexes, FKs) into a dedicated schema
+**`maxspace_pro`** inside `maxspace_db`:
+`public` = MaxSpace app tables, `maxspace_pro` = legacy maxvolt mirror.
+
+### 8.2 Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `backend/sql/migrate_maxspace_pro.sql` | Creates schema `maxspace_pro` and all 12 legacy tables (mirror DDL). |
+| `backend/sql/import_maxspace_pro_batteries.sql` | Creates the production-fleet owner account and imports the 1214 production batteries into `public.batteries`. |
+
+Applying the mirror data (run once):
+
+```
+docker exec maxspace-postgres pg_dump -U maxspace_user -d maxvolt_prod \
+  --data-only --no-owner --no-privileges -f /tmp/maxvolt_full.sql
+docker exec maxspace-postgres sed -i 's/public\./maxspace_pro./g' /tmp/maxvolt_full.sql
+docker exec maxspace-postgres psql -U maxspace_user -d maxspace_db -f /tmp/maxvolt_full.sql
+docker exec maxspace-postgres psql -U maxspace_user -d maxspace_db -f /tmp/migrate_maxspace_pro.sql
+docker exec maxspace-postgres psql -U maxspace_user -d maxspace_db -f /tmp/import_maxspace_pro_batteries.sql
+```
+
+### 8.3 Mirrored tables (schema `maxspace_pro`)
+
+`users`, `battery_models`, `batteries`, `cells`, `cell_gradings`,
+`bms_inventory`, `laser_welding_data`, `pdi_reports`, `pack_testing_reports`,
+`battery_cell_mapping`, `spot_welding_data`, `dispatch_records`.
+Row counts match the source exactly (e.g. batteries 1215, cells/gradings 6660,
+battery_cell_mapping 5200).
+
+### 8.4 App battery import (public.batteries)
+
+1214 of the 1215 legacy batteries are imported as app batteries; `MVAE0014036`
+is skipped because it already exists in `public.batteries` (imported earlier via
+QR scan), so there are no duplicate records.
+
+| Legacy field | App field |
+|--------------|-----------|
+| `battery_id` | `id` = `batt-<battery_id>`, `modal_id`, `serial_number`, QR "Battery ID" |
+| `battery_id` | `qr_code` = `https://passport.battery-eu.org/passports/<battery_id>` |
+| `model_id` | `name`, `model`, `model_name` |
+| `had_ng_status` | `hang_status` (`"true"`/`"false"`) |
+| `overall_status` | `overall_status` (`PROD` / `FG PENDING`) |
+| model `voltage` x `AH` | `capacity_kwh`, `nominal_voltage`, `voltage` |
+| `series_count` x `parallel_count` | `cells` |
+| model `cell_type` | `chemistry` |
+| `created_at` | `manufacture_date` |
+
+The scanned `barcode` uses the app's multiline QR payload
+(`Battery ID:` / `Model:` / `Modal ID:` / `Hang Status:` / `Overall Status:`),
+so production units resolve through the normal QR/identifier lookup.
+
+### 8.5 Ownership and users
+
+- Legacy `maxspace_pro.users` use a different username/role model and are kept
+  in the mirror only; they are **not** merged into `public.users`, to avoid
+  granting legacy factory roles app access.
+- Legacy batteries carry no customer/owner, so all 1214 imported units are
+  assigned to one dedicated, documented account:
+  **`user-maxvolt`** (`fleet@maxvolt-energy.com`, MaxVolt Energy Production
+  Fleet), which exists only for these records. This keeps per-user battery
+  isolation working without hard-coding `user-1`.
+
+### 8.6 Verified
+
+- Health endpoint reports `dataSource: "postgres"`, `databaseConnected: true`.
+- User `alex.rivera@maxspace-energy.com` sees 8 batteries / 6 services;
+  `user-maxvolt` sees 1214 batteries; new sign-ups see 0 (isolation intact).
+- QR lookup (raw id and full QR payload), passport, and health-history resolve.
+- Admin analytics total 1222 batteries; admin to technician assign/unassign
+  round-trip verified.
+- No orphan batteries, no duplicate barcode/serial/modal_id.
