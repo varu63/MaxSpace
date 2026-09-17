@@ -1,8 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import jsQR from 'jsqr';
 import { useBattery } from '../../../context/BatteryContext';
-import { samplePresetBarcodes } from '../../../data/dummyData';
 import { Modal } from '../../common/Modal';
 import { 
   X, 
@@ -60,12 +59,32 @@ const DETECT_COOLDOWN_MS = 3000;
 export const QRBarcodeScannerModal = () => {
   const navigate = useNavigate();
   const { 
+    batteries,
     isScannerOpen, 
     closeScanner, 
     findBatteryByBarcode, 
     openAddBattery, 
     addToast 
   } = useBattery();
+
+  /* Presets are built from the operator's real fleet records (PostgreSQL),
+     so the "try a registered barcode" shortcuts never invent sample units. */
+  const fleetPresets = useMemo(
+    () =>
+      batteries
+        .filter((battery) => battery.barcode)
+        .slice(0, 10)
+        .map((battery) => ({
+          code: battery.barcode,
+          name: battery.modelName || battery.name || battery.barcode,
+          model:
+            battery.model ||
+            battery.chemistry ||
+            (battery.capacityKwh ? `${battery.capacityKwh} kWh` : "Battery"),
+          badge: "Existing in Fleet",
+        })),
+    [batteries]
+  );
 
   const [activeTab, setActiveTab] = useState('camera'); // 'camera' | 'presets' | 'manual' | 'upload'
   const [manualCode, setManualCode] = useState('');
@@ -482,26 +501,29 @@ export const QRBarcodeScannerModal = () => {
                 </button>
               )}
 
-              {/* Quick sample buttons below camera (trigger the real API lookup) */}
-              <div className="bg-[#F5F1E7] p-3 rounded-2xl border border-[#F0E6C8] flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs text-[#747B83] font-semibold">
-                  Try a registered fleet barcode:
-                </span>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => handleProcessBarcode('BATT-EV-9823-LFP')}
-                    className="px-3 py-1.5 rounded-lg bg-[#FBF1C9] hover:bg-[#B48611] hover:text-white text-[#A77A08] text-xs font-mono font-bold border border-[#F0E6C8] transition-colors"
-                  >
-                    ⚡ EV Pack (Registered)
-                  </button>
-                  <button
-                    onClick={() => handleProcessBarcode('BATT-ESS-4410-NMC')}
-                    className="px-3 py-1.5 rounded-lg bg-[#FFFDF8] hover:bg-[#E7E1D3] text-[#16263A] text-xs font-mono font-bold border border-[#E7E1D3] transition-colors shadow-sm"
-                  >
-                    ESS 15 kWh (Registered)
-                  </button>
+              {/* Real fleet barcodes below camera (trigger the real API lookup) */}
+              {fleetPresets.length > 0 && (
+                <div className="bg-[#F5F1E7] p-3 rounded-2xl border border-[#F0E6C8] flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs text-[#747B83] font-semibold">
+                    Try a registered fleet barcode:
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {fleetPresets.slice(0, 2).map((item, index) => (
+                      <button
+                        key={item.code}
+                        onClick={() => handleProcessBarcode(item.code)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold border transition-colors ${
+                          index === 0
+                            ? "bg-[#FBF1C9] hover:bg-[#B48611] hover:text-white text-[#A77A08] border-[#F0E6C8]"
+                            : "bg-[#FFFDF8] hover:bg-[#E7E1D3] text-[#16263A] border-[#E7E1D3] shadow-sm"
+                        }`}
+                      >
+                        {item.code}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
@@ -509,11 +531,16 @@ export const QRBarcodeScannerModal = () => {
           {activeTab === 'presets' && (
             <div className="space-y-3">
               <p className="text-xs text-[#747B83]">
-                Click any of the pre-configured hardware barcodes below to simulate an instant scan:
+                Click any of your registered fleet barcodes below to run an instant scan:
               </p>
-              
-              <div className="grid grid-cols-1 gap-2.5">
-                {samplePresetBarcodes.map((item) => (
+
+              {fleetPresets.length === 0 ? (
+                <div className="p-4 rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3] text-xs text-[#747B83]">
+                  No batteries registered yet. Use the Camera, Upload, or Manual Entry tabs to register your first battery.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-2.5">
+                {fleetPresets.map((item) => (
                   <div
                     key={item.code}
                     onClick={() => handleProcessBarcode(item.code)}
@@ -547,7 +574,8 @@ export const QRBarcodeScannerModal = () => {
                     </button>
                   </div>
                 ))}
-              </div>
+                </div>
+              )}
             </div>
           )}
 
