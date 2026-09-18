@@ -17,3 +17,4 @@ export { default as DownloadAppButton } from "./DownloadAppButton";
 export { default as FloatingDownloadButton } from "./FloatingDownloadButton";
 export { default as FAQ } from "./FAQ";
 export { default as GoogleSignInButton } from "./GoogleSignInButton";
+export { default as Pagination } from "./Pagination";

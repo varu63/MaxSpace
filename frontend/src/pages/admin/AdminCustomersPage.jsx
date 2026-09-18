@@ -1,30 +1,58 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { Search, Mail, Users, Calendar, Wrench, CheckCircle2, X } from "lucide-react";
 
 import { useAdmin } from "../../context/AdminContext";
-import { PageHeader, Card } from "../../components/common";
+import { PageHeader, Card, Pagination } from "../../components/common";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import StatusBadge from "../../components/admin/StatusBadge";
 import { formatDate } from "../../components/admin/adminUtils";
+import { fetchAdminCustomersPaginated, getErrorMessage } from "../../services/adminApi";
 
 const AdminCustomersPage = () => {
-  const { customers, loading } = useAdmin();
+  const { loading: contextLoading } = useAdmin();
   const [search, setSearch] = useState("");
+  const [customers, setCustomers] = useState([]);
+  const [pagination, setPagination] = useState(null);
+  const [fetching, setFetching] = useState(false);
+  const [error, setError] = useState("");
 
-  const filtered = useMemo(() => {
-    let list = [...customers];
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(
-        (c) =>
-          (c.name || "").toLowerCase().includes(q) ||
-          (c.email || "").toLowerCase().includes(q)
-      );
+  const total = pagination?.total ?? customers.length;
+
+  /* Server-side fetch — the backend applies the search filter and returns the
+     standard { data, pagination } envelope. */
+  const fetchPage = async (nextPage = 1, opts = {}) => {
+    setFetching(true);
+    try {
+      const result = await fetchAdminCustomersPaginated({
+        page: nextPage,
+        limit: 10,
+        search: opts.search !== undefined ? opts.search : search,
+      });
+      setCustomers(result.data || []);
+      setPagination(result.pagination || null);
+      setError("");
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setFetching(false);
     }
-    return list;
-  }, [customers, search]);
+  };
 
-  if (loading && customers.length === 0) {
+  useEffect(() => {
+    fetchPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Debounced search → reset to page 1.
+  useEffect(() => {
+    const timer = setTimeout(() => fetchPage(1, { search }), 350);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
+  const handlePageChange = (nextPage) => fetchPage(nextPage);
+
+  if ((fetching || contextLoading) && customers.length === 0) {
     return <LoadingSpinner />;
   }
 
@@ -33,7 +61,7 @@ const AdminCustomersPage = () => {
       <PageHeader
         icon={Users}
         title="Customers"
-        subtitle={`${customers.length} registered customer accounts`}
+        subtitle={`${total} registered customer account${total === 1 ? "" : "s"}`}
       />
 
       {/* Search & Filter bar */}
@@ -57,6 +85,12 @@ const AdminCustomersPage = () => {
         )}
       </div>
 
+      {error && (
+        <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-2xl px-4 py-3">
+          {error}
+        </div>
+      )}
+
       {/* Table */}
       <Card padded={false} className="overflow-hidden">
         <div className="overflow-x-auto">
@@ -71,7 +105,7 @@ const AdminCustomersPage = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#EEE9DA]">
-              {filtered.length === 0 ? (
+              {customers.length === 0 ? (
                 <tr>
                   <td colSpan="5" className="px-6 py-14 text-center text-[#747B83]">
                     <Users className="w-8 h-8 text-[#8A9096] mx-auto mb-2 opacity-50" />
@@ -80,7 +114,7 @@ const AdminCustomersPage = () => {
                   </td>
                 </tr>
               ) : (
-                filtered.map((customer) => (
+                customers.map((customer) => (
                   <tr key={customer.id} className="hover:bg-[#F5F1E7]/60 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3.5">
@@ -140,6 +174,8 @@ const AdminCustomersPage = () => {
           </table>
         </div>
       </Card>
+
+      <Pagination pagination={pagination} onPageChange={handlePageChange} />
     </div>
   );
 };

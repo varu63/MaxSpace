@@ -13,6 +13,11 @@ import {
   seedServicePersons,
   seedEmployeeUsers,
 } from "./seedData.js";
+import {
+  assertServiceIntegrity,
+} from "../utils/serviceValidation.js";
+import { paginateArray, compareSorted } from "../utils/pagination.js";
+import { todayISO } from "../utils/date.js";
 
 class Store {
   constructor() {
@@ -21,6 +26,20 @@ class Store {
     this.profiles = { "user-1": { ...seedUserProfile } };
     this.users = [...seedAdminUsers, ...seedRegularUsers, ...seedEmployeeUsers];
     this.servicePersons = [...seedServicePersons];
+    this.notifications = [];
+    this.batteryAlerts = [];
+    this.serviceEvidence = [];
+    this.serviceCheckins = [];
+    this.serviceSchedules = [];
+    this.technicianAvailability = [];
+    this.maintenanceSchedules = [];
+    this.organizations = [];
+    this.organizationMembers = [];
+    this.workspaces = [];
+    this.workspaceMembers = [];
+    this.invitations = [];
+    this.refreshTokens = [];
+    this.appSettings = {};
   }
 
   /* ---------- Users (multi-user with roles) ---------- */
@@ -84,10 +103,20 @@ class Store {
     return this.users.filter((u) => u.role === "USER");
   }
 
+  getUsersByIds(ids = []) {
+    const set = new Set(ids.filter(Boolean));
+    return this.users.filter((u) => set.has(u.id));
+  }
+
   /* ---------- Batteries ---------- */
   getAllBatteries(ownerId = null) {
     if (ownerId) return this.batteries.filter((b) => b.ownerId === ownerId);
     return this.batteries;
+  }
+
+  getBatteriesByIds(ids = []) {
+    const set = new Set(ids.filter(Boolean));
+    return this.batteries.filter((b) => set.has(b.id));
   }
 
   getBatteryById(id, ownerId = null) {
@@ -100,18 +129,50 @@ class Store {
   findBatteryByBarcodeOrSerial(code, ownerId = null) {
     const clean = String(code || "").trim().toUpperCase();
     if (!clean) return null;
+    const stripped = clean.replace(/^BATT-/, "");
+    const prefixed = clean.startsWith("BATT-") ? clean : `BATT-${clean}`;
     return (
       this.batteries.find((b) => {
+        const bCode = String(b.barcode || "").toUpperCase();
+        const bSerial = String(b.serialNumber || "").toUpperCase();
+        const bModal = String(b.modalId || "").toUpperCase();
+        const bId = String(b.id || "").toUpperCase();
         const matches =
-          String(b.barcode || "").toUpperCase() === clean ||
-          String(b.serialNumber || "").toUpperCase() === clean ||
-          String(b.modalId || "").toUpperCase() === clean ||
-          String(b.id || "").toUpperCase() === clean;
+          bCode === clean ||
+          bSerial === clean ||
+          bModal === clean ||
+          bId === clean ||
+          bId === prefixed ||
+          bModal === stripped ||
+          bSerial === stripped ||
+          bCode.includes(clean);
         if (!matches) return false;
         if (ownerId && b.ownerId !== ownerId) return false;
         return true;
       }) || null
     );
+  }
+
+  getBatteryRelatedDetails(battery) {
+    if (!battery) return {};
+    const user = battery.ownerId ? this.users.find((u) => u.id === battery.ownerId) : null;
+    return {
+      ownership: user
+        ? {
+            ownerId: user.id,
+            ownerName: user.name,
+            ownerEmail: user.email,
+            role: user.role,
+          }
+        : null,
+      bmsModel: battery.bmsModel || null,
+      bmsId: battery.bmsId || null,
+      weldingType: battery.weldingType || null,
+      seriesCount: battery.seriesCount || battery.cells || null,
+      parallelCount: battery.parallelCount || 1,
+      installationDate: battery.manufactureDate || null,
+      cellsDetail: [],
+    };
   }
 
   createBattery(battery) {
@@ -157,11 +218,15 @@ class Store {
   }
 
   createService(service) {
+    assertServiceIntegrity(service);
     this.services = [service, ...this.services];
     return service;
   }
 
   updateService(id, fields) {
+    const current = this.getServiceById(id);
+    if (!current) return null;
+    assertServiceIntegrity({ ...current, ...fields });
     let found = null;
     this.services = this.services.map((s) => {
       if (s.id === id) {
@@ -187,6 +252,11 @@ class Store {
 
   getServicePersonById(id) {
     return this.servicePersons.find((sp) => sp.id === id) || null;
+  }
+
+  getServicePersonsByIds(ids = []) {
+    const set = new Set(ids.filter(Boolean));
+    return this.servicePersons.filter((sp) => set.has(sp.id));
   }
 
   createServicePerson(person) {
@@ -247,6 +317,11 @@ class Store {
     return this.profiles[userId] || null;
   }
 
+  getProfilesByIds(userIds = []) {
+    const set = new Set(userIds.filter(Boolean));
+    return Object.values(this.profiles).filter((p) => p && set.has(p.id || p.userId));
+  }
+
   updateProfile(userId, fields = {}) {
     const { id, ...rest } = fields || {};
     if (rest.password) delete rest.password;
@@ -283,6 +358,99 @@ class Store {
     return found;
   }
 
+  /* ---------- Service Scheduling (P2.1) ---------- */
+  getServiceSchedule(serviceId) {
+    return this.serviceSchedules.find((s) => s.serviceId === serviceId) || null;
+  }
+
+  getServiceScheduleByScheduleId(id) {
+    return this.serviceSchedules.find((s) => s.id === id) || null;
+  }
+
+  createServiceSchedule(schedule) {
+    const row = {
+      id: schedule.id || `sched-${Date.now()}`,
+      serviceId: schedule.serviceId,
+      scheduledDate: schedule.scheduledDate,
+      startTime: schedule.startTime || "",
+      endTime: schedule.endTime || "",
+      technicianId: schedule.technicianId || null,
+      status: schedule.status || "Scheduled",
+      notes: schedule.notes || "",
+      createdAt: schedule.createdAt || todayISO(),
+      updatedAt: schedule.updatedAt || todayISO(),
+    };
+    this.serviceSchedules = [...this.serviceSchedules, row];
+    return row;
+  }
+
+  updateServiceSchedule(id, fields) {
+    let found = null;
+    this.serviceSchedules = this.serviceSchedules.map((s) => {
+      if (s.id === id) {
+        found = { ...s, ...fields, updatedAt: todayISO() };
+        return found;
+      }
+      return s;
+    });
+    return found;
+  }
+
+  deleteServiceSchedule(id) {
+    const before = this.serviceSchedules.length;
+    this.serviceSchedules = this.serviceSchedules.filter((s) => s.id !== id);
+    return this.serviceSchedules.length < before;
+  }
+
+  listServiceSchedules({ date = "", serviceId = "", technicianId = "" } = {}) {
+    return this.serviceSchedules.filter(
+      (s) =>
+        (!date || s.scheduledDate === date) &&
+        (!serviceId || s.serviceId === serviceId) &&
+        (!technicianId || s.technicianId === technicianId)
+    );
+  }
+
+  getTechnicianAvailability(servicePersonId) {
+    return this.technicianAvailability.filter((a) => a.servicePersonId === servicePersonId);
+  }
+
+  getTechnicianAvailabilityById(id) {
+    return this.technicianAvailability.find((a) => a.id === id) || null;
+  }
+
+  createTechnicianAvailability(avail) {
+    const row = {
+      id: avail.id || `avail-${Date.now()}`,
+      servicePersonId: avail.servicePersonId,
+      dayOfWeek: avail.dayOfWeek,
+      startTime: avail.startTime,
+      endTime: avail.endTime,
+      status: avail.status || "active",
+      createdAt: avail.createdAt || todayISO(),
+    };
+    this.technicianAvailability = [...this.technicianAvailability, row];
+    return row;
+  }
+
+  updateTechnicianAvailability(id, fields) {
+    let found = null;
+    this.technicianAvailability = this.technicianAvailability.map((a) => {
+      if (a.id === id) {
+        found = { ...a, ...fields };
+        return found;
+      }
+      return a;
+    });
+    return found;
+  }
+
+  deleteTechnicianAvailability(id) {
+    const before = this.technicianAvailability.length;
+    this.technicianAvailability = this.technicianAvailability.filter((a) => a.id !== id);
+    return this.technicianAvailability.length < before;
+  }
+
   /* ---------- Activity Logs ---------- */
   logActivity(userId, action, details, type = "general") {
     const log = {
@@ -307,6 +475,119 @@ class Store {
     this.profiles = { "user-1": { ...seedUserProfile } };
     this.users = [...seedAdminUsers, ...seedRegularUsers, ...seedEmployeeUsers];
     this.servicePersons = [...seedServicePersons];
+    this.notifications = [];
+    this.batteryAlerts = [];
+    this.serviceEvidence = [];
+    this.serviceCheckins = [];
+    this.serviceSchedules = [];
+    this.technicianAvailability = [];
+    this.maintenanceSchedules = [];
+    this.organizations = [];
+    this.organizationMembers = [];
+    this.workspaces = [];
+    this.workspaceMembers = [];
+    this.invitations = [];
+    this.refreshTokens = [];
+    this.appSettings = {};
+  }
+
+  /* ------------------------------------------------------------
+     PAGINATED LISTINGS (mock mirror of the postgres repository)
+     Controllers that want the standard envelope call these; callers
+     that pass no page/limit keep the legacy behavior. All returns:
+       { data, pagination }
+  ------------------------------------------------------------ */
+
+  listBatteries({ ownerId = null, page = 1, limit = 20, search = "", sort = "", order = "asc" } = {}) {
+    let list = ownerId
+      ? this.batteries.filter((b) => b.ownerId === ownerId)
+      : [...this.batteries];
+
+    const q = String(search || "").trim().toLowerCase();
+    if (q) {
+      const needle = (v) => String(v ?? "").toLowerCase().includes(q);
+      list = list.filter(
+        (b) =>
+          needle(b.id) ||
+          needle(b.barcode) ||
+          needle(b.serialNumber) ||
+          needle(b.modalId) ||
+          needle(b.name) ||
+          needle(b.modelName) ||
+          needle(b.chemistry) ||
+          needle(b.manufacturer)
+      );
+    }
+
+    list.sort((a, b) => compareSorted(a, b, sort, order));
+    return paginateArray(list, { page, limit });
+  }
+
+  listServices({
+    customerId = null,
+    status = "",
+    search = "",
+    page = 1,
+    limit = 20,
+    sort = "",
+    order = "asc",
+  } = {}) {
+    let list = customerId
+      ? this.services.filter((s) => s.customerId === customerId)
+      : [...this.services];
+
+    if (status) list = list.filter((s) => s.status === status);
+
+    const q = String(search || "").trim().toLowerCase();
+    if (q) {
+      const needle = (v) => String(v ?? "").toLowerCase().includes(q);
+      list = list.filter(
+        (s) =>
+          needle(s.id) ||
+          needle(s.ticketNumber) ||
+          needle(s.batteryId) ||
+          needle(s.batteryName) ||
+          needle(s.serviceType) ||
+          needle(s.center) ||
+          needle(s.status)
+      );
+    }
+
+    list.sort((a, b) => compareSorted(a, b, sort, order));
+    return paginateArray(list, { page, limit });
+  }
+
+  listServicePersons({ status = "", search = "", page = 1, limit = 20, sort = "", order = "asc" } = {}) {
+    let list = [...this.servicePersons];
+    if (status) list = list.filter((sp) => sp.status === status);
+
+    const q = String(search || "").trim().toLowerCase();
+    if (q) {
+      const needle = (v) => String(v ?? "").toLowerCase().includes(q);
+      list = list.filter(
+        (sp) =>
+          needle(sp.id) ||
+          needle(sp.technicianId) ||
+          needle(sp.name) ||
+          needle(sp.email) ||
+          needle(sp.specialization) ||
+          needle(sp.certification)
+      );
+    }
+
+    list.sort((a, b) => compareSorted(a, b, sort, order));
+    return paginateArray(list, { page, limit });
+  }
+
+  listCustomers({ search = "", page = 1, limit = 20, sort = "", order = "asc" } = {}) {
+    let list = this.users.filter((u) => u.role === "USER");
+    const q = String(search || "").trim().toLowerCase();
+    if (q) {
+      const needle = (v) => String(v ?? "").toLowerCase().includes(q);
+      list = list.filter((c) => needle(c.id) || needle(c.name) || needle(c.email));
+    }
+    list.sort((a, b) => compareSorted(a, b, sort, order));
+    return paginateArray(list, { page, limit });
   }
 }
 

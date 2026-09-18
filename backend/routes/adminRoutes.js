@@ -21,6 +21,19 @@ import {
   getCustomers,
   getAdminAnalytics,
 } from "../controllers/adminController.js";
+import {
+  getSchedules,
+  createSchedule,
+  updateSchedule,
+  deleteSchedule,
+  getAvailableTechnicians,
+  syncSchedules,
+  refreshScheduleFromService,
+  getTechnicianAvailability,
+  createTechnicianAvailability,
+  updateTechnicianAvailability,
+  deleteTechnicianAvailability,
+} from "../controllers/adminSchedulingController.js";
 import { protect, requireAdmin } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -59,5 +72,19 @@ router.patch("/technicians/:id/reset-password", protect, requireAdmin, resetTech
 
 router.get("/customers", protect, requireAdmin, getCustomers);
 router.get("/analytics", protect, requireAdmin, getAdminAnalytics);
+
+// P2.1 Scheduling + technician availability
+router.get("/schedules", protect, requireAdmin, getSchedules);
+router.post("/schedules", protect, requireAdmin, createSchedule);
+router.patch("/schedules/:id", protect, requireAdmin, updateSchedule);
+router.delete("/schedules/:id", protect, requireAdmin, deleteSchedule);
+router.get("/schedules/available", protect, requireAdmin, getAvailableTechnicians);
+router.post("/schedules/sync", protect, requireAdmin, syncSchedules);
+router.post("/schedules/upsert-service", protect, requireAdmin, refreshScheduleFromService);
+
+router.get("/technician-availability", protect, requireAdmin, getTechnicianAvailability);
+router.post("/technician-availability", protect, requireAdmin, createTechnicianAvailability);
+router.patch("/technician-availability/:id", protect, requireAdmin, updateTechnicianAvailability);
+router.delete("/technician-availability/:id", protect, requireAdmin, deleteTechnicianAvailability);
 
 export default router;

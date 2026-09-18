@@ -2,6 +2,8 @@ import store from "../data/index.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { signToken, sanitizeUser, matchesPassword } from "../utils/auth.js";
 import { VALID_STATUSES } from "../constants/serviceStatuses.js";
+import { parsePagination, buildPagination } from "../utils/pagination.js";
+import { enrichServiceSummaries, enrichServiceDetail } from "../utils/serviceEnrichment.js";
 
 /* Battery Technician status transitions — only these moves are allowed for employees */
 const EMPLOYEE_ALLOWED_TRANSITIONS = {
@@ -103,53 +105,54 @@ export const getAssignedServices = asyncHandler(async (req, res) => {
     return res.json([]);
   }
 
-  const allServices = await store.getAllServices();
-  const batteries = await store.getAllBatteries();
-  const users = await store.getAllUsers();
+  const { page, limit } = parsePagination(req.query);
+  const paginated = req.query.page !== undefined || req.query.limit !== undefined;
 
   const assignedIds = servicePerson.assignedServices || [];
-  const assigned = allServices.filter((s) => assignedIds.includes(s.id));
 
-  const profileMap = {};
-  await Promise.all(
-    users
-      .filter((u) => u.role === "USER")
-      .map(async (c) => {
-        profileMap[c.id] = await store.getProfile(c.id);
-      })
-  );
+  // No page/limit → legacy behavior (full enriched array).
+  if (!paginated) {
+    const { data: all } = await store.listServices({
+      status: req.query.status || "",
+      search: req.query.search || "",
+      page: 1,
+      limit: 100000,
+    });
+    const assigned = all.filter((s) => assignedIds.includes(s.id));
+    const enriched = await enrichServiceSummaries(store, assigned);
+    return res.json(enriched);
+  }
 
-  const enriched = assigned.map((s) => {
-    const battery = batteries.find((b) => b.id === s.batteryId);
-    const customer = users.find((u) => u.id === s.customerId);
-    const customerProfile = profileMap[s.customerId];
-    return {
-      ...s,
-      battery: battery
-        ? {
-            id: battery.id,
-            name: battery.name,
-            modelName: battery.modelName,
-            chemistry: battery.chemistry,
-            type: battery.type,
-            serialNumber: battery.serialNumber,
-            barcode: battery.barcode,
-            location: battery.location,
-          }
-        : null,
-      customer: customer
-        ? {
-            id: customer.id,
-            name: customer.name,
-            email: customer.email,
-            phone: customer.phone || (customerProfile && customerProfile.phone) || "",
-            location: customer.location || (customerProfile && customerProfile.location) || "",
-          }
-        : null,
-    };
+  // Page inside the already-filtered assigned set. The mock store filters
+  // in memory; the postgres store resolves the assigned subset first, then
+  // applies offset/limit.
+  const allAssigned = await store.listServices({ page: 1, limit: 100000 });
+  const status = req.query.status || "";
+  const q = String(req.query.search || "").trim().toLowerCase();
+  let subset = allAssigned.data.filter((s) => assignedIds.includes(s.id));
+  if (status) subset = subset.filter((s) => s.status === status);
+  if (q) {
+    const needle = (v) => String(v ?? "").toLowerCase().includes(q);
+    subset = subset.filter(
+      (s) =>
+        needle(s.id) ||
+        needle(s.ticketNumber) ||
+        needle(s.batteryId) ||
+        needle(s.batteryName) ||
+        needle(s.serviceType) ||
+        needle(s.center) ||
+        needle(s.status)
+    );
+  }
+  const start = (page - 1) * limit;
+  const slice = subset.slice(start, start + limit);
+  const enriched = await enrichServiceSummaries(store, slice);
+
+  res.json({
+    success: true,
+    data: enriched,
+    pagination: buildPagination(page, limit, subset.length),
   });
-
-  res.json(enriched);
 });
 
 // GET /api/battery-technician/services/:id — get a specific assigned service

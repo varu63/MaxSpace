@@ -1,21 +1,36 @@
 import store from "../data/index.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { todayISO } from "../utils/date.js";
+import { parsePagination } from "../utils/pagination.js";
+import { upsertScheduleForService } from "../services/schedulerService.js";
 import { VALID_STATUSES, isActiveStatus, isCancelled } from "../constants/serviceStatuses.js";
 
 // GET /api/services
 export const getServices = asyncHandler(async (req, res) => {
-  const { batteryId, status } = req.query;
-  let services = await store.getServicesByCustomerId(req.user.id);
+  const batteryId = req.query.batteryId;
+  const status = req.query.status || "";
+  const paginated = req.query.page !== undefined || req.query.limit !== undefined;
+  const { page, limit } = parsePagination(req.query);
+
+  const results = await store.listServices({
+    customerId: req.user.id,
+    status,
+    // Non-paginated callers expect the full array (legacy behavior).
+    page: paginated ? page : 1,
+    limit: paginated ? limit : 100000,
+    sort: req.query.sort,
+    order: req.query.order,
+  });
+
+  let data = results.data;
   if (batteryId) {
-    services = services.filter((s) => s.batteryId === batteryId);
+    data = data.filter((s) => s.batteryId === batteryId);
   }
 
-  if (status) {
-    services = services.filter((s) => s.status === status);
+  if (paginated) {
+    return res.json({ success: true, data, pagination: results.pagination });
   }
-
-  res.json(services);
+  res.json(data);
 });
 
 // GET /api/services/:id
@@ -102,6 +117,13 @@ export const createService = asyncHandler(async (req, res) => {
     `Ticket #${newService.ticketNumber} for ${newService.batteryName}`,
     "service"
   );
+
+  // P2.1: create the schedule slot when the request carries a preferred date.
+  try {
+    await upsertScheduleForService(store, newService);
+  } catch {
+    // Non-fatal — the admin scheduling board can backfill later via /schedules/sync.
+  }
 
   res.status(201).json(newService);
 });

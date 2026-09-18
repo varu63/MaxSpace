@@ -287,13 +287,18 @@ export const BatteryProvider = ({ children }) => {
     [addToast, logActivity, batteries]
   );
 
+  /* Look up a scanned/entered identifier against the backend. Returns null
+     when the code is a valid format but no battery exists (404); any other
+     failure (network, 4xx validation, 5xx database) is re-thrown so the UI can
+     show the right message instead of pretending the unit is unregistered. */
   const findBatteryByBarcode = useCallback(async (code) => {
     if (!code) return null;
     try {
       const battery = await api.lookupBattery(code);
       return battery || null;
-    } catch {
-      return null;
+    } catch (error) {
+      if (error?.status === 404) return null;
+      throw error;
     }
   }, []);
 

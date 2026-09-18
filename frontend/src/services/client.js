@@ -64,7 +64,11 @@ const client = async (path, { method = "GET", body, auth = true, admin = false, 
   }
 
   if (!response.ok) {
-    throw new Error(data?.message || `Request failed (${response.status})`);
+    // Attach the HTTP status so callers can distinguish "not found" (404)
+    // from validation errors (4xx) and backend/database failures (5xx).
+    const error = new Error(data?.message || `Request failed (${response.status})`);
+    error.status = response.status;
+    throw error;
   }
 
   return data;

@@ -56,6 +56,108 @@ const hasQrIdentifier = (parsed) =>
    QR held in front of the lens does not fire the lookup repeatedly. */
 const DETECT_COOLDOWN_MS = 3000;
 
+/* Whether this page can use the camera at all. getUserMedia is only exposed in
+   a secure context (https://, http://localhost, file://); on a plain-HTTP
+   hosted/mobile page `navigator.mediaDevices` is undefined even though the
+   browser fully supports cameras. Checking the secure context first lets us
+   report the true cause instead of a misleading "camera not supported". */
+const getCameraSupportError = () => {
+  if (typeof window !== 'undefined' && window.isSecureContext === false) {
+    return {
+      code: 'insecure',
+      message:
+        'Camera scanning requires a secure (HTTPS) connection. Open this page over HTTPS, or use the Upload / Manual entry options below.',
+    };
+  }
+  if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+    return {
+      code: 'unsupported',
+      message:
+        'This browser does not support camera access. Use the Upload or Manual entry options below instead.',
+    };
+  }
+  return null;
+};
+
+/* Distinct, user-actionable messages for the ways getUserMedia can fail. */
+const describeCameraError = (error) => {
+  switch (error?.name) {
+    case 'NotAllowedError':
+    case 'PermissionDeniedError':
+    case 'SecurityError':
+      return {
+        code: 'denied',
+        message:
+          'Camera permission was denied. Allow camera access for this site in your browser settings, then tap "Scan with Camera" again — or use Upload / Manual entry.',
+      };
+    case 'NotFoundError':
+    case 'DevicesNotFoundError':
+      return {
+        code: 'unavailable',
+        message:
+          'No camera was found on this device. Use the Upload or Manual entry options below instead.',
+      };
+    case 'NotReadableError':
+    case 'TrackStartError':
+      return {
+        code: 'busy',
+        message:
+          'The camera is already in use by another app. Close other camera apps and try again — or use Upload / Manual entry.',
+      };
+    case 'OverconstrainedError':
+    case 'ConstraintNotSatisfiedError':
+      return {
+        code: 'constraints',
+        message:
+          'This device does not support the requested camera mode. Try again — or use Upload / Manual entry.',
+      };
+    case 'NotSupportedError':
+      return {
+        code: 'unsupported',
+        message:
+          'This browser does not support camera access. Use the Upload or Manual entry options below instead.',
+      };
+    default:
+      return {
+        code: 'unknown',
+        message:
+          'The camera could not be started. Use the Upload or Manual entry options below, or try again.',
+      };
+  }
+};
+
+/* Prefer the rear/environment camera, with graceful fallbacks for browsers and
+   WebViews that reject constraint objects. */
+const CAMERA_CONSTRAINTS = [
+  { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+  { video: { facingMode: 'environment' } },
+  { video: true },
+];
+
+const requestCameraStream = async () => {
+  let lastError = null;
+  for (const constraints of CAMERA_CONSTRAINTS) {
+    try {
+      return await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (error) {
+      lastError = error;
+      // A denied/blocked/unavailable camera will not succeed with looser
+      // constraints, so stop early and surface the real reason.
+      const fatal = [
+        'NotAllowedError',
+        'PermissionDeniedError',
+        'SecurityError',
+        'NotFoundError',
+        'DevicesNotFoundError',
+        'NotReadableError',
+        'TrackStartError',
+      ];
+      if (fatal.includes(error?.name)) break;
+    }
+  }
+  throw lastError || new Error('Camera unavailable');
+};
+
 export const QRBarcodeScannerModal = () => {
   const navigate = useNavigate();
   const { 
@@ -89,12 +191,16 @@ export const QRBarcodeScannerModal = () => {
   const [activeTab, setActiveTab] = useState('camera'); // 'camera' | 'presets' | 'manual' | 'upload'
   const [manualCode, setManualCode] = useState('');
   const [cameraActive, setCameraActive] = useState(false);
-  const [cameraError, setCameraError] = useState('');
+  const [cameraStarting, setCameraStarting] = useState(false);
+  /* { code, message } — `code` selects the guidance/retry affordances. */
+  const [cameraError, setCameraError] = useState(null);
   const [lookingUp, setLookingUp] = useState(false);
   const [recentScanResult, setRecentScanResult] = useState(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const rafRef = useRef(null);
+  const streamRef = useRef(null);
+  const cameraSessionRef = useRef(0);
   const lastDetectedRef = useRef({ code: "", at: 0 });
 
   const handleProcessBarcode = useCallback(
@@ -149,12 +255,19 @@ export const QRBarcodeScannerModal = () => {
           addToast('New Battery Scanned', `Barcode ${lookupId} is ready for passport creation.`, 'info');
         }
       } catch (error) {
-        setRecentScanResult({
-          status: 'error',
-          code,
-          error: 'The battery lookup failed. Please check your connection and try again.',
-        });
-        addToast('Lookup Failed', error?.message || 'Could not reach the battery service.', 'error');
+        const status = error?.status;
+        let errorText;
+        if (status === 400) {
+          errorText = 'That code is not a valid battery identifier. Check the QR / barcode and try again.';
+        } else if (status >= 500) {
+          errorText = 'The battery database is unavailable right now. Please try again in a moment.';
+        } else if (!status) {
+          errorText = 'Cannot reach the battery service. Check your connection and try again.';
+        } else {
+          errorText = 'The battery lookup failed. Please try again, or switch to manual entry.';
+        }
+        setRecentScanResult({ status: 'error', code, error: errorText });
+        addToast('Lookup Failed', error?.message || errorText, 'error');
       } finally {
         setLookingUp(false);
       }
@@ -205,50 +318,88 @@ export const QRBarcodeScannerModal = () => {
     rafRef.current = requestAnimationFrame(scanFrame);
   }, [handleProcessBarcode]);
 
-  // Setup webcam when on camera tab
-  useEffect(() => {
-    let stream = null;
-
-    if (isScannerOpen && activeTab === 'camera') {
-      setCameraError('');
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        navigator.mediaDevices
-          .getUserMedia({ video: { facingMode: 'environment' } })
-          .then((mediaStream) => {
-            stream = mediaStream;
-            if (videoRef.current) {
-              videoRef.current.srcObject = mediaStream;
-              videoRef.current.play().catch(() => {});
-            }
-            setCameraActive(true);
-            setCameraError('');
-            // Start decoding frames
-            lastDetectedRef.current = { code: "", at: 0 };
-            startScanLoop();
-          })
-          .catch((err) => {
-            console.warn('Webcam unavailable', err);
-            setCameraActive(false);
-            setCameraError(
-              err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError'
-                ? 'Camera permission denied. Please allow camera access or use manual entry / image upload.'
-                : 'No camera detected. Try manual entry or image upload instead.'
-            );
-          });
-      } else {
-        setCameraError('Camera is not available in this browser. Try manual entry or image upload instead.');
+  /* Release the camera hardware and stop the decode loop. Safe to call when
+     nothing is running. Bumping the session id invalidates any in-flight
+     getUserMedia so its stream is stopped instead of leaking. */
+  const stopCamera = useCallback(() => {
+    cameraSessionRef.current += 1;
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    const stream = streamRef.current;
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      try {
+        videoRef.current.srcObject = null;
+      } catch {
+        // Some browsers reject clearing srcObject — ignore.
       }
     }
+    setCameraActive(false);
+    setCameraStarting(false);
+  }, []);
 
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-      }
+  /* Explicitly start the rear camera. Only ever called from the user's
+     "Scan with Camera" tap, so the permission prompt is user-initiated. */
+  const startCamera = useCallback(async () => {
+    setRecentScanResult(null);
+
+    const supportError = getCameraSupportError();
+    if (supportError) {
       setCameraActive(false);
-    };
-  }, [isScannerOpen, activeTab, startScanLoop]);
+      setCameraStarting(false);
+      setCameraError(supportError);
+      return;
+    }
+
+    stopCamera();
+    setCameraError(null);
+    setCameraStarting(true);
+
+    const session = cameraSessionRef.current;
+    let stream;
+    try {
+      stream = await requestCameraStream();
+    } catch (error) {
+      setCameraStarting(false);
+      setCameraError(describeCameraError(error));
+      return;
+    }
+
+    // Modal closed / tab switched / restarted while the prompt was open.
+    if (session !== cameraSessionRef.current) {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+
+    streamRef.current = stream;
+    const video = videoRef.current;
+    if (video) {
+      video.srcObject = stream;
+      try {
+        await video.play();
+      } catch {
+        // Autoplay may be deferred; the frame loop tolerates a paused start.
+      }
+    }
+    setCameraActive(true);
+    setCameraStarting(false);
+    setCameraError(null);
+    lastDetectedRef.current = { code: "", at: 0 };
+    startScanLoop();
+  }, [startScanLoop, stopCamera]);
+
+  // Release the camera the moment the scanner closes or another tab is chosen.
+  useEffect(() => {
+    if (!isScannerOpen || activeTab !== 'camera') {
+      stopCamera();
+    }
+  }, [isScannerOpen, activeTab, stopCamera]);
+
+  // Final safety net: always release the camera on unmount.
+  useEffect(() => stopCamera, [stopCamera]);
 
   // Reset detected-code memory when the modal closes so re-opening rescans
   useEffect(() => {
@@ -378,7 +529,7 @@ export const QRBarcodeScannerModal = () => {
             }`}
           >
             <Camera className="w-4 h-4 text-[#B48611]" />
-            <span>Live Camera / HUD</span>
+            <span>Scan with Camera</span>
           </button>
 
           <button
@@ -408,7 +559,7 @@ export const QRBarcodeScannerModal = () => {
             }`}
           >
             <Barcode className="w-4 h-4 text-[#B48611]" />
-            <span>Manual Code Entry</span>
+            <span>Enter QR/Battery ID</span>
           </button>
 
           <button
@@ -423,7 +574,7 @@ export const QRBarcodeScannerModal = () => {
             }`}
           >
             <UploadCloud className="w-4 h-4 text-[#B48611]" />
-            <span>Upload Image</span>
+            <span>Upload QR Image</span>
           </button>
         </div>
 
@@ -440,6 +591,7 @@ export const QRBarcodeScannerModal = () => {
                   ref={videoRef}
                   playsInline
                   muted
+                  autoPlay
                   className={`absolute inset-0 w-full h-full object-cover ${cameraActive ? 'opacity-80' : 'hidden'}`}
                 />
 
@@ -469,36 +621,105 @@ export const QRBarcodeScannerModal = () => {
                         <FileSearch className="w-16 h-16 text-yellow-400/60" />
                       )}
                       <span className="text-[11px] font-mono text-yellow-300 font-bold mt-2 bg-[#173B5C]/90 px-3 py-1 rounded-full border border-yellow-400/30">
-                        {cameraActive ? 'Align QR Code within Frame' : 'Camera Is Off'}
+                        {cameraActive
+                          ? 'Align QR Code within Frame'
+                          : cameraStarting
+                            ? 'Starting Camera…'
+                            : 'Camera Is Off'}
                       </span>
                     </div>
                   </div>
                 </div>
 
                 {/* Camera Status / Error Badge */}
-                <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-[11px] text-[#E7E1D3] bg-[#173B5C]/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-[#102F4A]">
+                <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2 text-[11px] text-[#E7E1D3] bg-[#173B5C]/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-[#102F4A]">
                   {cameraError ? (
-                    <span className="flex items-center gap-1.5 font-medium text-[#F8C7C7]">
-                      <AlertTriangle className="w-3.5 h-3.5" />
-                      {cameraError}
+                    <span className="flex items-center gap-1.5 font-medium text-[#F8C7C7] truncate">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      {cameraError.code === 'insecure' ? 'HTTPS required for camera' : 'Camera unavailable'}
                     </span>
                   ) : (
                     <span className="flex items-center gap-1.5 font-medium">
-                      <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></span>
-                      {cameraActive ? 'Optical Scanner Live — decoding in real time' : 'Starting camera…'}
+                      <span
+                        className={`w-2 h-2 rounded-full ${
+                          cameraActive ? 'bg-yellow-400 animate-pulse' : 'bg-[#8A9096]'
+                        }`}
+                      ></span>
+                      {cameraActive
+                        ? 'Optical Scanner Live — decoding in real time'
+                        : cameraStarting
+                          ? 'Starting camera…'
+                          : 'Camera is off'}
                     </span>
                   )}
                   <span className="font-mono text-yellow-400 font-bold">EU-DPP-OPTICAL</span>
                 </div>
               </div>
 
-              {cameraError && (
+              {/* Camera controls — permission is only requested from this
+                  explicit user tap (never automatically on open). */}
+              {!cameraActive && !cameraStarting && !cameraError && (
                 <button
-                  onClick={closeScanner}
+                  onClick={startCamera}
+                  className="w-full py-3 rounded-xl bg-[#173B5C] hover:bg-[#102F4A] text-white text-sm font-black shadow-sm transition-colors flex items-center justify-center gap-2"
+                >
+                  <Camera className="w-4 h-4" />
+                  Scan with Camera
+                </button>
+              )}
+
+              {cameraStarting && (
+                <div className="w-full py-3 rounded-xl bg-[#F5F1E7] border border-[#E7E1D3] text-xs font-semibold text-[#16263A] flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 text-[#B48611] animate-spin" />
+                  Waiting for camera permission…
+                </div>
+              )}
+
+              {cameraActive && (
+                <button
+                  onClick={stopCamera}
                   className="w-full py-2.5 rounded-xl bg-[#F5F1E7] border border-[#E7E1D3] text-[#16263A] text-xs font-bold hover:bg-[#E7E1D3] transition-colors"
                 >
-                  Use Manual Entry or Image Upload instead
+                  Stop Camera
                 </button>
+              )}
+
+              {cameraError && (
+                <div className="p-4 rounded-2xl bg-[#FBEDED] border border-[#F2C4C0] space-y-3">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-[#B03A2E] shrink-0 mt-0.5" />
+                    <p className="text-xs font-semibold text-[#B03A2E]">{cameraError.message}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {cameraError.code !== 'insecure' && cameraError.code !== 'unsupported' && (
+                      <button
+                        onClick={startCamera}
+                        className="px-4 py-2 rounded-xl bg-[#173B5C] hover:bg-[#102F4A] text-white text-xs font-black transition-colors flex items-center gap-1.5"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        Try Camera Again
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        setActiveTab('upload');
+                        setRecentScanResult(null);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-[#FFFDF8] border border-[#E7E1D3] text-[#16263A] text-xs font-bold hover:bg-[#F5F1E7] transition-colors"
+                    >
+                      Upload QR Image
+                    </button>
+                    <button
+                      onClick={() => {
+                        setActiveTab('manual');
+                        setRecentScanResult(null);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-[#FFFDF8] border border-[#E7E1D3] text-[#16263A] text-xs font-bold hover:bg-[#F5F1E7] transition-colors"
+                    >
+                      Enter ID Manually
+                    </button>
+                  </div>
+                </div>
               )}
 
               {/* Real fleet barcodes below camera (trigger the real API lookup) */}
@@ -618,7 +839,7 @@ export const QRBarcodeScannerModal = () => {
             </div>
           )}
 
-          {/* 4. Upload Image Tab */}
+          {/* 4. Upload QR Image Tab */}
           {activeTab === 'upload' && (
             <div className="space-y-4">
               <label className="border-2 border-dashed border-[#E7E1D3] hover:border-[#B48611] rounded-3xl p-8 flex flex-col items-center justify-center cursor-pointer bg-[#F5F1E7] hover:bg-[#FBF1C9]/40 transition-all text-center">
@@ -717,7 +938,7 @@ export const QRBarcodeScannerModal = () => {
                   onClick={() => {
                     setRecentScanResult(null);
                     lastDetectedRef.current = { code: "", at: 0 };
-                    if (activeTab === 'camera') startScanLoop();
+                    if (activeTab === 'camera' && cameraActive) startScanLoop();
                   }}
                   className="px-4 py-2 rounded-xl bg-[#FFFDF8] border border-[#E7E1D3] text-[#16263A] text-xs font-bold hover:bg-[#F5F1E7] transition-colors shadow-sm"
                 >

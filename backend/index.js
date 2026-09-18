@@ -23,7 +23,8 @@ app.use(helmet());
 // CORS
 app.use(
   cors({
-    origin: config.clientUrl,
+    // origin: config.clientUrl,
+    origin: "*", // Allow all origins for development; change to specific origin in production
     credentials: true,
   })
 );
@@ -84,7 +85,7 @@ app.use(notFound);
 app.use(errorHandler);
 
 // Start server
-app.listen(config.port, () => {
+app.listen(config.port, "0.0.0.0", () => {
   const dbMode = config.db.dataSource === "postgres" ? "PostgreSQL" : "mock (in-memory seed)";
   console.log(`🚀 MaxSpace API running on http://localhost:${config.port} (data source: ${dbMode})`);
 });

@@ -1,6 +1,7 @@
 import store from "../data/index.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { todayISO, todayMonth } from "../utils/date.js";
+import { parsePagination } from "../utils/pagination.js";
 import {
   normalizeBatteryIdentifier,
   resolveBatteryByIdentifier,
@@ -19,17 +20,41 @@ export const getBatteries = asyncHandler(async (req, res) => {
     const battery = await store.findBatteryByBarcodeOrSerial(code, req.user.id);
     return res.json(battery ? [battery] : []);
   }
-  res.json(await store.getAllBatteries(req.user.id));
+
+  const { page, limit } = parsePagination(req.query);
+  const paginated = req.query.page !== undefined || req.query.limit !== undefined;
+
+  const results = await store.listBatteries({
+    ownerId: req.user.id,
+    search: req.query.search || "",
+    page,
+    limit,
+    sort: req.query.sort,
+    order: req.query.order,
+  });
+
+  if (paginated) {
+    return res.json({ success: true, data: results.data, pagination: results.pagination });
+  }
+  // Legacy behavior: the caller omitted page/limit → plain array.
+  const legacy = await store.getAllBatteries(req.user.id);
+  res.json(legacy);
 });
 
 // GET /api/batteries/:id
 export const getBattery = asyncHandler(async (req, res) => {
-  const battery = await resolveBatteryByIdentifier(store, req.params.id, req.user.id);
+  const battery = await resolveBatteryByIdentifier(store, req.params.id);
   if (!battery) {
     res.status(404);
     throw new Error("Battery not found");
   }
-  res.json(battery);
+
+  const details =
+    typeof store.getBatteryRelatedDetails === "function"
+      ? await store.getBatteryRelatedDetails(battery)
+      : {};
+
+  res.json({ ...battery, ...details });
 });
 
 // GET /api/batteries/lookup?barcode=...|serial=...|id=...|code=...
@@ -42,17 +67,23 @@ export const lookupBattery = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "A battery identifier is required" });
   }
 
-  const battery = await store.findBatteryByBarcodeOrSerial(identifier, req.user.id);
+  const battery = await resolveBatteryByIdentifier(store, identifier);
   if (!battery) {
     return res.status(404).json({ message: "No battery found for the provided identifier" });
   }
-  res.json(battery);
+
+  const details =
+    typeof store.getBatteryRelatedDetails === "function"
+      ? await store.getBatteryRelatedDetails(battery)
+      : {};
+
+  res.json({ ...battery, ...details });
 });
 
 // GET /api/batteries/:id/passport
 // Accepts an internal id, a barcode, a serial number, or a full EU DPP
 // QR payload URI. Fetches the battery record plus its related service /
-// maintenance history from the database and returns a structured passport.
+// maintenance history and production records from the database and returns a structured passport.
 export const getBatteryPassport = asyncHandler(async (req, res) => {
   const identifier = normalizeBatteryIdentifier(req.params.id);
   if (!identifier) {
@@ -60,7 +91,7 @@ export const getBatteryPassport = asyncHandler(async (req, res) => {
     throw new Error("A battery identifier is required");
   }
 
-  const battery = await resolveBatteryByIdentifier(store, identifier, req.user.id);
+  const battery = await resolveBatteryByIdentifier(store, identifier);
   if (!battery) {
     res.status(404);
     throw new Error("Battery not found");
@@ -68,18 +99,27 @@ export const getBatteryPassport = asyncHandler(async (req, res) => {
 
   // Related records: service & maintenance history for this battery.
   const serviceHistory = await store.getServicesByBatteryId(battery.id);
+  const details =
+    typeof store.getBatteryRelatedDetails === "function"
+      ? await store.getBatteryRelatedDetails(battery)
+      : {};
+
+  const fullBattery = {
+    ...battery,
+    ...details,
+  };
 
   res.json({
-    battery,
+    battery: fullBattery,
     serviceHistory,
     generatedAt: new Date().toISOString(),
-    qrUrl: battery.qrCode || `https://passport.battery-eu.org/passports/${battery.barcode}`,
+    qrUrl: battery.qrCode || `https://passport.battery-eu.org/passports/${battery.modalId || battery.barcode}`,
   });
 });
 
 // GET /api/batteries/:id/health-history
 export const getBatteryHealthHistory = asyncHandler(async (req, res) => {
-  const battery = await store.getBatteryById(req.params.id, req.user.id);
+  const battery = await resolveBatteryByIdentifier(store, req.params.id);
   if (!battery) {
     res.status(404);
     throw new Error("Battery not found");

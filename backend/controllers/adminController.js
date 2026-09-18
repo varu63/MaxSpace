@@ -4,6 +4,12 @@ import { asyncHandler } from "../middleware/asyncHandler.js";
 import { signToken, sanitizeUser, matchesPassword } from "../utils/auth.js";
 import { todayISO } from "../utils/date.js";
 import { VALID_STATUSES, isActiveStatus } from "../constants/serviceStatuses.js";
+import { upsertScheduleForService } from "../services/schedulerService.js";
+import { parsePagination } from "../utils/pagination.js";
+import {
+  enrichServiceSummaries,
+  enrichServiceDetail,
+} from "../utils/serviceEnrichment.js";
 
 // POST /api/admin/login
 export const adminLogin = asyncHandler(async (req, res) => {
@@ -52,77 +58,32 @@ export const adminLogout = asyncHandler(async (req, res) => {
 
 // GET /api/admin/services
 export const getAdminServices = asyncHandler(async (req, res) => {
-  const services = await store.getAllServices();
-  const batteries = await store.getAllBatteries();
-  const users = await store.getAllUsers();
-  const servicePersons = await store.getAllServicePersons();
+  const { page, limit } = parsePagination(req.query);
+  const paginated = req.query.page !== undefined || req.query.limit !== undefined;
 
-  // Per-customer profile map (phone/location live on the customer's own profile).
-  const profileMap = {};
-  await Promise.all(
-    users
-      .filter((u) => u.role === "USER")
-      .map(async (c) => {
-        profileMap[c.id] = await store.getProfile(c.id);
-      })
-  );
+  // No page/limit → legacy behavior (full enriched array).
+  if (!paginated) {
+    const { data: all } = await store.listServices({
+      status: req.query.status || "",
+      search: req.query.search || "",
+      page: 1,
+      limit: 100000,
+    });
+    const enriched = await enrichServiceSummaries(store, all);
+    return res.json(enriched);
+  }
 
-  const enriched = services.map((s) => {
-    const battery = batteries.find((b) => b.id === s.batteryId);
-    const customer = users.find((u) => u.id === s.customerId);
-    const customerProfile = profileMap[s.customerId];
-    // Resolve the assigned battery technician from the service person's
-    // record — either via the explicit FK or the assigned-services list
-    // (which is what the seeded dataset uses).
-    let technician =
-      s.assignedServicePersonId
-        ? servicePersons.find((sp) => sp.id === s.assignedServicePersonId) || null
-        : null;
-    if (!technician) {
-      technician =
-        servicePersons.find((sp) => (sp.assignedServices || []).includes(s.id)) || null;
-    }
-
-    return {
-      ...s,
-      battery: battery
-        ? {
-            id: battery.id,
-            name: battery.name,
-            modelName: battery.modelName,
-            chemistry: battery.chemistry,
-            type: battery.type,
-            serialNumber: battery.serialNumber,
-            barcode: battery.barcode,
-            manufacturer: battery.manufacturer,
-            location: battery.location,
-            warranty: battery.warranty || null,
-          }
-        : null,
-      customer: customer
-        ? {
-            id: customer.id,
-            name: customer.name,
-            email: customer.email,
-            phone: customer.phone || (customerProfile && customerProfile.phone) || "",
-            location: customer.location || (customerProfile && customerProfile.location) || "",
-          }
-        : null,
-      technician: technician
-        ? {
-            id: technician.id,
-            technicianId: technician.technicianId,
-            name: technician.name,
-            phone: technician.phone || "",
-            email: technician.email,
-            certification: technician.certification,
-            specialization: technician.specialization,
-          }
-        : null,
-    };
+  const results = await store.listServices({
+    status: req.query.status || "",
+    search: req.query.search || "",
+    page,
+    limit,
+    sort: req.query.sort,
+    order: req.query.order,
   });
+  const enriched = await enrichServiceSummaries(store, results.data);
 
-  res.json(enriched);
+  res.json({ success: true, data: enriched, pagination: results.pagination });
 });
 
 // GET /api/admin/services/:id
@@ -133,36 +94,7 @@ export const getAdminService = asyncHandler(async (req, res) => {
     throw new Error("Service not found");
   }
 
-  const battery = await store.getBatteryById(service.batteryId);
-  const customers = await store.getCustomers();
-  const customer = customers.find((u) => u.id === service.customerId);
-
-  res.json({
-    ...service,
-    battery: battery
-      ? {
-          id: battery.id,
-          modelName: battery.modelName,
-          chemistry: battery.chemistry,
-          type: battery.type,
-          serialNumber: battery.serialNumber,
-          barcode: battery.barcode,
-          capacityKwh: battery.capacityKwh,
-          stateOfHealth: battery.stateOfHealth,
-          location: battery.location,
-          manufacturer: battery.manufacturer,
-        }
-      : null,
-    customer: customer
-      ? {
-          id: customer.id,
-          name: customer.name,
-          email: customer.email,
-          phone: customer.phone || "",
-          location: customer.location || "",
-        }
-      : null,
-  });
+  res.json(await enrichServiceDetail(store, service));
 });
 
 // PATCH /api/admin/services/:id/accept
@@ -274,6 +206,13 @@ export const assignService = asyncHandler(async (req, res) => {
     "service"
   );
 
+  // P2.1: keep the schedule slot's technician in sync with the assignment.
+  try {
+    await upsertScheduleForService(store, updated);
+  } catch {
+    // Non-fatal — admin can fix via the scheduling board.
+  }
+
   res.json(updated);
 });
 
@@ -323,21 +262,24 @@ export const updateServiceStatus = asyncHandler(async (req, res) => {
 
 // GET /api/admin/service-persons
 export const getServicePersons = asyncHandler(async (req, res) => {
-  const persons = await store.getAllServicePersons();
-  const services = await store.getAllServices();
+  const { page, limit } = parsePagination(req.query);
+  const paginated = req.query.page !== undefined || req.query.limit !== undefined;
 
-  const enriched = persons.map((sp) => {
-    const assigned = services.filter((s) => (sp.assignedServices || []).includes(s.id));
-    return {
-      ...sp,
-      assignedServiceCount: assigned.length,
-      completedServiceCount: assigned.filter((s) => s.status === "Completed").length,
-      activeServiceCount: assigned.filter((s) => isActiveStatus(s.status)).length,
-      recentServices: assigned.slice(0, 3),
-    };
+  // Batched (not per-person) enrichment; legacy callers get the full list.
+  const results = await store.listServicePersons({
+    status: req.query.status || "",
+    search: req.query.search || "",
+    page,
+    limit: paginated ? limit : 100000,
+    sort: req.query.sort,
+    order: req.query.order,
   });
 
-  res.json(enriched);
+  const personsWithServices = await enrichPersonsWithServices(store, results.data);
+  const body = paginated
+    ? { success: true, data: personsWithServices, pagination: results.pagination }
+    : personsWithServices;
+  res.json(body);
 });
 
 // POST /api/admin/service-persons
@@ -384,11 +326,21 @@ export const updateServicePerson = asyncHandler(async (req, res) => {
 
 // GET /api/admin/customers
 export const getCustomers = asyncHandler(async (req, res) => {
-  const customers = await store.getCustomers();
-  const services = await store.getAllServices();
+  const { page, limit } = parsePagination(req.query);
+  const paginated = req.query.page !== undefined || req.query.limit !== undefined;
 
-  const enriched = customers.map((c) => {
-    const customerServices = services.filter((s) => s.customerId === c.id);
+  const results = await store.listCustomers({
+    search: req.query.search || "",
+    page,
+    limit: paginated ? limit : 100000,
+    sort: req.query.sort,
+    order: req.query.order,
+  });
+
+  // Resolve per-customer service counts via a single batched service query.
+  const allServices = await store.getAllServices();
+  const enriched = results.data.map((c) => {
+    const customerServices = allServices.filter((s) => s.customerId === c.id);
     const lastService =
       customerServices.length > 0
         ? customerServices.sort(
@@ -413,8 +365,30 @@ export const getCustomers = asyncHandler(async (req, res) => {
     };
   });
 
-  res.json(enriched);
+  const body = paginated
+    ? { success: true, data: enriched, pagination: results.pagination }
+    : enriched;
+  res.json(body);
 });
+
+/* Batch service-person enrichment: assigned/completed/active counts plus a
+   short recent-services preview. Uses one batched service list (already
+   resolved by the caller) to avoid per-person scans. */
+const enrichPersonsWithServices = async (storeRef, persons) => {
+  const services = await storeRef.getAllServices();
+  return persons.map((sp) => {
+    const assigned = services.filter((s) =>
+      (sp.assignedServices || []).includes(s.id)
+    );
+    return {
+      ...sp,
+      assignedServiceCount: assigned.length,
+      completedServiceCount: assigned.filter((s) => s.status === "Completed").length,
+      activeServiceCount: assigned.filter((s) => isActiveStatus(s.status)).length,
+      recentServices: assigned.slice(0, 3),
+    };
+  });
+};
 
 // GET /api/admin/analytics
 export const getAdminAnalytics = asyncHandler(async (req, res) => {
@@ -611,21 +585,23 @@ export const createTechnician = asyncHandler(async (req, res) => {
 
 // GET /api/admin/technicians — list all technicians
 export const getTechnicians = asyncHandler(async (req, res) => {
-  const persons = await store.getAllTechnicians();
-  const services = await store.getAllServices();
+  const { page, limit } = parsePagination(req.query);
+  const paginated = req.query.page !== undefined || req.query.limit !== undefined;
 
-  const enriched = persons.map((sp) => {
-    const assigned = services.filter((s) => (sp.assignedServices || []).includes(s.id));
-    return {
-      ...sp,
-      assignedServiceCount: assigned.length,
-      completedServiceCount: assigned.filter((s) => s.status === "Completed").length,
-      activeServiceCount: assigned.filter((s) => isActiveStatus(s.status)).length,
-      recentServices: assigned.slice(0, 3),
-    };
+  const results = await store.listServicePersons({
+    status: req.query.status || "",
+    search: req.query.search || "",
+    page,
+    limit: paginated ? limit : 100000,
+    sort: req.query.sort,
+    order: req.query.order,
   });
 
-  res.json(enriched);
+  const enriched = await enrichPersonsWithServices(store, results.data);
+  const body = paginated
+    ? { success: true, data: enriched, pagination: results.pagination }
+    : enriched;
+  res.json(body);
 });
 
 // GET /api/admin/technicians/:id — get single technician

@@ -56,6 +56,19 @@ export const batteryTechnicianLogoutApi = () =>
 export const fetchAssignedServices = () =>
   client("/battery-technician/services", { batteryTechnician: true });
 
+/* Paginated assigned services: returns { data, pagination } from the standard envelope. */
+export const fetchAssignedServicesPaginated = (params = {}) => {
+  const qs = new URLSearchParams();
+  if (params.page) qs.set("page", params.page);
+  if (params.limit) qs.set("limit", params.limit);
+  if (params.status) qs.set("status", params.status);
+  if (params.search) qs.set("search", params.search);
+  const query = qs.toString();
+  return client(`/battery-technician/services${query ? `?${query}` : ""}`, {
+    batteryTechnician: true,
+  });
+};
+
 export const fetchAssignedServiceDetail = (id) =>
   client(`/battery-technician/services/${id}`, { batteryTechnician: true });
 

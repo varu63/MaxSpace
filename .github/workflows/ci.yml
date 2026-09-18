@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend-unit:
+    name: Backend unit tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  frontend:
+    name: Frontend lint + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  audit:
+    name: API audit suite (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: maxspace_user
+          POSTGRES_PASSWORD: maxspace_password
+          POSTGRES_DB: maxspace_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U maxspace_user -d maxspace_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://maxspace_user:maxspace_password@localhost:5432/maxspace_db
+      DATA_SOURCE: postgres
+      JWT_SECRET: ci-only-secret-for-audit-suite
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+
+      # Full DDL (schema.sql) then idempotent migrations (001/002).
+      - name: Apply schema
+        run: |
+          docker run --rm --network host \
+            -v "${{ github.workspace }}/backend/sql:/sql:ro" \
+            -e PGPASSWORD=maxspace_password \
+            postgres:17 \
+            psql -h localhost -U maxspace_user -d maxspace_db -f /sql/schema.sql
+      - name: Apply migrations
+        run: npm run db:migrate
+
+      - name: Boot backend and run audit suite
+        run: |
+          node index.js > /tmp/maxspace-backend.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:5000 > /dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          curl -fsS http://localhost:5000 | head -c 400
+          npm run test:audit

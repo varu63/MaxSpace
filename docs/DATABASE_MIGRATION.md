@@ -118,6 +118,8 @@ Service status values are shared as constants on both sides
 
 - [ ] `pg` is installed in `backend/` (a listed dependency)
 - [ ] `backend/sql/schema.sql` applied
+- [ ] Migrations up to date: `npm run db:migrate` then `npm run db:migrate:status`
+      (both `001_integrity` and `002_scheduling` must show `[APPLIED]`)
 - [ ] Repository methods in `backend/data/postgres/index.js` cover the flows you
       need (all are implemented; verify auth, batteries, services, profile,
       admin analytics, and the technician flow against the DB)
@@ -125,6 +127,52 @@ Service status values are shared as constants on both sides
       admin analytics, technician flow against the DB
 - [ ] `DATA_SOURCE=postgres` + `DATABASE_URL` set in production `.env`
 - [ ] `JWT_SECRET` set to a strong value in production
+
+---
+
+## 9. Migrations, integrity constraints & scaling
+
+### 9.1 Migration runner
+
+`backend/sql/migrations/` holds ordered, idempotent SQL files applied by
+`backend/scripts/migrate.js` (tracked in the `schema_migrations` table):
+
+```
+node backend/scripts/migrate.js            # apply pending   (npm run db:migrate)
+node backend/scripts/migrate.js --status   # list status     (npm run db:migrate:status)
+```
+
+- `001_integrity.sql` — real foreign keys and CHECK constraints on `services`
+  and `users` (status/priority CHECKs, FKs to `batteries`, `users`,
+  `service_persons`).
+- `002_scheduling.sql` — `service_schedules` and `technician_availability`
+  tables used by the admin scheduling board and scheduler service.
+
+### 9.2 App-layer parity
+
+`backend/utils/serviceValidation.js` mirrors the CHECK constraints
+(`assertServiceIntegrity`, `normalizeTicketNumber`), and both stores (mock +
+postgres) call it — so order/status/priority violations return clean `400`
+responses in both modes instead of raw database errors.
+
+### 9.3 Server-side pagination
+
+List endpoints run `LIMIT/OFFSET` + `COUNT` in the database and return the
+standard pagination envelope (see README → API Reference → Pagination). Legacy
+clients that omit `page`/`limit` still receive a plain full array. Search uses
+`ILIKE` on the live DB and `matchesSearch` (case-insensitive) in the mock store
+so behavior stays identical across modes.
+
+### 9.4 Scaling notes for very large fleets
+
+- List pages are already bounded (`MAX_LIMIT = 100`); filters/sort run in SQL.
+- The remaining full-scans are **aggregation/context loads**: context providers,
+  analytics, and the service-enrichment batch lookups. Enrichment is batched
+  (`getUsersByIds` / `getBatteriesByIds` / `getServicePersonsByIds` /
+  `getProfilesByIds`) so one page of services costs O(1) queries, not O(n).
+- If a fleet grows to tens of thousands of batteries, move dashboard
+  aggregations to the analytics endpoints and add indexes to the hot filter
+  columns before any further UI work.
 
 ---
 

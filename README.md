@@ -511,7 +511,28 @@ Contexts load batteries/services/profile from the API
 
 ## API Reference
 
-All endpoints are JSON. Protected endpoints require `Authorization: Bearer <token>`. Errors return `{ message }` with the appropriate status code.
+All endpoints are JSON. Protected endpoints require `Authorization: Bearer <token>`. Errors return a structured body `{ success: false, status, message }` with the appropriate status code (Google Sign-In errors, DB constraint violations, and 400/401/403/404/500 all use this shape — the frontend reads `message` for toasts/banners).
+
+**Pagination.** List endpoints (`GET /api/batteries`, `/api/services`, `/api/profile/activity`, `/api/admin/services`, `/api/admin/service-persons`, `/api/admin/technicians`, `/api/admin/customers`, `/api/battery-technician/services`) accept:
+
+```
+?page=1&limit=20&search=foo&status=Assigned&sort=createdAt&order=asc
+```
+
+- `page` (default `1`), `limit` (default `20`, capped at `100`) — validated and clamped server-side.
+- When `page`/`limit` are **omitted** the endpoints keep legacy behavior and return a plain array (full list) so existing clients keep working.
+- When supplied they return a **pagination envelope**:
+
+```json
+{ "success": true,
+  "data": [ ... ],
+  "pagination": { "page": 1, "limit": 20, "total": 42, "totalPages": 3,
+                  "hasNextPage": true, "hasPreviousPage": false,
+                  "nextPage": 2, "previousPage": null } }
+```
+
+- `total` reflects the current filters (`search`/`status`). Sorting is applied in the database (`ORDER BY` + `LIMIT`/`OFFSET`); filters use `ILIKE` in postgres mode and the same case-insensitive matching in mock mode.
+- Filtering/searching is **not** supported on `GET /api/batteries` beyond `?barcode=` and the shared `page`/`limit`/`search`/`sort`/`order` params.
 
 ### Health
 
@@ -538,7 +559,7 @@ Response: version, dataSource, databaseConfigured, databaseConnected, endpoints.
 
 | Method | Endpoint | Purpose | DB tables |
 |--------|----------|---------|-----------|
-| GET | `/` | List batteries; `?barcode=` filters to a single match | `batteries` |
+| GET | `/` | List batteries; `?barcode=` filters to a single match; paginated via `?page=&limit=&search=&sort=&order=` | `batteries` |
 | POST | `/` | Register a new battery + mint its passport | `batteries` |
 | GET | `/lookup?code=` (or `barcode`/`serial`/`id`) | Resolve a scanned code to a battery | `batteries` |
 | GET | `/:id` | Single battery (accepts id/barcode/serial/QR URI) | `batteries` |
@@ -561,7 +582,7 @@ Errors:           400 (no identifier) / 404 (not found) / 401 (not authorized)
 
 | Method | Endpoint | Purpose | Notes |
 |--------|----------|---------|-------|
-| GET | `/` | List services; `?batteryId=&status=` filter | |
+| GET | `/` | List services; `?batteryId=&status=` filter; paginated via `?page=&limit=&search=&sort=&order=` | |
 | POST | `/` | Book a service (status starts `Confirmed`) | Requires `batteryId` |
 | GET | `/:id` | Single service | |
 | PATCH | `/:id` | Update; **users may only set status to `Cancelled`** | Other statuses → 403 |
@@ -576,7 +597,7 @@ Errors:           400 (no identifier) / 404 (not found) / 401 (not authorized)
 | PUT | `/` | Update profile fields |
 | PUT | `/notifications` | Merge notification settings |
 | POST | `/password` | Change password (verifies current password) |
-| GET | `/activity` | Activity logs |
+| GET | `/activity` | Activity logs (paginated via `?page=&limit=`, e.g. `?page=1&limit=20`) |
 | GET | `/export` | Export user + batteries + services as JSON |
 
 ### Analytics — `/api/analytics` (all protected)
@@ -604,21 +625,21 @@ All others require `protect` + `requireAdmin`:
 |--------|----------|---------|
 | GET | `/me` | Current admin |
 | POST | `/logout` | Best-effort logout |
-| GET | `/services` | Services enriched with battery (warranty, barcode, manufacturer, location), customer (phone/location from profile), and assigned technician (from FK or service person's `assignedServices`) |
+| GET | `/services` | Services enriched with battery (warranty, barcode, manufacturer, location), customer (phone/location from profile), and assigned technician (from FK or service person's `assignedServices`); paginated via `?page=&limit=&status=&search=&sort=&order=` |
 | GET | `/services/:id` | Single enriched service |
 | PATCH | `/services/:id/accept` | `Confirmed` → `Accepted` |
 | PATCH | `/services/:id/assign` | `Accepted` → `Assigned` (+ service person); the service is removed from every other technician's `assignedServices` so only the assigned tech can see it |
 | PATCH | `/services/:id/status` | Set any valid status |
 | PATCH | `/services/:id/approve` | `Waiting for Admin Approval` → `Completed` |
-| GET | `/service-persons` | Service persons with assigned/completed/active counts |
+| GET | `/service-persons` | Service persons with assigned/completed/active counts; paginated via `?page=&limit=&status=&search=&sort=&order=` |
 | POST | `/service-persons` | Create a service person |
 | PATCH | `/service-persons/:id` | Update a service person |
-| GET | `/technicians` | Technicians with workload stats |
+| GET | `/technicians` | Technicians with workload stats; paginated via `?page=&limit=&status=&search=&sort=&order=` |
 | GET | `/technicians/:id` | Single technician + assigned services |
 | POST | `/technicians` | Create technician (service person + EMPLOYEE user) |
 | PATCH | `/technicians/:id` | Update technician (syncs linked EMPLOYEE user) |
 | PATCH | `/technicians/:id/reset-password` | Reset the technician login password |
-| GET | `/customers` | Customers with service stats |
+| GET | `/customers` | Customers with service stats; paginated via `?page=&limit=&search=&sort=&order=` |
 | GET | `/analytics` | Dashboard analytics (bookings, completion rate, status breakdown) |
 
 ### Battery Technician — `/api/battery-technician`
@@ -631,7 +652,7 @@ All others require `protect` + `requireEmployee`:
 |--------|----------|---------|
 | GET | `/me` | Current technician + service-person record |
 | POST | `/logout` | Best-effort logout |
-| GET | `/services` | Services assigned to this technician (only the caller's `assignedServices`; enriched with battery model/barcode/location and customer name/phone) |
+| GET | `/services` | Services assigned to this technician (only the caller's `assignedServices`; enriched with battery model/barcode/location and customer name/phone); paginated via `?page=&limit=&status=&search=&sort=&order=` |
 | GET | `/services/:id` | Assigned service detail (403 if not assigned) |
 | PATCH | `/services/:id/status` | Advance status — **only** Assigned→Accepted, Accepted→On The Way, On The Way→In Progress, In Progress→Waiting for Admin Approval (or Cancelled) |
 
@@ -653,8 +674,30 @@ DB:               services (status + history append), profiles (activity log).
 
 - **PostgreSQL** via the `pg` driver, enabled when `DATA_SOURCE=postgres` and `DATABASE_URL` are set.
 - `docker-compose.yaml` runs PostgreSQL 17 (`maxspace_user` / `maxspace_password` / `maxspace_db`, port `5432`, named volume).
-- DDL lives in `backend/sql/schema.sql`.
+- DDL lives in `backend/sql/schema.sql` (golden schema, includes FK + CHECK constraints).
+- **Migrations** live in `backend/sql/migrations/` and are applied with the idempotent runner `backend/scripts/migrate.js` (`npm run db:migrate`, status via `npm run db:migrate:status`, tracked in the `schema_migrations` table):
+  - `001_integrity.sql` — real foreign keys and CHECK constraints (see below).
+  - `002_scheduling.sql` — `service_schedules` and `technician_availability` tables for the admin scheduling board.
 - The backend also ships a **mock** in-memory store that uses the same entity shapes (from `backend/data/seedData.js`, which mirrors `frontend/src/data/dummyData.js`).
+
+### Referential integrity & constraints
+
+`001_integrity.sql` adds real database-level guardrails to `services` and `users` (mirrored at the app layer by `backend/utils/serviceValidation.js`, so mock mode behaves identically):
+
+```sql
+-- services
+CHECK (status IN ('Confirmed','Accepted','Assigned','On The Way','In Progress',
+                  'Waiting for Admin Approval','Completed','Cancelled'))
+CHECK (priority IN ('Low','Normal','High','Urgent'))
+FOREIGN KEY (battery_id) REFERENCES batteries(id) ON DELETE SET NULL
+FOREIGN KEY (customer_id) REFERENCES users(id)
+FOREIGN KEY (assigned_service_person_id) REFERENCES service_persons(id)
+FOREIGN KEY (approved_by) REFERENCES users(id)
+-- users
+FOREIGN KEY (service_person_id) REFERENCES service_persons(id)
+```
+
+Foreign keys are real columns (`services.assigned_service_person_id` replaces the legacy embedded `technician` string for assignment; `services.customer_id` replaces the legacy `customerId` lookup) so the database rejects orphan rows instead of the app discovering them later. `npm run db:migrate:status` reports applied/pending migrations against the live database.
 
 ### Tables
 
@@ -964,11 +1007,13 @@ curl http://localhost:5000
 | Preview a production build | `npm run preview` (frontend) |
 | Start PostgreSQL | `docker compose up -d postgres` (repo root) |
 | Apply the DB schema | `docker compose exec -T postgres psql -U maxspace_user -d maxspace_db < backend/sql/schema.sql` |
+| Apply DB migrations | `npm run db:migrate` (backend) — idempotent; `--status` via `npm run db:migrate:status` |
+| Run backend unit tests | `npm test` (backend — Node's built-in test runner, no database needed) |
+| Run the API audit suite | start the backend in postgres mode, then `npm run test:audit` (backend) — see [Testing & QA](#testing--qa) |
 | Check the API health | `curl http://localhost:5000` |
 | Restore sample data | `POST /api/data/reset` (via the settings page or API, admin token) |
-| Run the API audit suite | start the backend, then `node <path-to>/audit-api-test.mjs` (see [Testing & QA](#testing--qa)) |
 
-No automated unit/integration test runner is configured; the standalone audit suite below is the QA harness.
+Testing: backend unit tests run with `npm test` (zero deps, pure helper functions); the live API audit suite runs with `npm run test:audit` (requires a running postgres-mode backend and a migrated database).
 
 ---
 
@@ -982,24 +1027,35 @@ npm run lint    # Oxlint — 0 errors expected (existing pattern warnings are pr
 npm run build   # Vite production build must succeed
 ```
 
+### Backend unit tests
+
+```bash
+cd backend
+npm test         # Node's built-in test runner — zero dependencies, no DB
+```
+
+Covers the pagination helpers (`parsePagination`, `buildPagination`, `paginateArray`, search/sort matching) and the service-integrity validation that mirrors the DB CHECK constraints (`assertServiceIntegrity`, `normalizeTicketNumber`).
+
 ### API audit suite
 
-`audit-api-test.mjs` is a standalone **89-check** live test that exercises the whole stack against a running backend (user, admin, and technician flows, RBAC, full service lifecycle, data reset, password reset via the dev log, battery/service CRUD). It prints one `PASS`/`FAIL` line per check and exits `1` if any fail.
+`backend/tests/audit-suite.mjs` is a standalone **~100-check** live test that exercises the whole stack against a running backend: user, admin, and technician flows, RBAC, the full service lifecycle, data reset, password reset via the dev log, battery/service CRUD, **pagination envelopes on every list endpoint**, **DB-level integrity guards** (missing-battery FK guard, invalid status/priority CHECK mirrors, Google structured-error envelopes). It prints one `PASS`/`FAIL` line per check and exits `1` if any fail.
 
 ```bash
 # 1. Start PostgreSQL and the backend (postgres mode)
 docker compose up -d postgres
-cd backend && node index.js &
+cd backend && npm run db:migrate && node index.js &
+# (or: npm run dev)
 
-# 2. Run the suite (from anywhere)
-node C:\path\to\audit-api-test.mjs
+# 2. Run the suite
+npm run test:audit
 ```
 
 Requirements / behavior:
 
-- Requires `DATA_SOURCE=postgres` with the schema applied; it asserts against the live DB.
+- Requires `DATA_SOURCE=postgres` with the schema applied and migrations up to date; the suite asserts the live `dataSource === "postgres"`.
 - Runs a `POST /api/data/reset` at the start to establish a known seed baseline, and again at the end to restore the sample dataset — so the DB is clean afterwards.
 - Any seeded-drift issues (e.g. a service in the wrong status) surface as failures.
+- The GitHub Actions workflow (`.github/workflows/ci.yml`) runs the unit tests on every push/PR and the full audit suite against an ephemeral PostgreSQL service container.
 
 ### Database integrity spot-checks
 
@@ -1050,12 +1106,27 @@ Google Sign-In button does nothing
   http://localhost:5173 must be in the Google OAuth "Authorized
   JavaScript origins". Camera scanning also requires HTTPS or localhost.
 
+Google Sign-In returns a 400/503 JSON error
+→ That is intentional and structured: the API validates the ID token
+  and returns { success:false, status, message }. Status 400 means the
+  credential is missing/invalid; 503 means Google auth is unconfigured
+  (no GOOGLE_CLIENT_ID) — the frontend toolbar/banner surfaces the
+  underlying message. Fill in both client IDs, then retry.
+
+Database migrations
+→ After switching to PostgreSQL, run schema.sql once, then
+  `npm run db:migrate`. Check status with `npm run db:migrate:status`;
+  both 001_integrity and 002_scheduling show [APPLIED] when current.
+  List endpoints error on the live DB → confirm DATA_SOURCE=postgres
+  actually resolved by querying `curl http://localhost:5000` (health
+  reports dataSource).
+
 Scanner camera not working
 → getUserMedia requires a secure context (HTTPS) except on localhost.
   Use the sample presets, manual entry, or image upload instead.
 
 Lint warnings about setState inside effects
-→ Expected; oxlint currently reports ~12 React Compiler warnings
+→ Expected; oxlint currently reports ~10 React Compiler warnings
   (0 errors) in the existing context providers. Not blocking.
 
 "Your Google account has no email" / "email is not verified"
@@ -1071,14 +1142,15 @@ Status markers (`TODO`/`FIXME`/`HACK`/`XXX`) were searched: **none exist** in th
 
 - **Frontend password-reset page is incomplete.** The backend fully implements forgot/reset password, but the reset link (`/auth/reset-password?token=…`) points to a route the frontend does not define yet. Emails are logged to a temp file instead of being sent via SMTP.
 - **Mock mode is ephemeral.** With `DATA_SOURCE=mock`, data resets to the seed on server restart. Use `DATA_SOURCE=postgres` for persistence.
-- **No automated test suite.** No test framework or test files are configured for either side.
-- **No real SMTP / email integration.** Reset links are development-only; no transactional email is sent.
+- **Unit tests cover pure helpers only.** `npm test` covers pagination + integrity validation; controller/store integration is exercised by the live audit suite (`npm run test:audit`), which requires a running postgres backend.
+- **No real SMTP / email integration.** Reset links are development-only; no transactional email is sent. The audit suite reads the dev reset-token log (`%TEMP%\maxspace-reset-links.log`).
 - **Store links are placeholders.** Download buttons use `YOUR_APP_ID` placeholders in `storeLinks.js`.
 - **Scanner camera requires HTTPS** (or localhost) due to `getUserMedia` secure-context rules.
-- **Google auth requires configuration.** The login buttons render regardless, but sign-in only completes after real Google credentials are set in both `.env` files.
+- **Google auth requires configuration.** The login buttons render regardless, but sign-in only completes after real Google credentials are set in both `.env` files. Until then the API returns a structured `503`.
+- **Full-list context fetches.** The admin/user dashboards still load full everyday lists (context providers + analytics) for charts and cross-references; the big list pages themselves are server-paginated. If a fleet reaches tens of thousands of batteries, migrate dashboard aggregations to the analytics endpoints.
 - **Single shared profile.** In this build `profiles` holds one operator profile row; multi-operator profiles would need a schema extension.
-- **Oxlint warnings.** ~12 React Compiler "setState in effect" warnings exist in the context providers (0 errors).
-- **Legacy dump file.** `maxtrace_backup.dump` (old `maxvolt_prod` database) is unrelated to MaxSpace and untracked; consider adding it to a root `.gitignore` or deleting it.
+- **Oxlint warnings.** ~10 React Compiler "setState in effect" warnings exist in the context providers and shared components (0 errors).
+- **Legacy dump file.** `maxtrace_backup.dump` (old `maxvolt_prod` database) is unrelated to MaxSpace and now gitignored (`.gitignore`).
 
 ---
 

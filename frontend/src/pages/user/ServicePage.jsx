@@ -1,11 +1,11 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 
 import { Battery } from "lucide-react";
 
 import { useBattery } from "../../context/BatteryContext";
 import { bookingsFromServices } from "../../data/dummyData";
 import { isActiveBooking } from "../../data/serviceStatuses";
-import { PageHeader, Card, EmptyState } from "../../components/common";
+import { PageHeader, Card, EmptyState, Pagination } from "../../components/common";
 import ServiceStats from "../../components/user/services/ServiceStats";
 import ServiceFilters from "../../components/user/services/ServiceFilters";
 import ServiceTable from "../../components/user/services/ServiceTable";
@@ -13,6 +13,7 @@ import ServiceMobileCards from "../../components/user/services/ServiceMobileCard
 import ServiceInfoCards from "../../components/user/services/ServiceInfoCards";
 import BatteryServiceModal from "../../components/user/services/BatteryServiceModal";
 import BookServiceModal from "../../components/user/services/BookServiceModal";
+import { fetchBatteriesPaginated } from "../../services/api";
 
 const ServicePage = () => {
   const {
@@ -28,6 +29,8 @@ const ServicePage = () => {
   const [selectedBattery, setSelectedBattery] = useState(null);
   const [expandedBatteryId, setExpandedBatteryId] = useState(null);
   const [showBookingModal, setShowBookingModal] = useState(false);
+  const [pageBatteries, setPageBatteries] = useState([]);
+  const [pagination, setPagination] = useState(null);
 
   const [bookingForm, setBookingForm] = useState({
     serviceType: "Regular Maintenance",
@@ -48,6 +51,38 @@ const ServicePage = () => {
     (battery) => getBatteryServiceStatus(battery),
     [getBatteryServiceStatus]
   );
+
+  /* Server-side battery page for the service history rows. Search is applied
+     by the backend across the whole fleet; the per-battery service status
+     filter keeps working on the displayed page. The stats + booking helpers
+     above still use the full context list. */
+  const fetchPage = async (nextPage = 1, opts = {}) => {
+    try {
+      const result = await fetchBatteriesPaginated({
+        page: nextPage,
+        limit: 5,
+        search: opts.search !== undefined ? opts.search : search,
+      });
+      setPageBatteries(result.data || []);
+      setPagination(result.pagination || null);
+    } catch {
+      // Keep the current page on failure — the rest of the page is intact.
+    }
+  };
+
+  useEffect(() => {
+    fetchPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Debounced search → reset to page 1.
+  useEffect(() => {
+    const timer = setTimeout(() => fetchPage(1, { search }), 350);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
+  const handlePageChange = (nextPage) => fetchPage(nextPage);
 
   const isBatteryBooked = useCallback(
     (battery) => {
@@ -78,7 +113,7 @@ const ServicePage = () => {
   const filteredBatteries = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return batteries.filter((battery) => {
+    return pageBatteries.filter((battery) => {
       const batteryId = getBatteryId(battery);
       const serviceStatus = getServiceStatus(battery);
 
@@ -88,7 +123,7 @@ const ServicePage = () => {
 
       return matchesSearch && matchesStatus;
     });
-  }, [batteries, search, statusFilter, getBatteryId, getServiceStatus]);
+  }, [pageBatteries, search, statusFilter, getBatteryId, getServiceStatus]);
 
   const serviceStats = useMemo(() => {
     let active = 0;
@@ -206,6 +241,10 @@ const ServicePage = () => {
             description="Try changing your search or filter."
           />
         )}
+
+        <div className="p-5 lg:p-6 border-t border-[#EEE9DA]">
+          <Pagination pagination={pagination} onPageChange={handlePageChange} />
+        </div>
       </Card>
 
       <ServiceInfoCards />

@@ -9,23 +9,23 @@ import {
   updateBattery,
   deleteBattery,
 } from "../controllers/batteryController.js";
-import { protect } from "../middleware/auth.js";
+import { protect, optionalProtect } from "../middleware/auth.js";
 
 const router = express.Router();
 
-router.use(protect);
-
-router.route("/").get(getBatteries).post(createBattery);
-
 // Specific routes BEFORE generic :id routes to avoid conflicts
-router.get("/lookup", lookupBattery);
-router.get("/:id/passport", getBatteryPassport);
-router.get("/:id/health-history", getBatteryHealthHistory);
+router.get("/lookup", optionalProtect, lookupBattery);
+router.get("/:id/passport", optionalProtect, getBatteryPassport);
+router.get("/:id/health-history", optionalProtect, getBatteryHealthHistory);
 
+// Fleet list and creation
+router.route("/").get(protect, getBatteries).post(protect, createBattery);
+
+// Generic :id routes
 router
   .route("/:id")
-  .get(getBattery)
-  .put(updateBattery)
-  .delete(deleteBattery);
+  .get(optionalProtect, getBattery)
+  .put(protect, updateBattery)
+  .delete(protect, deleteBattery);
 
 export default router;

@@ -30,6 +30,18 @@ export const forgotPassword = (email) =>
 
 export const fetchBatteries = () => client("/batteries");
 
+/* Paginated batteries: returns { data, pagination } from the standard envelope. */
+export const fetchBatteriesPaginated = (params = {}) => {
+  const qs = new URLSearchParams();
+  if (params.page) qs.set("page", params.page);
+  if (params.limit) qs.set("limit", params.limit);
+  if (params.search) qs.set("search", params.search);
+  if (params.sort) qs.set("sort", params.sort);
+  if (params.order) qs.set("order", params.order);
+  const query = qs.toString();
+  return client(`/batteries${query ? `?${query}` : ""}`);
+};
+
 export const createBattery = (battery) =>
   client("/batteries", { method: "POST", body: battery });
 
@@ -50,6 +62,17 @@ export const fetchBatteryPassport = (identifier) =>
 ============================================================ */
 
 export const fetchServices = () => client("/services");
+
+/* Paginated services: returns { data, pagination } from the standard envelope. */
+export const fetchServicesPaginated = (params = {}) => {
+  const qs = new URLSearchParams();
+  if (params.page) qs.set("page", params.page);
+  if (params.limit) qs.set("limit", params.limit);
+  if (params.status) qs.set("status", params.status);
+  if (params.search) qs.set("search", params.search);
+  const query = qs.toString();
+  return client(`/services${query ? `?${query}` : ""}`);
+};
 
 export const createService = (service) =>
   client("/services", { method: "POST", body: service });

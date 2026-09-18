@@ -11,11 +11,30 @@
    QR sticker resolves to the correct battery record.
 ============================================================ */
 
-/* Parse a physical QR payload (key: value lines) into structured fields.
+/* Parse a physical QR payload (key: value lines or JSON) into structured fields.
    Returns null when the string is not a key/value QR payload. */
 export const parseBatteryQrPayload = (value) => {
   const clean = String(value || "").trim();
   if (!clean) return null;
+
+  // JSON payload support
+  if (clean.startsWith("{") && clean.endsWith("}")) {
+    try {
+      const obj = JSON.parse(clean);
+      if (typeof obj === "object" && obj !== null) {
+        return {
+          batteryId: obj.batteryId || obj.battery_id || obj.id || null,
+          model: obj.model || obj.modelName || obj.model_name || null,
+          modalId: obj.modalId || obj.modal_id || null,
+          serialNumber: obj.serialNumber || obj.serial_number || obj.serial || null,
+          hangStatus: obj.hangStatus != null ? String(obj.hangStatus) : (obj.hang_status != null ? String(obj.hang_status) : null),
+          overallStatus: obj.overallStatus || obj.overall_status || null,
+        };
+      }
+    } catch {
+      // Not JSON, continue to text patterns
+    }
+  }
 
   const grab = (pattern) => {
     const match = clean.match(pattern);
@@ -54,30 +73,40 @@ export const normalizeBatteryIdentifier = (value) => {
     return getBatteryPayloadIdentifier(clean);
   }
 
-  // /passports/<code>, /passport/<code>, /id/<code>, /serial/<code> …
+  // App route: /battery/:id or /battery/:id/passport
+  const appRouteMatch = clean.match(
+    /^https?:\/\/[^/]+\/battery\/([^/?#]+)(?:\/passport)?/i
+  );
+  if (appRouteMatch) return appRouteMatch[1].split(/[?#]/)[0];
+
+  // /passports/<code>, /passport/<code>, /id/<code>, /serial/<code>, /barcode/<code>
   const routeMatch = clean.match(
-    /^https?:\/\/[^/]+\/(?:passports?|ids?|serial|barcode)\/([^/?#]+)/i
+    /^https?:\/\/[^/]+\/(?:passports?|ids?|serial|barcode|battery)\/([^/?#]+)/i
   );
   if (routeMatch) return routeMatch[1].split(/[?#]/)[0];
 
-  // Any other http(s) payload → use the last path segment (the code).
+  // Any other http(s) payload → check if trailing segment is "passport"
   if (/^https?:\/\//i.test(clean)) {
     const segments = clean.split("/").filter(Boolean);
-    const last = segments[segments.length - 1] || "";
-    return last.split(/[?#]/)[0];
+    if (segments.length > 0) {
+      const last = segments[segments.length - 1] || "";
+      if (/^passports?$/i.test(last) && segments.length > 1) {
+        return segments[segments.length - 2].split(/[?#]/)[0];
+      }
+      return last.split(/[?#]/)[0];
+    }
   }
 
   // Query-style payloads such as passport?identifier=CODE
-  const queryMatch = clean.match(/(?:identifier|code|barcode|serial)=([^&#]+)/i);
-  if (queryMatch) return queryMatch[1];
+  const queryMatch = clean.match(/(?:identifier|code|barcode|serial|battery_id|batteryId|modal_id|modalId)=([^&#]+)/i);
+  if (queryMatch) return decodeURIComponent(queryMatch[1]);
 
   return clean;
 };
 
 /* Resolve a raw scanned identifier to a battery record in the store.
    Tries id first, then barcode/serial/modal-id (case-insensitive).
-   An optional ownerId enforces per-user isolation — batteries owned
-   by another user are never returned. */
+   An optional ownerId enforces per-user isolation when explicitly requested. */
 export const resolveBatteryByIdentifier = async (store, rawValue, ownerId = null) => {
   const identifier = normalizeBatteryIdentifier(rawValue);
   if (!identifier) return null;
@@ -86,5 +115,20 @@ export const resolveBatteryByIdentifier = async (store, rawValue, ownerId = null
   if (!battery) {
     battery = await store.findBatteryByBarcodeOrSerial(identifier, ownerId);
   }
+
+  // If not found and identifier starts with "batt-", try without "batt-" prefix
+  if (!battery && identifier.startsWith("batt-")) {
+    const stripped = identifier.replace(/^batt-/, "");
+    battery = await store.findBatteryByBarcodeOrSerial(stripped, ownerId);
+  }
+
+  // If not found and identifier doesn't start with "batt-", try with "batt-" prefix
+  if (!battery && !identifier.startsWith("batt-")) {
+    battery = await store.getBatteryById(`batt-${identifier}`, ownerId);
+    if (!battery) {
+      battery = await store.findBatteryByBarcodeOrSerial(`batt-${identifier}`, ownerId);
+    }
+  }
+
   return battery || null;
 };

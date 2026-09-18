@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 
 import { useAdmin } from "../../context/AdminContext";
-import { PageHeader, Card, EmptyState } from "../../components/common";
+import { PageHeader, Card, EmptyState, Pagination } from "../../components/common";
 import { Modal } from "../../components/common/Modal";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import StatusBadge from "../../components/admin/StatusBadge";
@@ -32,7 +32,7 @@ import {
   SERVICE_STATUS_FLOW,
   formatDate,
 } from "../../components/admin/adminUtils";
-import { getErrorMessage } from "../../services/adminApi";
+import { getErrorMessage, fetchAdminServicesPaginated } from "../../services/adminApi";
 
 /* ============================================================
    STATUS FILTER OPTIONS (page-specific)
@@ -896,59 +896,64 @@ const ServiceRequestCard = ({
 ============================================================ */
 const AdminServiceRequestsPage = () => {
   const {
-    services,
     servicePersons,
-    loading,
+    loading: contextLoading,
     acceptService,
     assignServicePerson,
     updateServiceStatus,
     approveServiceCompletion,
-    refreshServices,
   } = useAdmin();
 
   const [actionError, setActionError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [page, setPage] = useState(1);
+  const [services, setServices] = useState([]);
+  const [pagination, setPagination] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [assignModal, setAssignModal] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    refreshServices()
-      .then(() => {
-        if (!cancelled) setActionError("");
-      })
-      .catch((err) => {
-        if (!cancelled) setActionError(getErrorMessage(err));
+  /* Server-side fetch — the backend applies search + status filters and
+     returns the standard { data, pagination } envelope. */
+  const fetchPage = async (nextPage = 1, opts = {}) => {
+    setLoading(true);
+    try {
+      const result = await fetchAdminServicesPaginated({
+        page: nextPage,
+        limit: 10,
+        status: opts.status !== undefined ? opts.status : statusFilter === "All" ? "" : statusFilter,
+        search: opts.search !== undefined ? opts.search : search,
       });
-    return () => {
-      cancelled = true;
-    };
+      setServices(result.data || []);
+      setPagination(result.pagination || null);
+      setPage(nextPage);
+      setActionError("");
+    } catch (err) {
+      setActionError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPage(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filtered = useMemo(() => {
-    let list = [...services];
+  // Debounced search → reset to page 1.
+  useEffect(() => {
+    const timer = setTimeout(() => fetchPage(1, { search }), 350);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
-    if (statusFilter !== "All") {
-      list = list.filter((s) => s.status === statusFilter);
-    }
+  const handleStatusFilterChange = (status) => {
+    setStatusFilter(status);
+    fetchPage(1, { status: status === "All" ? "" : status });
+  };
 
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(
-        (s) =>
-          (s.id || "").toLowerCase().includes(q) ||
-          (s.ticketNumber || "").toLowerCase().includes(q) ||
-          (s.batteryId || "").toLowerCase().includes(q) ||
-          (s.customer?.name || "").toLowerCase().includes(q) ||
-          (s.battery?.modelName || s.batteryName || "").toLowerCase().includes(q) ||
-          (s.serviceType || "").toLowerCase().includes(q)
-      );
-    }
-
-    return list;
-  }, [services, search, statusFilter]);
+  const handlePageChange = (nextPage) => fetchPage(nextPage);
 
   const handleAccept = async (service) => {
     setActionError("");
@@ -964,6 +969,8 @@ const AdminServiceRequestsPage = () => {
     setActionError("");
     setConfirmModal({ type: "approve", service });
   };
+
+  const reloadAfterAction = async () => fetchPage(page);
 
   const confirmAccept = async () => {
     const svc = confirmModal?.service;
@@ -997,7 +1004,7 @@ const AdminServiceRequestsPage = () => {
     }
   };
 
-  if (loading && services.length === 0) {
+  if ((loading || contextLoading) && services.length === 0) {
     return <LoadingSpinner />;
   }
 
@@ -1006,8 +1013,8 @@ const AdminServiceRequestsPage = () => {
       <PageHeader
         icon={Wrench}
         title="Service Requests"
-        subtitle={`${services.length} total service request${
-          services.length === 1 ? "" : "s"
+        subtitle={`${pagination?.total ?? services.length} total service request${
+          (pagination?.total ?? services.length) === 1 ? "" : "s"
         } across the fleet`}
       />
 
@@ -1045,7 +1052,7 @@ const AdminServiceRequestsPage = () => {
             <Filter className="w-4 h-4 text-[#8A9096] shrink-0" />
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => handleStatusFilterChange(e.target.value)}
               className="w-full bg-transparent text-sm font-medium text-[#16263A] focus:outline-none cursor-pointer"
             >
               {ADMIN_STATUS_FILTER_OPTIONS.map((s) => (
@@ -1066,7 +1073,7 @@ const AdminServiceRequestsPage = () => {
             <button
               key={status}
               type="button"
-              onClick={() => setStatusFilter(status)}
+              onClick={() => handleStatusFilterChange(status)}
               className={`px-3.5 py-1.5 rounded-full text-xs font-semibold border transition ${
                 statusFilter === status
                   ? "bg-[#173B5C] text-white border-[#173B5C] shadow-sm"
@@ -1080,7 +1087,7 @@ const AdminServiceRequestsPage = () => {
       </Card>
 
       {/* Service request cards — all screen sizes */}
-      {filtered.length === 0 ? (
+      {services.length === 0 ? (
         <EmptyState
           icon={Wrench}
           title="No Service Requests Found"
@@ -1092,7 +1099,7 @@ const AdminServiceRequestsPage = () => {
         />
       ) : (
         <div className="space-y-4">
-          {filtered.map((service) => (
+          {services.map((service) => (
             <ServiceRequestCard
               key={service.id}
               service={service}
@@ -1106,12 +1113,17 @@ const AdminServiceRequestsPage = () => {
         </div>
       )}
 
+      <Pagination pagination={pagination} onPageChange={handlePageChange} />
+
       {/* Assign modal */}
       {assignModal && (
         <AssignModal
           service={assignModal}
           servicePersons={servicePersons}
-          onAssign={handleAssign}
+          onAssign={async (serviceId, personId) => {
+            await handleAssign(serviceId, personId);
+            reloadAfterAction();
+          }}
           onClose={() => setAssignModal(null)}
         />
       )}

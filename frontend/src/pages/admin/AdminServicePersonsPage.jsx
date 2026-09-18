@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import {
   UserPlus,
   Search,
@@ -20,9 +20,9 @@ import {
 } from "lucide-react";
 
 import { useAdmin } from "../../context/AdminContext";
-import { PageHeader, Card } from "../../components/common";
+import { PageHeader, Card, Pagination } from "../../components/common";
 import { Modal } from "../../components/common/Modal";
-import { getErrorMessage } from "../../services/adminApi";
+import { getErrorMessage, fetchAdminServicePersonsPaginated } from "../../services/adminApi";
 
 /* ============================================================
    Constants
@@ -816,16 +816,19 @@ const TechnicianCardSkeletons = () => (
 const AdminServicePersonsPage = () => {
   const {
     servicePersons,
-    loading,
+    loading: contextLoading,
     createTechnician,
     updateTechnician,
     toggleTechnicianStatus,
     resetTechnicianPassword,
-    refreshTechnicians,
   } = useAdmin();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [page, setPage] = useState(1);
+  const [persons, setPersons] = useState([]);
+  const [pagination, setPagination] = useState(null);
+  const [fetching, setFetching] = useState(false);
   const [modal, setModal] = useState(null); // null | "add" | person
   const [resetTarget, setResetTarget] = useState(null);
   const [viewTarget, setViewTarget] = useState(null);
@@ -833,29 +836,48 @@ const AdminServicePersonsPage = () => {
   const [actionError, setActionError] = useState("");
   const [statusBusy, setStatusBusy] = useState(false);
 
-  const filtered = useMemo(() => {
-    let list = [...servicePersons];
-    if (statusFilter !== "All") {
-      list = list.filter((sp) => sp.status === statusFilter.toLowerCase());
+  const total = pagination?.total ?? persons.length;
+
+  /* Server-side fetch — search + status filters are applied by the backend,
+     which returns the standard { data, pagination } envelope. */
+  const fetchPage = async (nextPage = 1, opts = {}) => {
+    setFetching(true);
+    try {
+      const result = await fetchAdminServicePersonsPaginated({
+        page: nextPage,
+        limit: 6,
+        status: opts.status !== undefined ? opts.status : statusFilter === "All" ? "" : statusFilter.toLowerCase(),
+        search: opts.search !== undefined ? opts.search : search,
+      });
+      setPersons(result.data || []);
+      setPagination(result.pagination || null);
+      setPage(nextPage);
+      setActionError("");
+    } catch (err) {
+      setActionError(getErrorMessage(err));
+    } finally {
+      setFetching(false);
     }
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(
-        (sp) =>
-          (sp.name || "").toLowerCase().includes(q) ||
-          (sp.email || "").toLowerCase().includes(q) ||
-          (sp.technicianId || "").toLowerCase().includes(q) ||
-          (sp.phone || "").toLowerCase().includes(q) ||
-          (sp.specializations || [])
-            .join(" ")
-            .toLowerCase()
-            .includes(q) ||
-          (sp.specialization || "").toLowerCase().includes(q) ||
-          (sp.certification || "").toLowerCase().includes(q)
-      );
-    }
-    return list;
-  }, [servicePersons, search, statusFilter]);
+  };
+
+  useEffect(() => {
+    fetchPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Debounced search → reset to page 1.
+  useEffect(() => {
+    const timer = setTimeout(() => fetchPage(1, { search }), 350);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
+  const handleStatusFilterChange = (status) => {
+    setStatusFilter(status);
+    fetchPage(1, { status: status === "All" ? "" : status });
+  };
+
+  const handlePageChange = (nextPage) => fetchPage(nextPage);
 
   const generateNextTechnicianId = () => {
     const currentYear = new Date().getFullYear();
@@ -877,6 +899,7 @@ const AdminServicePersonsPage = () => {
     try {
       await toggleTechnicianStatus(statusTarget.id);
       setStatusTarget(null);
+      fetchPage(page);
     } catch (err) {
       setActionError(getErrorMessage(err));
     } finally {
@@ -887,13 +910,21 @@ const AdminServicePersonsPage = () => {
   const handleReset = async (id, data) => {
     await resetTechnicianPassword(id, data);
     try {
-      await refreshTechnicians();
+      await fetchPage(page);
     } catch {
       // Best-effort refresh — the reset already succeeded.
     }
   };
 
-  if (loading && servicePersons.length === 0) {
+  const reloadAfterMutation = async () => {
+    try {
+      await fetchPage(page);
+    } catch {
+      // Mutations succeeded; list refresh is best-effort.
+    }
+  };
+
+  if ((fetching || contextLoading) && persons.length === 0) {
     return (
       <div className="space-y-8">
         <PageHeader
@@ -915,7 +946,7 @@ const AdminServicePersonsPage = () => {
       <PageHeader
         icon={UserCheck}
         title="Battery Technicians"
-        subtitle={`${servicePersons.length} registered battery technicians`}
+        subtitle={`${total} registered battery technician${total === 1 ? "" : "s"}`}
         actions={
           <button
             type="button"
@@ -962,7 +993,7 @@ const AdminServicePersonsPage = () => {
             <Filter className="w-4 h-4 text-[#8A9096] shrink-0" />
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => handleStatusFilterChange(e.target.value)}
               className="w-full bg-transparent text-sm font-medium text-[#16263A] focus:outline-none cursor-pointer"
             >
               {["All", "Active", "Inactive"].map((s) => (
@@ -981,7 +1012,7 @@ const AdminServicePersonsPage = () => {
             <button
               key={status}
               type="button"
-              onClick={() => setStatusFilter(status)}
+              onClick={() => handleStatusFilterChange(status)}
               className={`px-3.5 py-1.5 rounded-full text-xs font-semibold border transition ${
                 statusFilter === status
                   ? "bg-[#173B5C] text-white border-[#173B5C] shadow-sm"
@@ -995,9 +1026,9 @@ const AdminServicePersonsPage = () => {
       </Card>
 
       {/* Card grid */}
-      {!loading && (
+      {!fetching && (
         <TechnicianGrid
-          persons={filtered}
+          persons={persons}
           onView={setViewTarget}
           onEdit={setModal}
           onReset={setResetTarget}
@@ -1005,23 +1036,23 @@ const AdminServicePersonsPage = () => {
         />
       )}
 
+      <Pagination pagination={pagination} onPageChange={handlePageChange} />
+
       {/* Empty state */}
-      {filtered.length === 0 && (
+      {persons.length === 0 && !fetching && (
         <div className="text-center py-14 bg-[#FFFDF8] border border-[#EEE9DA] rounded-3xl p-6">
           <div className="mx-auto w-14 h-14 rounded-2xl bg-[#F5F1E7] flex items-center justify-center mb-4">
             <UserPlus className="w-6 h-6 text-[#8A7A4A]" />
           </div>
           <p className="text-base font-bold text-[#16263A]">
-            {servicePersons.length === 0
-              ? "No technicians yet"
-              : "No technicians match your search"}
+            {total === 0 ? "No technicians yet" : "No technicians match your search"}
           </p>
           <p className="text-xs text-[#747B83] mt-1 max-w-sm mx-auto">
-            {servicePersons.length === 0
+            {total === 0
               ? "Create your first battery technician to get started."
               : "Try adjusting the search query or status filter."}
           </p>
-          {servicePersons.length === 0 && (
+          {total === 0 && (
             <button
               type="button"
               onClick={() => setModal("add")}
@@ -1039,8 +1070,14 @@ const AdminServicePersonsPage = () => {
         <TechnicianFormModal
           person={modal === "add" ? null : modal}
           onClose={() => setModal(null)}
-          onCreate={createTechnician}
-          onUpdate={updateTechnician}
+          onCreate={async (form) => {
+            await createTechnician(form);
+            await reloadAfterMutation();
+          }}
+          onUpdate={async (id, fields) => {
+            await updateTechnician(id, fields);
+            await reloadAfterMutation();
+          }}
           onGenerateId={generateNextTechnicianId}
         />
       )}

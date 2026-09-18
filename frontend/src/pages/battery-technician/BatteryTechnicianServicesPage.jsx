@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
@@ -9,10 +9,10 @@ import {
 } from "lucide-react";
 
 import { useBatteryTechnician } from "../../context/BatteryTechnicianContext";
-import { PageHeader, Card, EmptyState } from "../../components/common";
+import { PageHeader, Card, EmptyState, Pagination } from "../../components/common";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import ServiceAssignmentCard from "../../components/battery-technician/ServiceAssignmentCard";
-import { getErrorMessage } from "../../services/batteryTechnicianApi";
+import { getErrorMessage, fetchAssignedServicesPaginated } from "../../services/batteryTechnicianApi";
 
 const BATTERY_TECHNICIAN_STATUS_FILTERS = [
   "All",
@@ -26,53 +26,61 @@ const BATTERY_TECHNICIAN_STATUS_FILTERS = [
 ];
 
 const BatteryTechnicianServicesPage = () => {
-  const { services, loading, refreshServices } = useBatteryTechnician();
+  const { loading: contextLoading } = useBatteryTechnician();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [page, setPage] = useState(1);
+  const [services, setServices] = useState([]);
+  const [pagination, setPagination] = useState(null);
+  const [fetching, setFetching] = useState(false);
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
+  const total = pagination?.total ?? services.length;
+
+  /* Server-side fetch — the backend filters to this technician's assigned
+     services and applies search + status before returning the standard
+     { data, pagination } envelope. */
+  const fetchPage = async (nextPage = 1, opts = {}) => {
+    setFetching(true);
     try {
+      const result = await fetchAssignedServicesPaginated({
+        page: nextPage,
+        limit: 6,
+        status: opts.status !== undefined ? opts.status : statusFilter === "All" ? "" : statusFilter,
+        search: opts.search !== undefined ? opts.search : search,
+      });
+      setServices(result.data || []);
+      setPagination(result.pagination || null);
+      setPage(nextPage);
       setError("");
-      await refreshServices();
     } catch (err) {
       setError(getErrorMessage(err));
+    } finally {
+      setFetching(false);
     }
-  }, [refreshServices]);
+  };
 
   useEffect(() => {
-    load();
-  }, [load]);
+    fetchPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const filtered = useMemo(() => {
-    let list = [...services];
+  // Debounced search → reset to page 1.
+  useEffect(() => {
+    const timer = setTimeout(() => fetchPage(1, { search }), 350);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
-    if (statusFilter !== "All") {
-      list = list.filter((s) => s.status === statusFilter);
-    }
+  const handleStatusFilterChange = (status) => {
+    setStatusFilter(status);
+    fetchPage(1, { status: status === "All" ? "" : status });
+  };
 
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(
-        (s) =>
-          (s.ticketNumber || "").toLowerCase().includes(q) ||
-          (s.batteryName || "").toLowerCase().includes(q) ||
-          (s.battery?.modelName || "").toLowerCase().includes(q) ||
-          (s.battery?.name || "").toLowerCase().includes(q) ||
-          (s.serviceType || "").toLowerCase().includes(q) ||
-          (s.battery?.chemistry || "").toLowerCase().includes(q) ||
-          (s.customer?.name || "").toLowerCase().includes(q) ||
-          (s.center || "").toLowerCase().includes(q) ||
-          (s.batteryId || "").toLowerCase().includes(q) ||
-          (s.id || "").toLowerCase().includes(q)
-      );
-    }
+  const handlePageChange = (nextPage) => fetchPage(nextPage);
 
-    return list;
-  }, [services, search, statusFilter]);
-
-  if (loading && services.length === 0) {
+  if ((fetching || contextLoading) && services.length === 0) {
     return <LoadingSpinner />;
   }
 
@@ -83,7 +91,7 @@ const BatteryTechnicianServicesPage = () => {
       <PageHeader
         icon={Wrench}
         title="Assigned Service Queue"
-        subtitle={`${services.length} services currently assigned to your account`}
+        subtitle={`${total} service${total === 1 ? "" : "s"} currently assigned to your account`}
       />
 
       {error && (
@@ -92,7 +100,7 @@ const BatteryTechnicianServicesPage = () => {
           <p className="text-sm text-red-700 flex-1">{error}</p>
           <button
             type="button"
-            onClick={load}
+            onClick={() => fetchPage(page)}
             className="text-xs font-bold text-red-700 hover:text-red-900 transition-colors"
           >
             Retry
@@ -127,7 +135,7 @@ const BatteryTechnicianServicesPage = () => {
             <Filter className="w-4 h-4 text-[#8A9096] shrink-0" />
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => handleStatusFilterChange(e.target.value)}
               className="w-full bg-transparent text-sm font-medium text-[#16263A] focus:outline-none cursor-pointer"
             >
               {BATTERY_TECHNICIAN_STATUS_FILTERS.map((s) => (
@@ -146,7 +154,7 @@ const BatteryTechnicianServicesPage = () => {
             <button
               key={status}
               type="button"
-              onClick={() => setStatusFilter(status)}
+              onClick={() => handleStatusFilterChange(status)}
               className={`px-3.5 py-1.5 rounded-full text-xs font-semibold border transition ${
                 statusFilter === status
                   ? "bg-[#173B5C] text-white border-[#173B5C] shadow-sm"
@@ -160,7 +168,7 @@ const BatteryTechnicianServicesPage = () => {
       </Card>
 
       {/* Service Request Cards */}
-      {filtered.length === 0 ? (
+      {services.length === 0 ? (
         <EmptyState
           icon={Wrench}
           title="No Assigned Service Requests Found"
@@ -171,15 +179,18 @@ const BatteryTechnicianServicesPage = () => {
           }
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-          {filtered.map((service) => (
-            <ServiceAssignmentCard
-              key={service.id}
-              service={service}
-              onOpen={() => navigate(`/battery-technician/services/${service.id}`)}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
+            {services.map((service) => (
+              <ServiceAssignmentCard
+                key={service.id}
+                service={service}
+                onOpen={() => navigate(`/battery-technician/services/${service.id}`)}
+              />
+            ))}
+          </div>
+          <Pagination pagination={pagination} onPageChange={handlePageChange} />
+        </>
       )}
     </div>
   );

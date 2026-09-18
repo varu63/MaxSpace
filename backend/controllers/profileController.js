@@ -112,7 +112,38 @@ export const changePassword = asyncHandler(async (req, res) => {
 // GET /api/profile/activity
 export const getActivityLogs = asyncHandler(async (req, res) => {
   const profile = (await store.getProfile(req.user.id)) || {};
-  res.json(profile.activityLogs || []);
+  const logs = profile.activityLogs || [];
+
+  // Stores cap the retained history (see logActivity) so the in-memory list
+  // is bounded; still paginate the response so very active accounts render a
+  // bounded page and the envelope stays consistent with the other lists.
+  const paginated = req.query.page !== undefined || req.query.limit !== undefined;
+  if (!paginated) {
+    res.json(logs);
+    return;
+  }
+
+  const rawPage = Number.parseInt(req.query.page, 10);
+  const rawLimit = Number.parseInt(req.query.limit, 10);
+  const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
+  const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? rawLimit : 20;
+  const maxLimit = 100;
+
+  const start = (page - 1) * limit;
+  res.json({
+    success: true,
+    data: logs.slice(start, start + limit),
+    pagination: {
+      page,
+      limit,
+      total: logs.length,
+      totalPages: logs.length === 0 ? 0 : Math.ceil(logs.length / limit),
+      hasNextPage: page * limit < logs.length,
+      hasPreviousPage: page > 1,
+      nextPage: page * limit < logs.length ? page + 1 : null,
+      previousPage: page > 1 ? page - 1 : null,
+    },
+  });
 });
 
 // GET /api/profile/export
