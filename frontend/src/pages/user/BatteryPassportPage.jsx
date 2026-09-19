@@ -204,6 +204,9 @@ export default function BatteryPassportPage() {
           <DetailRow icon={Factory} label="Manufacturer" value={valueOr(battery.manufacturer)} variant="passport" />
           <DetailRow icon={MapPin} label="Assembly Location" value={valueOr(battery.assemblyLocation || battery.location)} variant="passport" />
           <DetailRow icon={Factory} label="Model Name" value={valueOr(battery.modelName || battery.name)} variant="passport" />
+          <DetailRow icon={Factory} label="Manufacturer Identifier" value={valueOr(battery.manufacturer)} variant="passport" />
+          <DetailRow icon={Factory} label="Country Code" value={valueOr()} variant="passport" />
+          <DetailRow icon={Factory} label="Factory Code" value={valueOr()} variant="passport" />
         </InfoBlock>
 
         <InfoBlock title="Battery Descriptor" icon={Battery} variant="passport">
@@ -213,6 +216,9 @@ export default function BatteryPassportPage() {
           <DetailRow icon={Layers} label="Battery Chemistry" value={valueOr(battery.chemistry)} variant="passport" />
           <DetailRow icon={Battery} label="Weight" value={battery.weightKg ? `${battery.weightKg} kg` : "—"} variant="passport" />
           <DetailRow icon={Battery} label="Dimensions (mm)" value={valueOr(battery.dimensionsMm)} variant="passport" />
+          <DetailRow icon={ShieldCheck} label="Extinguisher Class" value={valueOr()} variant="passport" />
+          <DetailRow icon={MapPin} label="Cell Origin" value={valueOr()} variant="passport" />
+          <DetailRow icon={Battery} label="BMS Model" value={valueOr(battery.bmsModel)} variant="passport" />
         </InfoBlock>
 
         <InfoBlock title="Battery Identifier" icon={Hash} variant="passport">
@@ -271,6 +277,20 @@ export default function BatteryPassportPage() {
             value={rc.lead !== undefined ? `${rc.lead}%` : "—"}
             variant="passport"
           />
+          <DetailRow icon={Layers} label="Cell Form Factor" value={valueOr()} variant="passport" />
+          <DetailRow icon={Layers} label="Battery Pack Construction" value={valueOr()} variant="passport" />
+          <DetailRow icon={Layers} label="Module Construction" value={valueOr()} variant="passport" />
+          <DetailRow icon={Activity} label="Cooling System" value={valueOr()} variant="passport" />
+          <DetailRow icon={Wrench} label="Disassembly Method" value={valueOr(battery.dismantlingManual)} variant="passport" />
+          <DetailRow icon={Leaf} label="Circularity Method" value={valueOr()} variant="passport" />
+          <DetailRow icon={Leaf} label="Recyclability" value={valueOr()} variant="passport" />
+          <DetailRow icon={Layers} label="Material: Anode" value={valueOr()} variant="passport" />
+          <DetailRow icon={Layers} label="Material: Cathode" value={valueOr()} variant="passport" />
+          <DetailRow icon={Layers} label="Material: Electrolyte" value={valueOr()} variant="passport" />
+          <DetailRow icon={Layers} label="Material: Separator" value={valueOr()} variant="passport" />
+          <DetailRow icon={Layers} label="Material: Current Collector" value={valueOr()} variant="passport" />
+          <DetailRow icon={Layers} label="Material: Battery Casing" value={valueOr()} variant="passport" />
+          <DetailRow icon={Layers} label="Material: Potting" value={valueOr()} variant="passport" />
         </InfoBlock>
 
         <InfoBlock title="Current Status & Health" icon={Activity} variant="passport">
@@ -324,9 +344,19 @@ export default function BatteryPassportPage() {
 
         <InfoBlock title="Lifecycle, Compliance & Carbon Footprint" icon={Leaf} variant="passport">
           <DetailRow icon={Leaf} label="Total Carbon Footprint" value={battery.carbonFootprintKgPerKwh != null ? `${battery.carbonFootprintKgPerKwh} kgCO₂e/kWh` : "—"} variant="passport" />
+          <DetailRow icon={Leaf} label="Raw Material Acquisition Stage (%)" value={valueOr()} variant="passport" />
+          <DetailRow icon={Leaf} label="Manufacturing Stage (%)" value={valueOr()} variant="passport" />
+          <DetailRow icon={Leaf} label="Distribution Stage (%)" value={valueOr()} variant="passport" />
+          <DetailRow icon={Leaf} label="End of Life & Recycling Stage (%)" value={valueOr()} variant="passport" />
           <DetailRow icon={FileText} label="Compliance Standards" value={Array.isArray(battery.complianceStandards) ? battery.complianceStandards.join(" • ") : valueOr(battery.complianceStandards)} variant="passport" />
           <DetailRow icon={Wrench} label="Dismantling Instructions" value={valueOr(battery.dismantlingManual)} variant="passport" />
           <DetailRow icon={Activity} label="Health Timeline" value={derived.health.map((h) => `${h.date}: ${h.soh}%`).join(" → ") || "—"} variant="passport" />
+        </InfoBlock>
+
+        <InfoBlock title="Dynamic Data" icon={Activity} variant="passport">
+          <DetailRow icon={Activity} label="Battery Category" value={valueOr(battery.type)} variant="passport" />
+          <DetailRow icon={FileText} label="Date & Time Stamp" value={valueOr(battery.createdAt)} variant="passport" />
+          <DetailRow icon={Hash} label="BPAN" value={valueOr(battery.barcode)} variant="passport" />
         </InfoBlock>
 
         <div className="rounded-2xl bg-[#FBF1C9] border border-[#F0E6C8] p-4 sm:p-5">
