@@ -33,6 +33,7 @@ export const ACTIVE_BOOKING_STATUSES = [
   "Assigned",
   "On The Way",
   "In Progress",
+  "Waiting for Admin Approval",
 ];
 
 /* Statuses that represent a live (non-completed, non-cancelled) service. */

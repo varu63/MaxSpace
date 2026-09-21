@@ -302,6 +302,26 @@ export const BatteryProvider = ({ children }) => {
     }
   }, []);
 
+  /* Persist a scanned battery to the authenticated user's fleet (backend
+     updates owner_id in PostgreSQL), then refresh the fleet + profile from
+     the backend so the claimed unit shows up in the User Profile immediately.
+     Throws on failure so the scanner can surface the real reason. */
+  const claimBattery = useCallback(async (identifier) => {
+    const data = await api.claimBattery(identifier);
+    try {
+      const [batts, prof] = await Promise.all([
+        api.fetchBatteries(),
+        api.fetchProfile(),
+      ]);
+      setBatteries(batts || []);
+      setUserProfile(prof?.profile || EMPTY_USER_PROFILE);
+      saveProfileToStorage(prof?.profile || EMPTY_USER_PROFILE);
+    } catch {
+      // Refreshing is best-effort; the claim itself already succeeded.
+    }
+    return data;
+  }, []);
+
   /* =======================================================
      SERVICE OPERATIONS
   ======================================================= */
@@ -480,6 +500,7 @@ export const BatteryProvider = ({ children }) => {
       updateBattery,
       deleteBattery,
       findBatteryByBarcode,
+      claimBattery,
 
       bookService,
       updateServiceStatus,
@@ -528,6 +549,7 @@ export const BatteryProvider = ({ children }) => {
       updateBattery,
       deleteBattery,
       findBatteryByBarcode,
+      claimBattery,
       bookService,
       updateServiceStatus,
       getBatteryServiceStatusFn,

@@ -8,7 +8,7 @@ export const NotificationToast = () => {
   if (!toasts || toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col space-y-3 max-w-sm w-full pointer-events-none">
+    <div className="fixed bottom-6 left-4 right-4 sm:left-auto sm:right-6 z-50 flex flex-col space-y-3 max-w-sm w-full sm:w-auto ml-auto pointer-events-none">
       {toasts.map((toast) => (
         <div
           key={toast.id}

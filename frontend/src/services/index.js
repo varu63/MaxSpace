@@ -34,6 +34,7 @@ export {
   googleSignIn,
   logout,
   forgotPassword,
+  resetPassword,
   fetchBatteries,
   createBattery,
   updateBattery,

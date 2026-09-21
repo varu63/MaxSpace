@@ -1,11 +1,10 @@
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import fs from "fs";
-import path from "path";
 import store from "../data/index.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { signToken, sanitizeUser, matchesPassword } from "../utils/auth.js";
 import { verifyGoogleIdToken } from "../utils/googleAuth.js";
+import { sendPasswordResetEmail } from "../utils/mailer.js";
 import { todayISO } from "../utils/date.js";
 import config from "../config/app.js";
 
@@ -198,47 +197,61 @@ export const signUp = asyncHandler(async (req, res) => {
 
 // POST /api/auth/forgot-password
 export const forgotPassword = asyncHandler(async (req, res) => {
-  const { email } = req.body || {};
+  const email = String((req.body || {}).email || "")
+    .trim()
+    .toLowerCase();
 
-  if (!email || !EMAIL_REGEX.test(String(email))) {
+  if (!email || !EMAIL_REGEX.test(email)) {
     res.status(400);
     throw new Error("Please provide a valid email address");
   }
 
   const user = await store.getUserByEmail(email);
 
-  // Always respond the same way so email enumeration is not possible.
-  if (user) {
-    const token = crypto.randomBytes(32).toString("hex");
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
-    await store.setPasswordResetToken(user.id, hashResetToken(token), expiresAt.toISOString());
-    // No SMTP is configured for this build; persist the reset link so the flow
-    // can be exercised in development. In production an email service would send it.
-    try {
-      const resetsLog = path.join(process.env.TEMP || "/tmp", "maxspace-reset-links.log");
-      fs.appendFileSync(resetsLog, `${new Date().toISOString()} ${user.email} ${config.clientUrl}/auth/reset-password?token=${token}\n`);
-    } catch {
-      // ignore logging failures
-    }
+  if (!user) {
+    res.status(404);
+    throw new Error("Account does not exist. Please check your email address or create a new account.");
   }
 
+  const token = crypto.randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+  await store.setPasswordResetToken(user.id, hashResetToken(token), expiresAt.toISOString());
+
+  // Deliver the reset link via SMTP when configured; otherwise fall back to
+  // writing it to a local log so the flow can be exercised in development.
+  // The raw token is never logged when NODE_ENV=production.
+  await sendPasswordResetEmail(
+    user.email,
+    `${config.clientUrl}/reset-password?token=${token}`
+  );
+
   res.status(200).json({
-    message: "If an account exists with that email, a password reset link has been sent.",
+    success: true,
+    message: "Password reset link sent successfully.",
   });
 });
 
 // POST /api/auth/reset-password — consume a one-time reset token
 export const resetPassword = asyncHandler(async (req, res) => {
-  const { token, newPassword } = req.body || {};
+  const { token, password, confirmPassword, newPassword } = req.body || {};
 
-  if (!token || !newPassword) {
+  // Accept both the documented `password` field and the older `newPassword`
+  // alias so existing callers keep working unchanged.
+  const candidatePassword = password ?? newPassword;
+
+  if (!token || !candidatePassword) {
     res.status(400);
     throw new Error("Please provide the reset token and a new password");
   }
 
-  if (String(newPassword).length < 6) {
+  if (String(candidatePassword).length < 6) {
     res.status(400);
     throw new Error("Password must be at least 6 characters");
+  }
+
+  if (confirmPassword && confirmPassword !== candidatePassword) {
+    res.status(400);
+    throw new Error("Passwords do not match");
   }
 
   const user = await store.getUserByPasswordResetToken(hashResetToken(token));
@@ -250,14 +263,14 @@ export const resetPassword = asyncHandler(async (req, res) => {
 
   if (expired) {
     res.status(400);
-    throw new Error("Invalid or expired reset token");
+    throw new Error("Invalid or expired reset link. Please request a new password reset link.");
   }
 
-  const hashed = await bcrypt.hash(String(newPassword), 10);
+  const hashed = await bcrypt.hash(String(candidatePassword), 10);
   await store.updateUser(user.id, { password: hashed });
   await store.clearPasswordResetToken(user.id);
 
-  res.status(200).json({ message: "Password reset successfully. You can now sign in." });
+  res.status(200).json({ success: true, message: "Password reset successfully. You can now log in with your new password." });
 });
 
 // GET /api/auth/me

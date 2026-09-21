@@ -57,7 +57,7 @@ const Pagination = ({ pagination, onPageChange, className = "" }) => {
         of <span className="font-semibold text-[#16263A]">{total}</span>
       </p>
 
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center justify-center gap-1.5">
         <PageButton
           disabled={!hasPreviousPage}
           onClick={() => onPageChange(page - 1)}

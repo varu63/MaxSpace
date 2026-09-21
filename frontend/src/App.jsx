@@ -25,6 +25,7 @@ const BatteryDetailPage = lazy(() => import("./pages/user/BatteryDetailPage"));
 const BatteryPassportPage = lazy(() => import("./pages/user/BatteryPassportPage"));
 const SignInPage = lazy(() => import("./pages/user/SignInPage"));
 const SignUpPage = lazy(() => import("./pages/user/SignUpPage"));
+const ResetPasswordPage = lazy(() => import("./pages/user/ResetPasswordPage"));
 
 const AdminLoginPage = lazy(() => import("./pages/admin/AdminLoginPage"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
@@ -310,6 +311,21 @@ const App = () => {
                     <SignUpPage />
                   </PublicOnlyRoute>
                 }
+              />
+
+              <Route
+                path="/reset-password"
+                element={
+                  <PublicOnlyRoute>
+                    <ResetPasswordPage />
+                  </PublicOnlyRoute>
+                }
+              />
+
+              {/* Backward-compatible alias for older reset links */}
+              <Route
+                path="/auth/reset-password"
+                element={<Navigate to="/reset-password" replace />}
               />
 
               {/* ============ ADMIN PANEL ============ */}

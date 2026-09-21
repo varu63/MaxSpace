@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -16,14 +16,17 @@ import {
   Wrench,
   CheckCircle2,
   AlertTriangle,
+  Pencil,
 } from "lucide-react";
 import { useBattery } from "../../context/BatteryContext";
 import { DetailRow, InfoBlock } from "../../components/common";
+import EditBatteryDetailsModal from "../../components/user/battery/EditBatteryDetailsModal";
 
 export default function BatteryDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { batteries = [] } = useBattery();
+  const [isEditOpen, setIsEditOpen] = useState(false);
 
   const battery = useMemo(() => batteries.find((b) => b.id === id), [batteries, id]);
 
@@ -90,6 +93,13 @@ export default function BatteryDetailPage() {
           <p className="mt-1 text-sm text-[#747B83]">{battery.type}</p>
         </div>
         <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => setIsEditOpen(true)}
+            className="h-10 px-5 rounded-xl border-2 border-[#B48611] text-[#B48611] text-xs font-semibold hover:bg-[#FBF1C9] transition flex items-center gap-1.5"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+            Edit Details
+          </button>
           <button
             onClick={() => navigate(`/battery/${battery.id}/passport`)}
             className="h-10 px-5 rounded-xl border-2 border-[#B48611] text-[#B48611] text-xs font-semibold hover:bg-[#FBF1C9] transition flex items-center gap-1.5"
@@ -225,6 +235,12 @@ export default function BatteryDetailPage() {
           </div>
         </InfoBlock>
       )}
+
+      <EditBatteryDetailsModal
+        battery={battery}
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+      />
     </div>
   );
 }

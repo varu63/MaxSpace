@@ -1,7 +1,20 @@
 /* MaxSpace complete API audit test — run against a live backend.
    Requires DATA_SOURCE=postgres (seeded via POST /api/data/reset).
+   DANGEROUS: this suite TRUNCATEs the app tables and replants demo seed
+   data (see section 0). It must ONLY run against a disposable dev
+   database, so it refuses to run unless ALLOW_DB_RESET=true. On the
+   production database (maxvolt_prod) /api/data/reset is locked and this
+   suite is inert by design.
    Run: npm run test:audit  (backed by the ./server entry that reads .env)
 */
+import { config as readDotenv } from "dotenv";
+readDotenv({ path: new URL("../.env", import.meta.url) });
+if (process.env.ALLOW_DB_RESET !== "true") {
+  console.log(
+    "SKIP: audit-suite is destructive (TRUNCATE + seed). Set ALLOW_DB_RESET=true in backend/.env on a disposable dev DB to run it."
+  );
+  process.exit(0);
+}
 const ROOT = "http://localhost:5000";
 const BASE = `${ROOT}/api`;
 

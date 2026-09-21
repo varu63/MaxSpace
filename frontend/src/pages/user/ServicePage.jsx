@@ -22,6 +22,8 @@ const ServicePage = () => {
     bookService,
     openScanner,
     getBatteryServiceStatus,
+    getBatteryServiceCount,
+    stats,
   } = useBattery();
 
   const [search, setSearch] = useState("");
@@ -135,8 +137,14 @@ const ServicePage = () => {
       else if (status === "Pending") pending += 1;
     }
 
-    return { active, pending };
-  }, [batteries, getServiceStatus]);
+    return {
+      total: batteries.length,
+      active,
+      pending,
+      warranty: stats?.activeWarranties ?? 0,
+      attention: stats?.attentionBatteries ?? 0,
+    };
+  }, [batteries, getServiceStatus, stats]);
 
   const openBookingModal = useCallback(() => {
     if (!selectedBattery || isBatteryBooked(selectedBattery)) return;
@@ -256,6 +264,7 @@ const ServicePage = () => {
           isBooked={isBatteryBooked(selectedBattery)}
           getBatteryId={getBatteryId}
           getServiceStatus={getServiceStatus}
+          getBatteryServiceCount={getBatteryServiceCount}
           onClose={() => setSelectedBattery(null)}
           onBook={openBookingModal}
         />

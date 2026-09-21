@@ -35,9 +35,10 @@ const BatteryPerformance = ({ batteries }) => {
                 battery.healthPercentage ??
                 0
             );
+            const displayHealth = Number.isFinite(health) ? `${health}%` : "—";
 
-            const voltage = battery.voltage ?? "--";
-            const capacity = battery.capacity ?? "--";
+            const voltage = battery.nominalVoltage ?? battery.voltage ?? "--";
+            const capacity = battery.capacityKwh ?? battery.capacity ?? "--";
 
             return (
               <div
@@ -64,7 +65,7 @@ const BatteryPerformance = ({ batteries }) => {
                   </div>
 
                   <span className="font-bold text-[#16263A]">
-                    {health}%
+                    {displayHealth}
                   </span>
                 </div>
 

@@ -3,6 +3,10 @@ import { BarChart3 } from "lucide-react";
 import { Card, SectionHeader } from "../../common";
 
 const getHealthStyle = (health) => {
+  if (!Number.isFinite(health)) {
+    return "bg-[#F5F1E7] text-[#747B83]";
+  }
+
   if (health >= 80) {
     return "bg-green-100 text-green-700";
   }
@@ -57,6 +61,7 @@ const AnalyticsTable = ({ batteries }) => {
                   battery.healthPercentage ??
                   0
               );
+              const displayHealth = Number.isFinite(health) ? health : null;
 
               return (
                 <tr
@@ -82,19 +87,19 @@ const AnalyticsTable = ({ batteries }) => {
                   <td className="px-6 py-4">
                     <span
                       className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${getHealthStyle(
-                        health
+                        displayHealth
                       )}`}
                     >
-                      {health}%
+                      {displayHealth === null ? "—" : `${displayHealth}%`}
                     </span>
                   </td>
 
                   <td className="px-6 py-4 text-sm text-[#747B83]">
-                    {battery.voltage ?? "--"}
+                    {battery.nominalVoltage ?? battery.voltage ?? "—"}
                   </td>
 
                   <td className="px-6 py-4 text-sm text-[#747B83]">
-                    {battery.capacity ?? "--"}
+                    {battery.capacityKwh ?? battery.capacity ?? "—"}
                   </td>
 
                   <td className="px-6 py-4 text-sm font-semibold text-[#16263A]">

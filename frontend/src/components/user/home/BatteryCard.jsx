@@ -25,14 +25,14 @@ const BatteryCard = ({ battery }) => {
           </span>
 
           <h3 className="mt-2 text-lg font-bold text-[#16263A]">
-            {battery.model || battery.modelName}
+            {battery.modelName || battery.model || "—"}
           </h3>
         </div>
 
         <div className="text-right">
           <p className="text-[10px] text-[#747B83]">Chemistry</p>
           <p className="mt-0.5 font-bold text-sm text-[#16263A]">
-            {battery.chemistry}
+            {battery.chemistry || "—"}
           </p>
         </div>
       </div>
@@ -47,7 +47,7 @@ const BatteryCard = ({ battery }) => {
           <div>
             <p className="text-xs text-[#747B83]">Total Cells</p>
             <p className="mt-0.5 text-lg font-bold text-[#16263A]">
-              {battery.cells}
+              {battery.cells ?? battery.totalCells ?? "—"}
             </p>
           </div>
         </div>

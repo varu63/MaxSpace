@@ -1,6 +1,7 @@
 
 import { useState } from "react";
 import { useBattery } from "../../../context/BatteryContext";
+import BatteryCard from "../home/BatteryCard";
 import { EditProfileModal } from "./EditProfileModal";
 
 import {
@@ -240,6 +241,73 @@ export const UserProfileView = () => {
               <p className="mt-1 text-2xl font-bold text-[#16263A]">{stats.activeWarranties || 0}</p>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* =====================================================
+          REGISTERED BATTERIES (from PostgreSQL via /api/batteries)
+      ====================================================== */}
+      <section className="
+        rounded-3xl
+        bg-[#FFFDF8]
+        border border-[#EEE9DA]
+        shadow-sm
+        overflow-hidden
+      ">
+        <div className="
+          p-6 md:p-7
+          border-b border-[#EEE9DA]
+          flex items-center justify-between gap-4
+        ">
+          <div className="flex items-center gap-3">
+            <div className="
+              w-11 h-11
+              rounded-xl
+              bg-[#173B5C]
+              flex items-center justify-center
+            ">
+              <Battery className="w-5 h-5 text-white" />
+            </div>
+
+            <div>
+              <h2 className="font-bold text-lg">
+                My Registered Batteries
+              </h2>
+
+              <p className="text-xs text-[#747B83]">
+                Scanned and registered batteries linked to your account
+              </p>
+            </div>
+          </div>
+
+          <span className="
+            inline-flex items-center gap-2
+            text-xs
+            font-semibold
+            text-[#173B5C]
+          ">
+            {batteries.length} {batteries.length === 1 ? "unit" : "units"}
+          </span>
+        </div>
+
+        <div className="p-6 md:p-7">
+          {batteries.length === 0 ? (
+            <div className="py-10 text-center text-[#747B83]">
+              <Battery className="w-8 h-8 mx-auto text-[#8A9096]" />
+              <p className="mt-3 font-semibold">
+                No batteries registered yet
+              </p>
+              <p className="mt-1 text-xs">
+                Scan a battery QR code to add it to your fleet.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {batteries.map((battery) => (
+                <BatteryCard key={battery.id} battery={battery} />
+              ))}
+            </div>
+          )}
         </div>
       </section>
 

@@ -34,6 +34,37 @@ const Info = ({ icon: Icon, label, value }) => (
   </div>
 );
 
+const trackingStageKey = (historyStatus) => {
+  const value = (historyStatus || "").toLowerCase();
+  if (["confirmed", "booked", "waiting for admin approval"].includes(value)) return "Booked";
+  if (value === "accepted") return "Accepted";
+  if (value === "assigned") return "Assigned";
+  if (["on the way", "ontheway"].includes(value)) return "OnTheWay";
+  if (value === "in progress") return "InProgress";
+  if (["completed", "complete", "done"].includes(value)) return "Completed";
+  return null;
+};
+
+const formatHistoryTime = (iso) => {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+};
+
+/* Build milestone timestamps from the service history entries so every
+   reached stage shows when it happened, not just Booked/Completed. */
+const timestampsFromHistory = (booking) => {
+  const timestamps = {};
+  for (const entry of booking?.history || []) {
+    const key = trackingStageKey(entry.status || entry.action);
+    if (!key) continue;
+    const time = formatHistoryTime(entry.timestamp);
+    if (time && !timestamps[key]) timestamps[key] = { time };
+  }
+  return timestamps;
+};
+
 const ServiceDetailsPanel = ({ booking, status }) => {
   const hasBooking = Boolean(booking);
   // Prefer the granular booking/service status for the tracking timeline so
@@ -103,6 +134,7 @@ const ServiceDetailsPanel = ({ booking, status }) => {
                 timestamps={{
                   Booked: { time: booking.date || "" },
                   Completed: { time: booking.scheduledDate || "" },
+                  ...timestampsFromHistory(booking),
                 }}
                 label="Service Progress"
               />

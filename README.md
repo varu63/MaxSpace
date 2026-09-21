@@ -240,7 +240,7 @@ MaxSpace/
 ├── docker-compose.yaml        # PostgreSQL 17 service (for DATA_SOURCE=postgres)
 ├── maxtrace_backup.dump       # Legacy pg_dump from a separate project (NOT used by the app)
 ├── docs/
-│   └── DATABASE_MIGRATION.md  # Data-source switch guide (mock ↔ postgres)
+│   └── DATABASE_MIGRATION.md  # Data-source switch guide (mock ↔ maxvolt_prod)
 │
 ├── backend/
 │   ├── index.js               # Express server entry
@@ -257,7 +257,9 @@ MaxSpace/
 │   │   ├── store.js           # In-memory seeded store
 │   │   ├── seedData.js        # Seed datasets (mirrors frontend dummyData.js)
 │   │   └── postgres/index.js  # PostgreSQL repository (fully implemented)
-│   └── sql/schema.sql         # PostgreSQL schema (users, batteries, services, …)
+│   └── sql/
+│       ├── schema.sql      # Greenfield app schema (only for brand-new DBs)
+│       └── migrations/     # 000/001/002 idempotent migrations (adapt maxvolt_prod)
 │
 └── frontend/
     ├── index.html             # HTML entry point
@@ -407,9 +409,9 @@ Conventions worth knowing:
 | `serviceController.js` | Service CRUD + per-battery status | Users may only set status to `Cancelled`; admins/technicians advance it elsewhere. |
 | `adminController.js` | Admin login, service workflow, service persons, technicians, customers, analytics | Service accept/assign/status/approve; technician creation = `service_person` + `EMPLOYEE` user pair; uniqueness checks. |
 | `batteryTechnicianController.js` | Technician login (email + password), assigned services, status updates | `EMPLOYEE_ALLOWED_TRANSITIONS` whitelist enforces the field workflow. |
-| `analyticsController.js` | Fleet stats, service analytics, performance, combined summary | Pure in-memory aggregations over the store data. |
+| `analyticsController.js` | Fleet stats, service analytics, performance, combined summary | Owner-scoped: customers (`USER`) only see their own batteries/services via `ownerScopeFor`; admins/employees get the full fleet. |
 | `profileController.js` | Profile CRUD, notifications, password change, activity, export | Password change verifies current password; export returns user + batteries + services. |
-| `dataController.js` | `POST /api/data/reset` | Re-seeds the dataset to the sample state. |
+| `dataController.js` | `POST /api/data/reset` | ADMIN only; re-seeds the sample dataset **only when `ALLOW_DB_RESET=true`** (403 otherwise — protected against wiping production data). |
 
 ### Data layer
 
@@ -602,6 +604,8 @@ Errors:           400 (no identifier) / 404 (not found) / 401 (not authorized)
 
 ### Analytics — `/api/analytics` (all protected)
 
+Customer (`USER`) sessions are **owner-scoped**: all four endpoints aggregate only the batteries the user owns and services they booked. Admins/employees (via `/api/admin/analytics`) get the full fleet.
+
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
 | GET | `/` | Combined `{ batteries (with service counts), services }` |
@@ -613,7 +617,7 @@ Errors:           400 (no identifier) / 404 (not found) / 401 (not authorized)
 
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
-| POST | `/reset` | Restore the sample dataset |
+| POST | `/reset` | Restore the sample dataset — **`403` unless `ALLOW_DB_RESET=true`** |
 
 ### Admin — `/api/admin`
 
@@ -673,23 +677,26 @@ DB:               services (status + history append), profiles (activity log).
 ### Engine & configuration
 
 - **PostgreSQL** via the `pg` driver, enabled when `DATA_SOURCE=postgres` and `DATABASE_URL` are set.
-- `docker-compose.yaml` runs PostgreSQL 17 (`maxspace_user` / `maxspace_password` / `maxspace_db`, port `5432`, named volume).
-- DDL lives in `backend/sql/schema.sql` (golden schema, includes FK + CHECK constraints).
+- In this deployment the app points **directly at the legacy production database `maxvolt_prod`** (`maxspace_user` / `maxspace_password`, port `5432`). No mirror exists — it is the single source of truth.
+- Two database shapes are supported:
+  - **Greenfield** (new, empty database): apply `backend/sql/schema.sql` once, then run the migrations.
+  - **Production (`maxvolt_prod`)**: legacy tables (`users`, `batteries`, `battery_models`, child traceability tables, …) are **adapted in place** by migration `000_maxvolt_prod.sql` — never overwritten, never duplicated. Do **not** apply `schema.sql` here (it would make MaxSpace-only tables alongside the adapted legacy ones and create duplicate app columns).
 - **Migrations** live in `backend/sql/migrations/` and are applied with the idempotent runner `backend/scripts/migrate.js` (`npm run db:migrate`, status via `npm run db:migrate:status`, tracked in the `schema_migrations` table):
+  - `000_maxvolt_prod.sql` — adapts the legacy `users` / `batteries` tables in place and adds the app-only tables (`profiles`, `service_persons`, `services`, `service_schedules`, `technician_availability`). Idempotent and conname-guarded.
   - `001_integrity.sql` — real foreign keys and CHECK constraints (see below).
   - `002_scheduling.sql` — `service_schedules` and `technician_availability` tables for the admin scheduling board.
 - The backend also ships a **mock** in-memory store that uses the same entity shapes (from `backend/data/seedData.js`, which mirrors `frontend/src/data/dummyData.js`).
 
 ### Referential integrity & constraints
 
-`001_integrity.sql` adds real database-level guardrails to `services` and `users` (mirrored at the app layer by `backend/utils/serviceValidation.js`, so mock mode behaves identically):
+The migrations add real database-level guardrails to `services` and `users` (mirrored at the app layer by `backend/utils/serviceValidation.js`, so mock mode behaves identically):
 
 ```sql
 -- services
 CHECK (status IN ('Confirmed','Accepted','Assigned','On The Way','In Progress',
                   'Waiting for Admin Approval','Completed','Cancelled'))
 CHECK (priority IN ('Low','Normal','High','Urgent'))
-FOREIGN KEY (battery_id) REFERENCES batteries(id) ON DELETE SET NULL
+FOREIGN KEY (battery_id) REFERENCES batteries(battery_id) ON DELETE SET NULL  -- maxvolt_prod: battery_id (legacy identity column)
 FOREIGN KEY (customer_id) REFERENCES users(id)
 FOREIGN KEY (assigned_service_person_id) REFERENCES service_persons(id)
 FOREIGN KEY (approved_by) REFERENCES users(id)
@@ -697,7 +704,7 @@ FOREIGN KEY (approved_by) REFERENCES users(id)
 FOREIGN KEY (service_person_id) REFERENCES service_persons(id)
 ```
 
-Foreign keys are real columns (`services.assigned_service_person_id` replaces the legacy embedded `technician` string for assignment; `services.customer_id` replaces the legacy `customerId` lookup) so the database rejects orphan rows instead of the app discovering them later. `npm run db:migrate:status` reports applied/pending migrations against the live database.
+On `maxvolt_prod`, `users.id` was converted from `serial` to `text` (existing ids preserved, sequence detached), and `batteries.battery_id` is the identity — the `services_battery_id_fkey` target column is resolved dynamically by the migration. Foreign keys are real columns so the database rejects orphan rows instead of the app discovering them later. `npm run db:migrate:status` reports applied/pending migrations against the live database.
 
 ### Tables
 
@@ -729,24 +736,28 @@ Relation: an `EMPLOYEE` user points to one `service_persons` row via `service_pe
 #### `batteries`
 | Column | Type | Notes |
 |--------|------|-------|
-| `id` | TEXT PK | e.g. `batt-1` |
-| `barcode`, `serial_number` | TEXT UNIQUE | scanned to identify a battery |
+| `battery_id` (legacy `id` on maxvolt_prod — `batteries.id` is **not** created) | TEXT PK | e.g. `MVAE0014036`; the repository maps it to the app `id`. New app batteries minted on maxvolt_prod resolve their `model_id` from `battery_models` and 400 if the model is unknown (no fabricated models). |
+| `barcode`, `serial_number` | TEXT UNIQUE | scanned to identify a battery; backfilled from `battery_id`/`modal_id` on maxvolt_prod |
 | `qr_code` | TEXT | EU passport URL |
-| `name`, `model_name`, `model`, `type`, `manufacturer` | TEXT | |
-| `chemistry`, `capacity_kwh`, `capacity`, `nominal_voltage`, `voltage`, `weight_kg`, `dimensions_mm`, `cells` | misc | specs |
-| `state_of_health`, `state_of_charge`, `cycle_count`, `max_rated_cycles`, `internal_resistance_mohms`, `operating_temp_c` | NUMERIC/INT | health/telemetry |
+| `name`, `model_name`, `model`, `type`, `manufacturer` | TEXT | on maxvolt_prod `name`/`model`/`model_name` derive from the registered `battery_models` row |
+| `chemistry`, `capacity_kwh`, `capacity`, `nominal_voltage`, `voltage`, `weight_kg`, `dimensions_mm`, `cells` | misc | maxvolt_prod: chemistry/type mapped from legacy `cell_type`/`category`; unknown values (weight, dimensions, manufacturer, SoH, warranty) stay NULL/`{}` — nothing is fabricated |
+| `state_of_health`, `state_of_charge`, `cycle_count`, `max_rated_cycles`, `internal_resistance_mohms`, `operating_temp_c` | NUMERIC/INT | health/telemetry; NULL where the legacy data has no value |
 | `carbon_footprint_kg_per_kwh` | NUMERIC | |
-| `recycled_content`, `warranty`, `compliance_standards`, `health_history` | JSONB | embedded documents |
-| `dismantling_manual` | TEXT | safety |
+| `recycled_content`, `warranty`, `compliance_standards`, `health_history` | JSONB | embedded documents (empty defaults on maxvolt_prod) |
+| `owner_id` | TEXT FK → `users.id` | **customer isolation on maxvolt_prod** — legacy units have NULL (visible to operators only); USER accounts only ever see batteries whose `owner_id` is theirs |
+| `hang_status` | TEXT | maxvolt_prod: `"true"`/`"false"` from legacy `had_ng_status` |
+| `state_of_health`, `internal_resistance_mohms` | NUMERIC | **derived at read time where the flat column is NULL**: SoH = pack-test measured capacity ÷ rated capacity (`pack_testing_reports.discharging_capacity`/`actual_cap` ÷ AH parsed from its `specification`); internal resistance from the latest `pdi_reports.resistance_m_ohm`. Genuine derivations, never fabricated. |
 
-Indexes: `idx_batteries_barcode`, `idx_batteries_serial`.
+Indexes: `idx_batteries_barcode`, `idx_batteries_serial`, `idx_batteries_owner`, `idx_batteries_modal`, `idx_batteries_name`, `idx_batteries_created_at`.
+
+> **Production-data enrichment.** Lists (`GET /api/batteries`, `/api/batteries/:id`, passport) automatically pull the latest real per-battery records from the legacy child tables and include them in the payload: `pdiReport` (voltage/resistance/test result), `packTestingReport` (measured capacity, result, spec), `dispatchRecord` (invoice/dispatch — currently 0 rows), `bmsId`, `cellStats`/`cellsDetail` (cell count + pass/fail), and derived `stateOfHealth`/`internalResistanceMOhms` when the flat column is empty. Fields stay blank only when maxvolt_prod genuinely has no data — nothing is fabricated. Because the legacy DB has no warranty/compliance/recycled/dismantling values at all, the battery detail page provides an **Edit Details** modal (`PUT /api/batteries/:id`) so real values can be entered and saved from the UI.
 
 #### `services`
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | TEXT PK | e.g. `srv-101` |
 | `ticket_number` | TEXT UNIQUE | `SRV-YYYY-####` |
-| `battery_id` | TEXT FK → `batteries.id` | `ON DELETE SET NULL` |
+| `battery_id` | TEXT FK → `batteries.battery_id` (maxvolt_prod) / `batteries.id` (greenfield) | `ON DELETE SET NULL` |
 | `service_type`, `center`, `scheduled_date`, `scheduled_time`, `mobile_number` | TEXT | booking details |
 | `status`, `priority`, `technician`, `estimated_arrival` | TEXT | lifecycle |
 | `customer_id` | TEXT FK → `users.id` | |
@@ -769,25 +780,26 @@ profiles ──user_id──▶ users
 
 ### Model ↔ table mapping
 
-The postgres repository (`backend/data/postgres/index.js`) maps `snake_case` rows to the **camelCase** objects the controllers expect (`mapUserRow`, `mapServicePersonRow`, `mapBatteryRow`, `mapServiceRow`, `mapProfileRow`). JSONB columns store nested objects (`warranty`, `healthHistory`, `history`, `activityLogs`, `specializations`).
+The postgres repository (`backend/data/postgres/index.js`) maps `snake_case` rows to the **camelCase** objects the controllers expect (`mapUserRow`, `mapServicePersonRow`, `mapBatteryRow`, `mapServiceRow`, `mapProfileRow`). `mapBatteryRow` reads the identity from `battery_id` when that column exists (maxvolt_prod) and falls back to `id` (greenfield). JSONB columns store nested objects (`warranty`, `healthHistory`, `history`, `activityLogs`, `specializations`).
 
 ### Seed dataset
 
-`backend/data/seedData.js` (and its frontend mirror `frontend/src/data/dummyData.js`) ships:
+`backend/data/seedData.js` (and its frontend mirror `frontend/src/data/dummyData.js`) ships the demo dataset used by the **mock store and `POST /api/data/reset` only**:
 
 - **7 batteries** across EV / ESS / LEV / Commercial Transport / Aerial & UAV / Industrial Cordless / Material Handling categories, with one expiring warranty and assorted SoH values for meaningful dashboards.
 - **6 services** deliberately spanning the lifecycle: Confirmed, Accepted, Assigned, On The Way, In Progress, Completed.
 - **5 service persons** (4 active, 1 inactive), each with an **EMPLOYEE** login.
 - **1 admin** (`admin@maxspace.com`) and **1 regular customer** (`alex.rivera@maxspace-energy.com`).
 
-`POST /api/data/reset` (`store.reset()`) restores this sample state on demand.
+`POST /api/data/reset` (`store.reset()`) restores this sample state **only when `ALLOW_DB_RESET=true`** in `backend/.env` (default `false`). On the production database it is locked (`403`) — maxvolt_prod holds real production data and is never reset through the API.
 
-### `maxtrace_backup.dump`
+### maxvolt_prod (production source of truth)
 
-This file at the repository root is a **`pg_dump` (custom format) of a separate, older database named `maxvolt_prod`** whose schema (cells, cell_gradings, battery_models, bms_inventory, spot_welding_data, laser_welding_data, pdi_reports, pack_testing_reports, battery_cell_mapping, dispatch_records) belongs to an unrelated battery-manufacturing traceability system.
+The container database `maxvolt_prod` is the live production database this app runs against:
 
-- It is **not used by the MaxSpace application**, does not match the current `users`/`batteries`/`services` schema, and is **untracked** in git.
-- Treat it as a legacy backup of another project. Do not restore it into the MaxSpace database. If you want to keep it out of the repo, add it to a root `.gitignore`.
+- Legacy schema kept intact and **adapted in place** by migration `000_maxvolt_prod.sql`; all 1,215 legacy batteries, 6 legacy users, and the full traceability child tables (cells, cell_gradings, battery_models, bms_inventory, pack_testing_reports, pdi_reports, dispatch_records, battery_cell_mapping, spot_welding_data, laser_welding_data) remain and are read by the app.
+- A pre-migration backup is stored at `/tmp/maxvolt_prod_premigration.dump` inside the `maxspace-postgres` container (`pg_dump` custom format).
+- Row-level detail lives in `docs/DATABASE_MIGRATION.md`. The repo-root `maxtrace_backup.dump` is an older dump of the **same** database and is **not used** by the app (untracked, gitignored via `*.dump`).
 
 ### Data consistency contract
 
@@ -892,7 +904,7 @@ Battery Technician authentication and data all come from the backend API:
 - **Sign-in** is email + password against the `users` table (bcrypt hash verified server-side). There is no Google/third-party option; the login page renders only the credential form.
 - On login the backend returns a short-lived `EMPLOYEE` JWT plus the linked `service_persons` record stored in the `maxspace_battery_technician_token` token slot.
 - `BatteryTechnicianContext` never stores batteries/services locally — `/me`, `/services`, and `/services/:id` are fetched from `/api/battery-technician/*`, and status changes go through `PATCH /services/:id/status` (only the technician assigned to the service may update it).
-- Servicing against PostgreSQL: with `DATA_SOURCE=postgres` the same endpoints read/write the `maxspace_db` tables (`users`, `service_persons`, `services`, `batteries`).
+- Servicing against PostgreSQL: with `DATA_SOURCE=postgres` the same endpoints read/write the `maxvolt_prod` tables (`users`, `service_persons`, `services`, `batteries` — the legacy tables adapted in place by migration `000`).
 
 ---
 
@@ -908,6 +920,8 @@ Battery Technician authentication and data all come from the backend API:
 | `FRONTEND_URL` / `CLIENT_URL` | Allowed CORS origin(s) for the frontend (default `http://localhost:5173`). |
 | `DATA_SOURCE` | `mock` (default, no DB) or `postgres`. |
 | `DATABASE_URL` | PostgreSQL connection string; only required with `DATA_SOURCE=postgres`. |
+| `LEGACY_SCHEMA` | Optional schema prefix (e.g. `maxspace_pro`) only when an app column set lives in a separate schema. Empty (default) on `maxvolt_prod` where app columns were added to the legacy `public` tables in place. |
+| `ALLOW_DB_RESET` | `true` to permit `POST /api/data/reset` (mock/seed or a disposable dev DB only). Default `false` — production is protected with a `403`. |
 | `GOOGLE_CLIENT_ID` | OAuth client ID for Google Sign-In (must match `VITE_GOOGLE_CLIENT_ID`). Leave blank to disable Google login. |
 | `GOOGLE_CLIENT_SECRET` | Not used by the current ID-token flow; reserved for server-side OAuth code exchange. |
 | `GOOGLE_CALLBACK_URL` | Optional; only needed for the old authorization-code flow. |
@@ -919,7 +933,7 @@ Battery Technician authentication and data all come from the backend API:
 | `VITE_API_URL` | Backend API base URL (default `http://localhost:5000/api`; `/api` works when using the dev proxy). |
 | `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID for the "Continue with Google" button (must match `GOOGLE_CLIENT_ID`). |
 
-> ⚠️ Never commit real secrets. `backend/.env` is git-ignored; `frontend/.env` is committed and must only contain non-sensitive values.
+> ⚠️ Never commit real secrets. Both `backend/.env` and `frontend/.env` are git-ignored (only the `.env.example` templates are tracked).
 
 ---
 
@@ -963,34 +977,53 @@ npm run dev
 
 Open http://localhost:5173. Dev mode proxies `/api` calls to the backend, so no CORS setup or separate API URL is needed.
 
-### Run with PostgreSQL (optional)
+### Run with PostgreSQL (maxvolt_prod production database)
+
+The container `maxspace-postgres` hosts `maxvolt_prod` — the legacy production
+database, **adapted in place** by the migrations. Do **not** apply `schema.sql`
+here.
 
 ```bash
 # 1. Start PostgreSQL 17
 docker compose up -d postgres
 
-# 2. Use postgres mode (edit backend/.env)
+# 2. Point the backend at maxvolt_prod (edit backend/.env)
 DATA_SOURCE=postgres
-DATABASE_URL=postgresql://maxspace_user:maxspace_password@localhost:5432/maxspace_db
+DATABASE_URL=postgresql://maxspace_user:maxspace_password@localhost:5432/maxvolt_prod
+LEGACY_SCHEMA=
+ALLOW_DB_RESET=false
 
-# 3. Apply the schema
-docker compose exec -T postgres psql -U maxspace_user -d maxspace_db < backend/sql/schema.sql
+# 3. Apply/verify the migrations (idempotent; safe to re-run)
+cd backend
+npm run db:migrate
+npm run db:migrate:status   # 000, 001, 002 all [APPLIED]
 
 # 4. Start the backend — expect "Using PostgreSQL repository."
-cd backend
 npm run dev
 
 # Verify the health endpoint reports dataSource: "postgres"
 curl http://localhost:5000
 ```
 
-### Demo accounts (seed data)
+For a brand-new (empty) database, apply `backend/sql/schema.sql` once first,
+then run the migrations the same way.
+
+### Demo accounts (mock / seed mode only)
 
 | Role | Email | Password |
 |------|-------|----------|
 | Customer | `alex.rivera@maxspace-energy.com` | `password123` |
 | Admin | `admin@maxspace.com` | `admin123` |
 | Battery Technician | `markus.vance@maxspace.com` (or any `emp-*`) | `employee123` |
+
+These accounts exist **only in the mock store and the gated seed reset** — never
+in `maxvolt_prod`. On the production database every account is a real sign-up or
+an operator created via the admin panel. To bootstrap the first admin against
+`maxvolt_prod`, sign up through the app, then promote the account from SQL:
+
+```sql
+UPDATE users SET role = 'ADMIN' WHERE email = 'your@email.com';
+```
 
 ---
 
@@ -1006,12 +1039,12 @@ curl http://localhost:5000
 | Lint the frontend | `npm run lint` (frontend — Oxlint) |
 | Preview a production build | `npm run preview` (frontend) |
 | Start PostgreSQL | `docker compose up -d postgres` (repo root) |
-| Apply the DB schema | `docker compose exec -T postgres psql -U maxspace_user -d maxspace_db < backend/sql/schema.sql` |
-| Apply DB migrations | `npm run db:migrate` (backend) — idempotent; `--status` via `npm run db:migrate:status` |
+| Apply the DB schema (brand-new DB only) | `docker compose exec -T postgres psql -U maxspace_user -d <db> < backend/sql/schema.sql` |
+| Apply DB migrations (idempotent) | `npm run db:migrate` (backend) — `npm run db:migrate:status` reports state; `000`, `001`, `002` tracked in `schema_migrations` |
 | Run backend unit tests | `npm test` (backend — Node's built-in test runner, no database needed) |
-| Run the API audit suite | start the backend in postgres mode, then `npm run test:audit` (backend) — see [Testing & QA](#testing--qa) |
+| Run the API audit suite | `npm run test:audit` (backend) — **destructive (TRUNCATE + seed)**; refuses to run unless `ALLOW_DB_RESET=true`; use on a disposable dev DB only |
 | Check the API health | `curl http://localhost:5000` |
-| Restore sample data | `POST /api/data/reset` (via the settings page or API, admin token) |
+| Restore sample data | `POST /api/data/reset` (admin token) — returns `403` unless `ALLOW_DB_RESET=true` |
 
 Testing: backend unit tests run with `npm test` (zero deps, pure helper functions); the live API audit suite runs with `npm run test:audit` (requires a running postgres-mode backend and a migrated database).
 
@@ -1041,7 +1074,7 @@ Covers the pagination helpers (`parsePagination`, `buildPagination`, `paginateAr
 `backend/tests/audit-suite.mjs` is a standalone **~100-check** live test that exercises the whole stack against a running backend: user, admin, and technician flows, RBAC, the full service lifecycle, data reset, password reset via the dev log, battery/service CRUD, **pagination envelopes on every list endpoint**, **DB-level integrity guards** (missing-battery FK guard, invalid status/priority CHECK mirrors, Google structured-error envelopes). It prints one `PASS`/`FAIL` line per check and exits `1` if any fail.
 
 ```bash
-# 1. Start PostgreSQL and the backend (postgres mode)
+# 1. Start PostgreSQL and the backend (postgres mode) on a DISPOSABLE dev DB
 docker compose up -d postgres
 cd backend && npm run db:migrate && node index.js &
 # (or: npm run dev)
@@ -1052,15 +1085,14 @@ npm run test:audit
 
 Requirements / behavior:
 
+- **DANGEROUS — runs `POST /api/data/reset` (TRUNCATE + seed demo data).** The suite has a hard guard: it refuses to run unless `ALLOW_DB_RESET=true` is set in `backend/.env`. On the production database (`maxvolt_prod`) reset is locked, so the suite **skips itself** (`SKIP: audit-suite is destructive …`). Use it only against the mock store or an empty disposable dev database.
 - Requires `DATA_SOURCE=postgres` with the schema applied and migrations up to date; the suite asserts the live `dataSource === "postgres"`.
-- Runs a `POST /api/data/reset` at the start to establish a known seed baseline, and again at the end to restore the sample dataset — so the DB is clean afterwards.
-- Any seeded-drift issues (e.g. a service in the wrong status) surface as failures.
 - The GitHub Actions workflow (`.github/workflows/ci.yml`) runs the unit tests on every push/PR and the full audit suite against an ephemeral PostgreSQL service container.
 
 ### Database integrity spot-checks
 
 ```bash
-docker compose exec -T postgres psql -U maxspace_user -d maxspace_db
+docker compose exec -T postgres psql -U maxspace_user -d maxvolt_prod
 
 # No plaintext passwords: every users.password_hash should start with $2 and be 60 chars
 SELECT email, left(password_hash, 7) AS prefix, length(password_hash) AS len FROM users;
@@ -1114,12 +1146,12 @@ Google Sign-In returns a 400/503 JSON error
   underlying message. Fill in both client IDs, then retry.
 
 Database migrations
-→ After switching to PostgreSQL, run schema.sql once, then
-  `npm run db:migrate`. Check status with `npm run db:migrate:status`;
-  both 001_integrity and 002_scheduling show [APPLIED] when current.
-  List endpoints error on the live DB → confirm DATA_SOURCE=postgres
-  actually resolved by querying `curl http://localhost:5000` (health
-  reports dataSource).
+→ After switching to PostgreSQL, run `schema.sql` **only for a brand-new
+  database**. For `maxvolt_prod`, run `npm run db:migrate` and check status
+  with `npm run db:migrate:status` — `000_maxvolt_prod`, `001_integrity` and
+  `002_scheduling` all show `[APPLIED]` when current. List endpoints error on
+  the live DB → confirm `DATA_SOURCE=postgres` actually resolved by querying
+  `curl http://localhost:5000` (health reports dataSource).
 
 Scanner camera not working
 → getUserMedia requires a secure context (HTTPS) except on localhost.
@@ -1140,17 +1172,18 @@ Lint warnings about setState inside effects
 
 Status markers (`TODO`/`FIXME`/`HACK`/`XXX`) were searched: **none exist** in the source. The following are intentional or known gaps:
 
-- **Frontend password-reset page is incomplete.** The backend fully implements forgot/reset password, but the reset link (`/auth/reset-password?token=…`) points to a route the frontend does not define yet. Emails are logged to a temp file instead of being sent via SMTP.
-- **Mock mode is ephemeral.** With `DATA_SOURCE=mock`, data resets to the seed on server restart. Use `DATA_SOURCE=postgres` for persistence.
+- **Frontend password-reset is implemented.** Forgot-password (from the sign-in modal) sends the email; the emailed link (`/reset-password?token=…`) opens the reset page where the new password is set. The old `/auth/reset-password` path still works via a redirect.
+- **Mock mode is ephemeral.** With `DATA_SOURCE=mock`, data resets to the seed on server restart. Use `DATA_SOURCE=postgres` (against `maxvolt_prod`) for persistence.
+- **Data reset is locked on production.** `POST /api/data/reset` returns `403` unless `ALLOW_DB_RESET=true`. The API audit suite (`npm run test:audit`) is destructive (TRUNCATE + seed) and therefore also gated on `ALLOW_DB_RESET` — on `maxvolt_prod` it skips itself by design.
 - **Unit tests cover pure helpers only.** `npm test` covers pagination + integrity validation; controller/store integration is exercised by the live audit suite (`npm run test:audit`), which requires a running postgres backend.
-- **No real SMTP / email integration.** Reset links are development-only; no transactional email is sent. The audit suite reads the dev reset-token log (`%TEMP%\maxspace-reset-links.log`).
+- **Email delivery requires SMTP credentials.** With `SMTP_HOST` set the reset link is sent by email; without it (and only outside `NODE_ENV=production`) the link is written to the dev log (`%TEMP%\maxspace-reset-links.log`) so the flow stays testable. In production, missing SMTP is surfaced as an error and no raw token is ever logged.
 - **Store links are placeholders.** Download buttons use `YOUR_APP_ID` placeholders in `storeLinks.js`.
 - **Scanner camera requires HTTPS** (or localhost) due to `getUserMedia` secure-context rules.
 - **Google auth requires configuration.** The login buttons render regardless, but sign-in only completes after real Google credentials are set in both `.env` files. Until then the API returns a structured `503`.
 - **Full-list context fetches.** The admin/user dashboards still load full everyday lists (context providers + analytics) for charts and cross-references; the big list pages themselves are server-paginated. If a fleet reaches tens of thousands of batteries, migrate dashboard aggregations to the analytics endpoints.
 - **Single shared profile.** In this build `profiles` holds one operator profile row; multi-operator profiles would need a schema extension.
 - **Oxlint warnings.** ~10 React Compiler "setState in effect" warnings exist in the context providers and shared components (0 errors).
-- **Legacy dump file.** `maxtrace_backup.dump` (old `maxvolt_prod` database) is unrelated to MaxSpace and now gitignored (`.gitignore`).
+- **Legacy dump file.** `maxtrace_backup.dump` is an older dump of the same legacy database and is gitignored (`*.dump`); the live source of truth is the `maxvolt_prod` database now used by the app.
 
 ---
 

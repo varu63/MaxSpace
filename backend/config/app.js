@@ -25,9 +25,15 @@ const config = {
   db: {
     // Data source mode:
     //   "mock"     — in-memory seeded store (default, no database required)
-    //   "postgres" — PostgreSQL repository (future; requires DATABASE_URL)
+    //   "postgres" — PostgreSQL repository (requires DATABASE_URL)
     dataSource: process.env.DATA_SOURCE || "mock",
     databaseUrl: process.env.DATABASE_URL || null,
+    // Legacy production tables live in `public` on maxvolt_prod; set
+    // LEGACY_SCHEMA (e.g. maxspace_pro) when pointing at the old mirror.
+    legacySchema: (process.env.LEGACY_SCHEMA || "").trim(),
+    // POST /api/data/reset truncates tables. Production databases must
+    // keep this off; enable only on a disposable dev database.
+    allowReset: process.env.ALLOW_DB_RESET === "true",
   },
 };
 

@@ -192,6 +192,18 @@ class Store {
     return found;
   }
 
+  claimBattery(id, ownerId) {
+    let found = null;
+    this.batteries = this.batteries.map((b) => {
+      if (b.id === id) {
+        found = { ...b, ownerId };
+        return found;
+      }
+      return b;
+    });
+    return found;
+  }
+
   deleteBattery(id) {
     const index = this.batteries.findIndex((b) => b.id === id);
     if (index === -1) return false;

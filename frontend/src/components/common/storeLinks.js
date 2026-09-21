@@ -1,18 +1,25 @@
-const APP_LINKS = {
-  android: "https://play.google.com/store/apps/details?id=YOUR_APP_ID",
-  ios: "https://apps.apple.com/app/YOUR_APP_ID",
-};
+/* ============================================================
+   STORE LINKS
+   Platform app-store URLs come from Vite env vars so the build
+   is not tied to a placeholder. When unset, getStoreLink() returns
+   null and the Download buttons hide themselves.
+     VITE_IOS_STORE_URL      https://apps.apple.com/app/<id>
+     VITE_ANDROID_STORE_URL  https://play.google.com/store/apps/details?id=<pkg>
+============================================================ */
+
+const IOS_URL = import.meta.env?.VITE_IOS_STORE_URL || "";
+const ANDROID_URL = import.meta.env?.VITE_ANDROID_STORE_URL || "";
+
+export const isStoreLinkConfigured = () => Boolean(IOS_URL || ANDROID_URL);
 
 export const getStoreLink = () => {
+  if (!isStoreLinkConfigured()) return null;
+
   const userAgent = typeof navigator !== "undefined" ? navigator.userAgent : "";
 
-  if (/android/i.test(userAgent)) {
-    return APP_LINKS.android;
+  if (/ipad|iphone|ipod/i.test(userAgent) && IOS_URL) {
+    return IOS_URL;
   }
 
-  if (/ipad|iphone|ipod/i.test(userAgent)) {
-    return APP_LINKS.ios;
-  }
-
-  return APP_LINKS.android;
+  return ANDROID_URL || IOS_URL || null;
 };

@@ -1,14 +1,28 @@
 import store from "../data/index.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { isCancelled } from "../constants/serviceStatuses.js";
+import { ownerScopeFor } from "../utils/ownerScope.js";
 
 const getServiceCount = (batteryId, services) =>
   services.filter((s) => s.batteryId === batteryId && !isCancelled(s.status)).length;
 
+/* Customer (USER) analytics are scoped to the batteries the user owns and
+   the services they booked; operator roles (ADMIN/EMPLOYEE) see the whole
+   fleet via the admin analytics destinations. */
+const getScopedBatteries = async (req) =>
+  store.getAllBatteries(ownerScopeFor(req));
+
+const getScopedServices = async (req) => {
+  const ownerId = ownerScopeFor(req);
+  if (!ownerId) return store.getAllServices();
+  const { data } = await store.listServices({ customerId: ownerId, page: 1, limit: 100000 });
+  return data;
+};
+
 // GET /api/analytics/fleet-stats
 export const getFleetStats = asyncHandler(async (req, res) => {
-  const batteries = await store.getAllBatteries();
-  const services = await store.getAllServices();
+  const batteries = await getScopedBatteries(req);
+  const services = await getScopedServices(req);
 
   const totalBatteries = batteries.length;
 
@@ -60,7 +74,7 @@ export const getFleetStats = asyncHandler(async (req, res) => {
 
 // GET /api/analytics/services
 export const getServiceAnalytics = asyncHandler(async (req, res) => {
-  const services = await store.getAllServices();
+  const services = await getScopedServices(req);
 
   const booked = services.filter((s) => s.status === "Confirmed").length;
   const inProgress = services.filter((s) => s.status === "In Progress").length;
@@ -85,8 +99,8 @@ export const getServiceAnalytics = asyncHandler(async (req, res) => {
 
 // GET /api/analytics/batteries/performance
 export const getBatteryPerformance = asyncHandler(async (req, res) => {
-  const batteries = await store.getAllBatteries();
-  const services = await store.getAllServices();
+  const batteries = await getScopedBatteries(req);
+  const services = await getScopedServices(req);
 
   const rows = batteries.map((b) => ({
     battery: b,
@@ -101,8 +115,8 @@ export const getBatteryPerformance = asyncHandler(async (req, res) => {
 
 // GET /api/analytics (combined summary for dashboards)
 export const getAnalytics = asyncHandler(async (req, res) => {
-  const batteries = await store.getAllBatteries();
-  const services = await store.getAllServices();
+  const batteries = await getScopedBatteries(req);
+  const services = await getScopedServices(req);
 
   const withCounts = batteries.map((b) => ({
     ...b,

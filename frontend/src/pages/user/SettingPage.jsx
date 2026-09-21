@@ -145,6 +145,19 @@ const SettingsPage = () => {
     location: userProfile?.location || "",
   });
 
+  // The profile loads asynchronously after auth, so backfill any fields that
+  // were still empty when the form initialized. User edits are never clobbered.
+  useEffect(() => {
+    if (!userProfile) return;
+    setProfileForm((prev) => ({
+      name: prev.name || userProfile.name || "",
+      title: prev.title || userProfile.title || "",
+      email: prev.email || userProfile.email || "",
+      phone: prev.phone || userProfile.phone || "",
+      location: prev.location || userProfile.location || "",
+    }));
+  }, [userProfile]);
+
   const [isPasswordModalOpen, setIsPasswordModalOpen] =
     useState(false);
 
@@ -233,19 +246,26 @@ const SettingsPage = () => {
     }));
   };
 
-  const handleProfileSave = () => {
-    updateProfile({
-      name: profileForm.name,
-      title: profileForm.title,
-      email: profileForm.email,
-      phone: profileForm.phone,
-      location: profileForm.location,
-    });
+  const handleProfileSave = async () => {
+    // updateProfile surfaces its own error toast on failure.
+    try {
+      const saved = await updateProfile({
+        name: profileForm.name,
+        title: profileForm.title,
+        email: profileForm.email,
+        phone: profileForm.phone,
+        location: profileForm.location,
+      });
 
-    addToast(
-      "Account Updated",
-      "Your account details have been saved."
-    );
+      if (saved) {
+        addToast(
+          "Account Updated",
+          "Your account details have been saved."
+        );
+      }
+    } catch {
+      // Failure is reported by the context toast.
+    }
   };
 
   /* =====================================================

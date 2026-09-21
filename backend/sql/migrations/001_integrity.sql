@@ -28,9 +28,30 @@ UPDATE services SET approved_by = NULL
 WHERE approved_by IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM users WHERE users.id = services.approved_by);
 
-UPDATE services SET battery_id = NULL
-WHERE battery_id IS NOT NULL
-  AND NOT EXISTS (SELECT 1 FROM batteries WHERE batteries.id = services.battery_id);
+-- Detach services whose battery_id no longer exists. The battery
+-- identity column differs between schema shapes: maxvolt_prod keys
+-- batteries by `battery_id`, while an app-shaped schema keys them by
+-- `id`. Resolve the column dynamically so this runs on both.
+DO $$
+DECLARE
+  battery_col text;
+BEGIN
+  SELECT column_name INTO battery_col
+  FROM information_schema.columns
+  WHERE table_name = 'batteries'
+    AND column_name IN ('battery_id', 'id')
+  ORDER BY CASE column_name WHEN 'battery_id' THEN 0 ELSE 1 END
+  LIMIT 1;
+
+  IF battery_col IS NOT NULL THEN
+    EXECUTE format(
+      'UPDATE services SET battery_id = NULL
+        WHERE battery_id IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM batteries WHERE batteries.%I = services.battery_id)',
+      battery_col
+    );
+  END IF;
+END $$;
 
 -- Detach users whose service_person_id points to a missing technician.
 UPDATE users u SET service_person_id = NULL

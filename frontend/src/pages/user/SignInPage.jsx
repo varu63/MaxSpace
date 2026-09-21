@@ -108,14 +108,19 @@ const SignInPage = () => {
   const handleForgotSubmit = async (e) => {
     e.preventDefault();
 
-    if (!forgotEmail.trim()) {
+    const email = forgotEmail.trim();
+    if (!email) {
       setForgotError("Email is required.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setForgotError("Please enter a valid email address.");
       return;
     }
 
     setForgotSubmitting(true);
     try {
-      await forgotPassword(forgotEmail.trim());
+      await forgotPassword(email);
       setForgotSent(true);
     } catch (error) {
       setForgotError(error?.message || "Something went wrong. Please try again.");
@@ -358,7 +363,9 @@ const SignInPage = () => {
             {forgotSent ? (
               <div className="text-center">
                 <p className="text-sm text-[#16263A] mb-4">
-                  If an account exists with <strong>{forgotEmail}</strong>, a password reset link has been sent to your inbox.
+                  A password reset link has been sent to{" "}
+                  <strong>{forgotEmail}</strong>. Check your inbox (and spam
+                  folder) and click the link to choose a new password.
                 </p>
                 <button
                   type="button"

@@ -118,21 +118,21 @@ const ServiceTable = ({
                   {/* Model */}
                   <td className="px-5 py-5">
                     <div className="font-semibold text-[#16263A]">
-                      {battery.model || "ESS"}
+                      {battery.modelName || battery.model || "—"}
                     </div>
                   </td>
 
                   {/* Chemistry */}
                   <td className="px-5 py-5">
                     <span className="text-sm text-[#747B83]">
-                      {battery.chemistry || "LFP"}
+                      {battery.chemistry || "—"}
                     </span>
                   </td>
 
                   {/* Cells */}
                   <td className="px-5 py-5">
                     <span className="font-semibold text-[#16263A]">
-                      {battery.cells || battery.totalCells || 4}
+                      {battery.cells ?? battery.totalCells ?? "—"}
                     </span>
                   </td>
 
@@ -167,7 +167,7 @@ const ServiceTable = ({
                       text-sm text-[#747B83]
                     ">
                       <MapPin className="w-4 h-4" />
-                      {battery.location || "Warehouse"}
+                      {battery.location || "—"}
                     </div>
                   </td>
 

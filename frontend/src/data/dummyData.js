@@ -51,7 +51,7 @@ const serviceToBooking = (service) => ({
   batteryName: service.batteryName,
   serviceType: service.serviceType,
   center: service.center,
-date: service.scheduledDate,
+  date: service.scheduledDate,
   time: service.scheduledTime,
   mobileNumber: service.mobileNumber,
   notes: service.notes,
@@ -59,6 +59,7 @@ date: service.scheduledDate,
   priority: service.priority,
   technician: service.technician,
   estimatedArrival: service.estimatedArrival,
+  history: service.history || [],
   status:
     service.status === "Confirmed"
       ? "Booked"

@@ -1,10 +1,14 @@
 import { Download } from "lucide-react";
-import { getStoreLink } from "./storeLinks";
+import { getStoreLink, isStoreLinkConfigured } from "./storeLinks";
 
 const FloatingDownloadButton = () => {
+  const href = getStoreLink();
+
+  if (!href && !isStoreLinkConfigured()) return null;
+
   return (
     <a
-      href={getStoreLink()}
+      href={href}
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Get the MaxSpace app"

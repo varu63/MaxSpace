@@ -9,6 +9,7 @@ import {
   parseBatteryQrPayload,
   getBatteryPayloadIdentifier,
 } from "../utils/batteryIdentifier.js";
+import { ownerScopeFor } from "../utils/ownerScope.js";
 
 const barcodePrefix = "BATT-GEN";
 
@@ -17,15 +18,16 @@ export const getBatteries = asyncHandler(async (req, res) => {
   const { barcode } = req.query;
   if (barcode) {
     const code = normalizeBatteryIdentifier(barcode);
-    const battery = await store.findBatteryByBarcodeOrSerial(code, req.user.id);
+    const battery = await store.findBatteryByBarcodeOrSerial(code, ownerScopeFor(req));
     return res.json(battery ? [battery] : []);
   }
 
   const { page, limit } = parsePagination(req.query);
   const paginated = req.query.page !== undefined || req.query.limit !== undefined;
+  const ownerId = ownerScopeFor(req);
 
   const results = await store.listBatteries({
-    ownerId: req.user.id,
+    ownerId,
     search: req.query.search || "",
     page,
     limit,
@@ -37,7 +39,7 @@ export const getBatteries = asyncHandler(async (req, res) => {
     return res.json({ success: true, data: results.data, pagination: results.pagination });
   }
   // Legacy behavior: the caller omitted page/limit → plain array.
-  const legacy = await store.getAllBatteries(req.user.id);
+  const legacy = await store.getAllBatteries(ownerId);
   res.json(legacy);
 });
 
@@ -146,7 +148,7 @@ export const createBattery = asyncHandler(async (req, res) => {
 
   // Prevent duplicate registration using the extracted battery identifier.
   if (payloadId) {
-    const existing = await store.findBatteryByBarcodeOrSerial(payloadId, req.user.id);
+    const existing = await store.findBatteryByBarcodeOrSerial(payloadId, ownerScopeFor(req));
     if (existing) {
       res.status(409);
       throw new Error("This battery is already registered. Open its existing passport instead.");
@@ -198,11 +200,11 @@ export const createBattery = asyncHandler(async (req, res) => {
     warranty: data.warranty || {
       status: "Active",
       startDate: data.manufactureDate || today,
-      endDate: new Date(Date.now() + 8 * 365 * 24 * 60 * 60 * 1000)
+      endDate: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000)
         .toISOString()
         .split("T")[0],
-      remainingDays: 8 * 365,
-      terms: "8 Years / 160,000 km Guaranteed Health Retention",
+      remainingDays: 3 * 365,
+      terms: "3 Years / 60,000 km Guaranteed Health Retention",
       provider: "EcoVolt Global Warranty Direct",
       certificateNumber: `WAR-${year}-${Math.floor(1000 + Math.random() * 9000)}`,
     },
@@ -222,8 +224,9 @@ export const createBattery = asyncHandler(async (req, res) => {
     ],
   };
 
+  let createdBattery = newBattery;
   try {
-    await store.createBattery(newBattery);
+    createdBattery = (await store.createBattery(newBattery)) || newBattery;
   } catch (err) {
     if (err && (err.code === "23505" || /unique constraint/i.test(err.message || ""))) {
       res.status(409);
@@ -234,16 +237,87 @@ export const createBattery = asyncHandler(async (req, res) => {
   await store.logActivity(
     req.user.id,
     "Battery Added & Passport Minted",
-    `Registered ${newBattery.modelName} (${newBattery.barcode})`,
+    `Registered ${createdBattery.modelName} (${createdBattery.barcode})`,
     "passport"
   );
 
-  res.status(201).json(newBattery);
+  res.status(201).json(createdBattery);
+});
+
+// POST /api/batteries/:id/claim
+// Associate a scanned battery with the currently logged-in user.
+// Handled cases:
+//   • Battery has no owner        → claim it for the authenticated user.
+//   • Battery already claimed by
+//     the authenticated user      → idempotent success (no duplicate records).
+//   • Battery owned by another
+//     real user                   → 409; ownership is never silently transferred.
+//   • Battery owned by the
+//     production-fleet placeholder
+//     (user-maxvolt, assigned by
+//     backend/sql/import_maxspace_pro_batteries.sql to factory units that
+//     have no customer)           → claim it for the scanning customer.
+export const claimBattery = asyncHandler(async (req, res) => {
+  const identifier = normalizeBatteryIdentifier(req.params.id);
+  if (!identifier) {
+    res.status(400);
+    throw new Error("A battery identifier is required");
+  }
+
+  const battery = await resolveBatteryByIdentifier(store, identifier);
+  if (!battery) {
+    res.status(404);
+    throw new Error("Battery not found");
+  }
+
+  const userId = req.user.id;
+  const isProductionFleetOwner =
+    battery.ownerId && battery.ownerId === "user-maxvolt";
+
+  // Never transfer ownership of a unit already linked to another real account.
+  if (battery.ownerId && !isProductionFleetOwner && battery.ownerId !== userId) {
+    res.status(409);
+    throw new Error("This battery is already associated with another user.");
+  }
+
+  let updated = battery;
+  if (battery.ownerId !== userId) {
+    updated = await store.claimBattery(battery.id, userId);
+    if (!updated) {
+      res.status(404);
+      throw new Error("Battery not found");
+    }
+  }
+
+  const details =
+    typeof store.getBatteryRelatedDetails === "function"
+      ? await store.getBatteryRelatedDetails(updated)
+      : {};
+
+  const claimedNow = battery.ownerId !== userId;
+
+  await store.logActivity(
+    userId,
+    claimedNow ? "Battery Added to Profile" : "Battery Already in Profile",
+    claimedNow
+      ? `Claimed ${updated.modelName || updated.barcode || updated.id} via QR scan`
+      : `Viewed ${updated.modelName || updated.barcode || updated.id} (already linked to profile)`,
+    "passport"
+  );
+
+  res.json({
+    success: true,
+    message: claimedNow
+      ? "Battery added to profile successfully"
+      : "Battery already added to your profile.",
+    alreadyClaimed: !claimedNow,
+    battery: { ...updated, ...details },
+  });
 });
 
 // PUT /api/batteries/:id
 export const updateBattery = asyncHandler(async (req, res) => {
-  const existing = await store.getBatteryById(req.params.id, req.user.id);
+  const existing = await store.getBatteryById(req.params.id, ownerScopeFor(req));
   if (!existing) {
     res.status(404);
     throw new Error("Battery not found");
@@ -255,7 +329,7 @@ export const updateBattery = asyncHandler(async (req, res) => {
 
 // DELETE /api/batteries/:id
 export const deleteBattery = asyncHandler(async (req, res) => {
-  const existing = await store.getBatteryById(req.params.id, req.user.id);
+  const existing = await store.getBatteryById(req.params.id, ownerScopeFor(req));
   if (!existing) {
     res.status(404);
     throw new Error("Battery not found");

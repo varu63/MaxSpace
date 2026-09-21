@@ -25,6 +25,7 @@ const getServiceStageIndex = (status) => {
     case "confirmed":
     case "booked":
     case "pending approval":
+    case "waiting for admin approval":
       return 0; // Booked (waiting for admin)
     case "accepted":
     case "approved":
@@ -49,7 +50,7 @@ const getServiceStageIndex = (status) => {
 /* True when a service has no bookable tracking stage yet. */
 export const isServiceBooked = (status) => {
   const value = (status || "").toLowerCase();
-  return ["confirmed", "booked", "pending approval"].includes(value);
+  return ["confirmed", "booked", "pending approval", "waiting for admin approval"].includes(value);
 };
 
 /* Build the milestone list with per-stage state derived from status:

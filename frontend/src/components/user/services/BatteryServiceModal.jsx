@@ -8,6 +8,7 @@ const BatteryServiceModal = ({
   isBooked,
   getBatteryId,
   getServiceStatus,
+  getBatteryServiceCount,
   onClose,
   onBook,
 }) => {
@@ -39,16 +40,16 @@ const BatteryServiceModal = ({
             </span>
 
             <div>
-              <h3 className="font-bold text-lg">{battery.model || "ESS"}</h3>
-              <p className="text-sm text-[#747B83]">{battery.chemistry || "LFP"} Chemistry</p>
+              <h3 className="font-bold text-lg">{battery.modelName || battery.model || "—"}</h3>
+              <p className="text-sm text-[#747B83]">{battery.chemistry || "—"} Chemistry</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
             <Detail label="Service Status" value={getServiceStatus(battery)} />
-            <Detail label="Service Count" value={booking ? "1+" : "0"} />
-            <Detail label="Total Cells" value={battery.cells || battery.totalCells || 4} />
-            <Detail label="Location" value={battery.location || "Warehouse"} />
+            <Detail label="Service Count" value={getBatteryServiceCount ? getBatteryServiceCount(battery) : "—"} />
+            <Detail label="Total Cells" value={battery.cells ?? battery.totalCells ?? "—"} />
+            <Detail label="Location" value={battery.location || "—"} />
           </div>
 
           {booking && (

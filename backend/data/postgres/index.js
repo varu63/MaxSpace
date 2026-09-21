@@ -61,7 +61,7 @@ const mapServicePersonRow = (row) =>
 const mapBatteryRow = (row) =>
   row
     ? {
-        id: row.id,
+        id: row.battery_id ?? row.id,
         ownerId: row.owner_id,
         barcode: row.barcode,
         qrCode: row.qr_code,
@@ -85,11 +85,11 @@ const mapBatteryRow = (row) =>
         assemblyLocation: row.assembly_location,
         location: row.location,
         cells: row.cells,
-        stateOfHealth: row.state_of_health,
+        stateOfHealth: row.state_of_health ?? row.__state_of_health,
         stateOfCharge: row.state_of_charge,
         cycleCount: row.cycle_count,
         maxRatedCycles: row.max_rated_cycles,
-        internalResistanceMOhms: row.internal_resistance_mohms,
+        internalResistanceMOhms: row.internal_resistance_mohms ?? row.__pdi_resistance_mohms,
         operatingTempC: row.operating_temp_c,
         carbonFootprintKgPerKwh: row.carbon_footprint_kg_per_kwh,
         recycledContent: row.recycled_content || {},
@@ -97,6 +97,11 @@ const mapBatteryRow = (row) =>
         complianceStandards: row.compliance_standards || [],
         dismantlingManual: row.dismantling_manual,
         healthHistory: row.health_history || [],
+        packTestingReport: row.__pack_testing || undefined,
+        pdiReport: row.__pdi_report || undefined,
+        dispatchRecord: row.__dispatch_record || undefined,
+        bmsId: row.__bms?.bms_id || undefined,
+        cellStats: row.__cell_stats || undefined,
         createdAt: row.created_at,
       }
     : null;
@@ -191,7 +196,11 @@ const mapTechnicianAvailabilityRow = (row) =>
 
 /* ---------- Create the store ---------- */
 
-export const createPostgresStore = async ({ databaseUrl }) => {
+export const createPostgresStore = async ({
+  databaseUrl,
+  legacySchema = "",
+  allowReset = false,
+}) => {
   if (!databaseUrl) {
     throw new Error("createPostgresStore requires a databaseUrl");
   }
@@ -206,6 +215,146 @@ export const createPostgresStore = async ({ databaseUrl }) => {
   }
 
   const pool = new pg.Pool({ connectionString: databaseUrl });
+
+  /* Legacy production tables may live in a non-public schema (e.g. the
+     old maxspace_pro mirror). legacySchema lets callers point the
+     production-data queries at that schema; on maxvolt_prod those tables
+     are in `public`, so the prefix is empty. */
+  const legacyTable = (table) => (legacySchema ? `${legacySchema}.${table}` : table);
+
+  /* The legacy production schema keys batteries by `battery_id` while an
+     app-shaped schema keys them by `id`. Detect the shape once at startup
+     and adapt the battery SQL accordingly. */
+  let hasBatteryIdColumn = false;
+  let hasModelsTable = false;
+  try {
+    const { rows } = await pool.query(
+      `SELECT EXISTS (
+         SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'batteries' AND column_name = 'battery_id'
+       ) AS has_battery_id,
+       EXISTS (
+         SELECT 1 FROM information_schema.tables
+         WHERE table_schema = ANY (ARRAY['public', 'maxspace_pro'])
+           AND table_name = 'battery_models'
+       ) AS has_models`
+    );
+    hasBatteryIdColumn = Boolean(rows[0] && rows[0].has_battery_id);
+    hasModelsTable = Boolean(rows[0] && rows[0].has_models);
+  } catch {
+    // Connection/permission problem — fall back to the app-shaped column.
+  }
+  const batteryKey = hasBatteryIdColumn ? "battery_id" : "id";
+
+  /* ---------- Production-data enrichment (maxvolt_prod) ----------
+     The legacy flat `batteries` row has no weight/manufacturer/SoH columns,
+     but the genuine values DO exist in the per-battery child tables (PDI,
+     pack testing, dispatch, BMS, cells). These helpers pull the latest real
+     record per battery so lists/detail can show them instead of blanks.
+     Everything returned is a real stored value or a straight arithmetic
+     derivation (SoH = measured ÷ rated capacity from the pack test) — never
+     fabricated. Missing tables/rows are ignored. */
+
+  const parseRatedAh = (spec) => {
+    if (!spec) return null;
+    const m = String(spec).match(/(\d+(?:\.\d+)?)\s*[Aa][Hh]?/);
+    return m ? Number(m[1]) : null;
+  };
+
+  const deriveStateOfHealth = (pack) => {
+    if (!pack) return null;
+    const ratedAh = parseRatedAh(pack.specification);
+    const measured =
+      typeof pack.discharging_capacity === "number" && pack.discharging_capacity > 0
+        ? pack.discharging_capacity
+        : typeof pack.actual_cap === "number" && pack.actual_cap > 0
+          ? pack.actual_cap
+          : null;
+    if (!ratedAh || !measured) return null;
+    return Math.round((measured / ratedAh) * 10000) / 100;
+  };
+
+  const enrichBatteryRows = async (rows) => {
+    if (!Array.isArray(rows) || !rows.length) return rows;
+    const ids = rows.map((r) => String(r.battery_id ?? r.id).trim()).filter(Boolean);
+    if (!ids.length) return rows;
+
+    const byId = new Map();
+    const attach = (id, key, value) => {
+      if (!byId.has(id)) byId.set(id, {});
+      byId.get(id)[key] = value;
+    };
+    const run = async (sql, params) => {
+      try {
+        const { rows: out } = await pool.query(sql, params);
+        return out;
+      } catch {
+        return [];
+      }
+    };
+
+    const pdi = await run(
+      `SELECT DISTINCT ON (battery_id) battery_id, test_time, voltage_v, resistance_m_ohm, test_result
+       FROM ${legacyTable("pdi_reports")}
+       WHERE battery_id = ANY($1) ORDER BY battery_id, test_time DESC`,
+      [ids]
+    );
+    for (const r of pdi) attach(r.battery_id, "pdi", r);
+
+    const pack = await run(
+      `SELECT DISTINCT ON (battery_id) battery_id, test_date, specification, cell_type, actual_cap,
+              ocv_voltage, discharging_capacity, capacity_result, final_voltage, final_result, soc_result
+       FROM ${legacyTable("pack_testing_reports")}
+       WHERE battery_id = ANY($1) ORDER BY battery_id, test_date DESC`,
+      [ids]
+    );
+    for (const r of pack) attach(r.battery_id, "pack", r);
+
+    const dispatch = await run(
+      `SELECT DISTINCT ON (battery_id) battery_id, customer_name, invoice_id, invoice_date, dispatch_timestamp
+       FROM ${legacyTable("dispatch_records")}
+       WHERE battery_id = ANY($1) ORDER BY battery_id, dispatch_timestamp DESC`,
+      [ids]
+    );
+    for (const r of dispatch) attach(r.battery_id, "dispatch", r);
+
+    const bms = await run(
+      `SELECT DISTINCT ON (battery_id) battery_id, bms_id, is_used, added_at
+       FROM ${legacyTable("bms_inventory")}
+       WHERE battery_id = ANY($1) ORDER BY battery_id, added_at DESC`,
+      [ids]
+    );
+    for (const r of bms) attach(r.battery_id, "bms", r);
+
+    const cells = await run(
+      `SELECT m.battery_id,
+              count(*)::int AS cell_count,
+              count(*) FILTER (WHERE c.status = 'pass')::int AS pass_count,
+              count(*) FILTER (WHERE c.status IS DISTINCT FROM 'pass')::int AS fail_count
+       FROM ${legacyTable("battery_cell_mapping")} m
+       LEFT JOIN ${legacyTable("cells")} c ON c.cell_id = m.cell_id
+       WHERE m.battery_id = ANY($1)
+       GROUP BY m.battery_id`,
+      [ids]
+    );
+    for (const r of cells) attach(r.battery_id, "cells", r);
+
+    return rows.map((r) => {
+      const id = String(r.battery_id ?? r.id).trim();
+      const e = byId.get(id);
+      if (!e) return r;
+      return {
+        ...r,
+        __pack_testing: e.pack || null,
+        __pdi_report: e.pdi || null,
+        __dispatch_record: e.dispatch || null,
+        __bms: e.bms || null,
+        __cell_stats: e.cells || null,
+        __state_of_health: deriveStateOfHealth(e.pack || null),
+        __pdi_resistance_mohms: e.pdi && typeof e.pdi.resistance_m_ohm === "number" ? e.pdi.resistance_m_ohm : null,
+      };
+    });
+  };
 
   /* Hash a password unless it is already a bcrypt hash (e.g. signup /
      createTechnician pre-hash, or a re-seed of already-hashed data). */
@@ -228,6 +377,14 @@ export const createPostgresStore = async ({ databaseUrl }) => {
     async reset() {
       // Re-seed from the same dataset the mock store uses so both data
       // sources stay identical (see backend/data/seedData.js).
+      if (!allowReset) {
+        throw Object.assign(
+          new Error(
+            "Database reset is disabled on this database (ALLOW_DB_RESET is not set). Refusing to truncate production data."
+          ),
+          { statusCode: 403 }
+        );
+      }
       await pool.query("BEGIN");
       try {
         await pool.query(
@@ -383,12 +540,12 @@ export const createPostgresStore = async ({ databaseUrl }) => {
         `SELECT * FROM batteries ${ownerId ? "WHERE owner_id = $1" : ""} ORDER BY created_at`,
         ownerId ? [ownerId] : []
       );
-      return rows.map(mapBatteryRow);
+      return (await enrichBatteryRows(rows)).map(mapBatteryRow);
     },
 
     async getBatteryById(id, ownerId = null) {
       const { rows } = await pool.query(
-        `SELECT * FROM batteries WHERE id = $1 ${ownerId ? "AND owner_id = $2" : ""} LIMIT 1`,
+        `SELECT * FROM batteries WHERE ${batteryKey} = $1 ${ownerId ? "AND owner_id = $2" : ""} LIMIT 1`,
         ownerId ? [id, ownerId] : [id]
       );
       return mapBatteryRow(rows[0]);
@@ -398,10 +555,10 @@ export const createPostgresStore = async ({ databaseUrl }) => {
       const clean = (ids || []).filter(Boolean);
       if (!clean.length) return [];
       const { rows } = await pool.query(
-        `SELECT * FROM batteries WHERE id = ANY($1)`,
+        `SELECT * FROM batteries WHERE ${batteryKey} = ANY($1)`,
         [clean]
       );
-      return rows.map(mapBatteryRow);
+      return (await enrichBatteryRows(rows)).map(mapBatteryRow);
     },
 
     async findBatteryByBarcodeOrSerial(code, ownerId = null) {
@@ -414,8 +571,8 @@ export const createPostgresStore = async ({ databaseUrl }) => {
          WHERE (
            UPPER(barcode) = $1
            OR UPPER(serial_number) = $1
-           OR UPPER(id) = $1
-           OR UPPER(id) = $2
+           OR UPPER(${batteryKey}) = $1
+           OR UPPER(${batteryKey}) = $2
            OR UPPER(modal_id) = $1
            OR UPPER(modal_id) = $3
            OR UPPER(serial_number) = $3
@@ -473,8 +630,8 @@ export const createPostgresStore = async ({ databaseUrl }) => {
           // 1. Model & specs
           const { rows: mRows } = await pool.query(
             `SELECT m.model_id, m.category, m.series_count, m.parallel_count, m.cell_type, m.bms_model, m.welding_type
-             FROM maxspace_pro.battery_models m
-             JOIN maxspace_pro.batteries b ON b.model_id = m.model_id
+             FROM ${legacyTable("battery_models")} m
+             JOIN ${legacyTable("batteries")} b ON b.model_id = m.model_id
              WHERE b.battery_id = $1 LIMIT 1`,
             [proId]
           );
@@ -482,7 +639,7 @@ export const createPostgresStore = async ({ databaseUrl }) => {
 
           // 2. BMS inventory
           const { rows: bmsRows } = await pool.query(
-            `SELECT bms_id, is_used, added_at FROM maxspace_pro.bms_inventory WHERE battery_id = $1 LIMIT 1`,
+            `SELECT bms_id, is_used, added_at FROM ${legacyTable("bms_inventory")} WHERE battery_id = $1 LIMIT 1`,
             [proId]
           );
           bmsInfo = bmsRows[0] || null;
@@ -490,8 +647,8 @@ export const createPostgresStore = async ({ databaseUrl }) => {
           // 3. Cell mapping & cells
           const { rows: cRows } = await pool.query(
             `SELECT m.cell_id, m.assigned_at, c.status, c.discharging_capacity_mah, c.ir_value_m_ohm, c.sorting_voltage
-             FROM maxspace_pro.battery_cell_mapping m
-             LEFT JOIN maxspace_pro.cells c ON c.cell_id = m.cell_id
+             FROM ${legacyTable("battery_cell_mapping")} m
+             LEFT JOIN ${legacyTable("cells")} c ON c.cell_id = m.cell_id
              WHERE m.battery_id = $1
              ORDER BY m.assigned_at ASC`,
             [proId]
@@ -510,7 +667,7 @@ export const createPostgresStore = async ({ databaseUrl }) => {
             `SELECT test_date, specification, cell_type, actual_cap, ocv_voltage, upper_cutoff, lower_cutoff,
                     discharging_capacity, capacity_result, idle_difference, idle_diff_res, final_voltage, final_result,
                     soc_result, number_of_series, number_of_parallel
-             FROM maxspace_pro.pack_testing_reports
+             FROM ${legacyTable("pack_testing_reports")}
              WHERE battery_id = $1
              ORDER BY test_date DESC LIMIT 1`,
             [proId]
@@ -521,7 +678,7 @@ export const createPostgresStore = async ({ databaseUrl }) => {
           const { rows: pdiRows } = await pool.query(
             `SELECT test_time, voltage_v, resistance_m_ohm, cont_charging_current, cont_charging_voltage,
                     cont_discharging_current, cont_discharging_voltage, short_circuit_prot_time_us, test_result
-             FROM maxspace_pro.pdi_reports
+             FROM ${legacyTable("pdi_reports")}
              WHERE battery_id = $1
              ORDER BY test_time DESC LIMIT 1`,
             [proId]
@@ -531,7 +688,7 @@ export const createPostgresStore = async ({ databaseUrl }) => {
           // 6. Dispatch record
           const { rows: dRows } = await pool.query(
             `SELECT customer_name, invoice_id, invoice_date, dispatch_timestamp
-             FROM maxspace_pro.dispatch_records
+             FROM ${legacyTable("dispatch_records")}
              WHERE battery_id = $1
              ORDER BY dispatch_timestamp DESC LIMIT 1`,
             [proId]
@@ -541,7 +698,7 @@ export const createPostgresStore = async ({ databaseUrl }) => {
           // 7. Laser welding
           const { rows: lwRows } = await pool.query(
             `SELECT initial_speed, max_speed, power_mode, dac_power, scan_speed, "timestamp"
-             FROM maxspace_pro.laser_welding_data
+             FROM ${legacyTable("laser_welding_data")}
              WHERE battery_id = $1
              ORDER BY "timestamp" DESC LIMIT 1`,
             [proId]
@@ -551,6 +708,12 @@ export const createPostgresStore = async ({ databaseUrl }) => {
           // Ignore schema read error
         }
       }
+
+      const derivedSoh = deriveStateOfHealth(packTesting);
+      const pdiResistance =
+        pdiReport && typeof pdiReport.resistance_m_ohm === "number"
+          ? pdiReport.resistance_m_ohm
+          : null;
 
       return {
         ownership,
@@ -562,17 +725,125 @@ export const createPostgresStore = async ({ databaseUrl }) => {
         installationDate: dispatchRecord?.invoice_date || null,
         dispatchCustomer: dispatchRecord?.customer_name || null,
         cellsDetail: cellsList,
+        cellsCount: cellsList.length,
+        cellsPassCount: cellsList.filter((c) => String(c.status || "").toLowerCase() === "pass").length,
         packTestingReport: packTesting,
         pdiReport,
         dispatchRecord,
         laserWeldingData: laserWelding,
+        stateOfHealth: battery.stateOfHealth ?? derivedSoh,
+        internalResistanceMOhms: battery.internalResistanceMOhms ?? pdiResistance,
       };
     },
 
     async createBattery(battery) {
+      if (!hasBatteryIdColumn) {
+        // App-shaped schema: batteries are keyed by `id` with no required
+        // model reference — insert exactly as the app defined originally.
+        const { rows } = await pool.query(
+          `INSERT INTO batteries (
+             id, owner_id, barcode, qr_code, modal_id, hang_status, overall_status,
+             name, model_name, model, type, manufacturer,
+             serial_number, chemistry, capacity_kwh, capacity, nominal_voltage, voltage,
+             weight_kg, dimensions_mm, manufacture_date, assembly_location, location,
+             cells, state_of_health, state_of_charge, cycle_count, max_rated_cycles,
+             internal_resistance_mohms, operating_temp_c, carbon_footprint_kg_per_kwh,
+             recycled_content, warranty, compliance_standards, dismantling_manual, health_history
+           ) VALUES (
+             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+             $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32,
+             $33, $34, $35, $36
+           )
+           RETURNING *`,
+          [
+            battery.id,
+            battery.ownerId || null,
+            battery.barcode,
+            battery.qrCode || null,
+            battery.modalId || null,
+            battery.hangStatus || null,
+            battery.overallStatus || null,
+            battery.name,
+            battery.modelName,
+            battery.model,
+            battery.type,
+            battery.manufacturer,
+            battery.serialNumber,
+            battery.chemistry,
+            battery.capacityKwh,
+            battery.capacity,
+            battery.nominalVoltage,
+            battery.voltage,
+            battery.weightKg,
+            battery.dimensionsMm,
+            battery.manufactureDate,
+            battery.assemblyLocation,
+            battery.location,
+            battery.cells,
+            battery.stateOfHealth,
+            battery.stateOfCharge,
+            battery.cycleCount,
+            battery.maxRatedCycles,
+            battery.internalResistanceMOhms,
+            battery.operatingTempC,
+            battery.carbonFootprintKgPerKwh,
+            JSON.stringify(battery.recycledContent || {}),
+            JSON.stringify(battery.warranty || {}),
+            JSON.stringify(battery.complianceStandards || []),
+            battery.dismantlingManual,
+            JSON.stringify(battery.healthHistory || []),
+          ]
+        );
+        return mapBatteryRow(rows[0]);
+      }
+
+      // maxvolt_prod shape: batteries.keyed by battery_id with a NOT NULL
+      // model_id referencing battery_models. Resolve the model first so we
+      // either insert a valid production battery or fail cleanly (400).
+      let modelId = battery.modelId || null;
+      if (!modelId && hasModelsTable) {
+        const modelKey = String(
+          battery.model || battery.name || battery.modelName || ""
+        ).trim();
+        if (modelKey) {
+          const { rows: modelRows } = await pool.query(
+            `SELECT model_id FROM ${legacyTable("battery_models")}
+             WHERE LOWER(model_id) = LOWER($1) LIMIT 1`,
+            [modelKey]
+          );
+          modelId = modelRows[0]?.model_id || null;
+        }
+        if (!modelId) {
+          throw Object.assign(
+            new Error(
+              `Battery model "${modelKey}" is not registered in battery_models. ` +
+                "Only models registered in the production database can be minted here."
+            ),
+            { statusCode: 400 }
+          );
+        }
+      }
+
+      // The battery identity: prefer the QR modal id, then the serial,
+      // then the barcode — stripping only the lowercase legacy `batt-`
+      // prefix that the older app generated (uppercase BATT- barcodes
+      // such as BATT-GEN-… are kept intact).
+      const rawId = String(
+        battery.modalId || battery.serialNumber || battery.barcode || battery.id || ""
+      ).trim();
+      const batteryId = rawId.startsWith("batt-") ? rawId.slice(5) : rawId;
+      if (!batteryId) {
+        throw Object.assign(
+          new Error(
+            "A battery identifier (modal id, serial number or barcode) is required to register a battery in the production database."
+          ),
+          { statusCode: 400 }
+        );
+      }
+
       const { rows } = await pool.query(
         `INSERT INTO batteries (
-           id, owner_id, barcode, qr_code, modal_id, hang_status, overall_status,
+           battery_id, model_id, owner_id, barcode, qr_code, modal_id, hang_status, overall_status,
            name, model_name, model, type, manufacturer,
            serial_number, chemistry, capacity_kwh, capacity, nominal_voltage, voltage,
            weight_kg, dimensions_mm, manufacture_date, assembly_location, location,
@@ -582,11 +853,12 @@ export const createPostgresStore = async ({ databaseUrl }) => {
          ) VALUES (
            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
            $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32,
-           $33, $34, $35, $36
+           $33, $34, $35, $36, $37
          )
          RETURNING *`,
         [
-          battery.id,
+          batteryId,
+          modelId,
           battery.ownerId || null,
           battery.barcode,
           battery.qrCode || null,
@@ -627,6 +899,14 @@ export const createPostgresStore = async ({ databaseUrl }) => {
       return mapBatteryRow(rows[0]);
     },
 
+    async claimBattery(id, ownerId) {
+      const { rows } = await pool.query(
+        `UPDATE batteries SET owner_id = $2 WHERE ${batteryKey} = $1 RETURNING *`,
+        [id, ownerId]
+      );
+      return rows.length > 0 ? mapBatteryRow(rows[0]) : null;
+    },
+
     async updateBattery(id, fields) {
       const current = await store.getBatteryById(id);
       if (!current) return null;
@@ -644,7 +924,7 @@ export const createPostgresStore = async ({ databaseUrl }) => {
            operating_temp_c = $29, carbon_footprint_kg_per_kwh = $30,
            recycled_content = $31, warranty = $32, compliance_standards = $33,
            dismantling_manual = $34, health_history = $35
-         WHERE id = $1
+         WHERE ${batteryKey} = $1
          RETURNING *`,
         [
           id,
@@ -689,7 +969,7 @@ export const createPostgresStore = async ({ databaseUrl }) => {
 
     async deleteBattery(id) {
       const { rows } = await pool.query(
-        "DELETE FROM batteries WHERE id = $1 RETURNING *",
+        `DELETE FROM batteries WHERE ${batteryKey} = $1 RETURNING *`,
         [id]
       );
       return rows.length > 0 ? mapBatteryRow(rows[0]) : false;
@@ -1021,7 +1301,7 @@ export const createPostgresStore = async ({ databaseUrl }) => {
         params.push(`%${q}%`);
         const i = params.length;
         where.push(
-          `(id ILIKE $${i} OR barcode ILIKE $${i} OR serial_number ILIKE $${i} OR
+          `(${batteryKey} ILIKE $${i} OR barcode ILIKE $${i} OR serial_number ILIKE $${i} OR
             modal_id ILIKE $${i} OR name ILIKE $${i} OR model_name ILIKE $${i} OR
             chemistry ILIKE $${i} OR manufacturer ILIKE $${i})`
         );
@@ -1052,7 +1332,7 @@ export const createPostgresStore = async ({ databaseUrl }) => {
       );
 
       return {
-        data: rows.map(mapBatteryRow),
+        data: (await enrichBatteryRows(rows)).map(mapBatteryRow),
         pagination: buildPagination(page, limit, total),
       };
     },

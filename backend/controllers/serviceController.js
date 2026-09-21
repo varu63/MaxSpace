@@ -4,6 +4,7 @@ import { todayISO } from "../utils/date.js";
 import { parsePagination } from "../utils/pagination.js";
 import { upsertScheduleForService } from "../services/schedulerService.js";
 import { VALID_STATUSES, isActiveStatus, isCancelled } from "../constants/serviceStatuses.js";
+import { ownerScopeFor } from "../utils/ownerScope.js";
 
 // GET /api/services
 export const getServices = asyncHandler(async (req, res) => {
@@ -45,7 +46,7 @@ export const getService = asyncHandler(async (req, res) => {
 
 // GET /api/services/battery/:batteryId/status  (derived per-battery status)
 export const getBatteryServiceStatus = asyncHandler(async (req, res) => {
-  const battery = await store.getBatteryById(req.params.batteryId, req.user.id);
+  const battery = await store.getBatteryById(req.params.batteryId, ownerScopeFor(req));
   if (!battery) {
     res.status(404);
     throw new Error("Battery not found");
@@ -72,7 +73,7 @@ export const createService = asyncHandler(async (req, res) => {
     throw new Error("batteryId is required to create a service");
   }
 
-  const battery = await store.getBatteryById(data.batteryId, req.user.id);
+  const battery = await store.getBatteryById(data.batteryId, ownerScopeFor(req));
   if (!battery) {
     res.status(400);
     throw new Error("Battery not found for the provided batteryId");

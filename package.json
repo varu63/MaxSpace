@@ -1,0 +1,28 @@
+{
+  "name": "maxspace",
+  "version": "1.0.0",
+  "description": "A modern single-page web application for managing battery fleets and generating **EU-compliant Digital Battery Passports** under the [EU Battery Regulation 2023/1542](https://eur-lex.europa.eu/eli/reg/2023/1542).",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "concurrently \"npm run dev --prefix frontend -- --host 0.0.0.0\" \"npm run dev --prefix backend\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/varu63/MaxSpace.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/varu63/MaxSpace/issues"
+  },
+  "homepage": "https://github.com/varu63/MaxSpace#readme",
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}

@@ -24,6 +24,9 @@ export const logout = () => client("/auth/logout", { method: "POST" });
 export const forgotPassword = (email) =>
   client("/auth/forgot-password", { method: "POST", auth: false, body: { email } });
 
+export const resetPassword = (token, password, confirmPassword) =>
+  client("/auth/reset-password", { method: "POST", auth: false, body: { token, password, confirmPassword } });
+
 /* ============================================================
    BATTERIES
 ============================================================ */
@@ -53,6 +56,9 @@ export const deleteBattery = (id) =>
 
 export const lookupBattery = (code) =>
   client(`/batteries/lookup?code=${encodeURIComponent(code)}`);
+
+export const claimBattery = (identifier) =>
+  client(`/batteries/${encodeURIComponent(identifier)}/claim`, { method: "POST" });
 
 export const fetchBatteryPassport = (identifier) =>
   client(`/batteries/${encodeURIComponent(identifier)}/passport`);

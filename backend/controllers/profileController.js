@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import store from "../data/index.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { sanitizeUser, matchesPassword } from "../utils/auth.js";
+import { ownerScopeFor } from "../utils/ownerScope.js";
 
 const DEFAULT_NOTIFICATION_SETTINGS = {
   warrantyAlerts: true,
@@ -150,7 +151,7 @@ export const getActivityLogs = asyncHandler(async (req, res) => {
 export const exportProfileData = asyncHandler(async (req, res) => {
   res.json({
     user: sanitizeUser(await store.getProfile(req.user.id)),
-    batteries: await store.getAllBatteries(req.user.id),
+    batteries: await store.getAllBatteries(ownerScopeFor(req)),
     services: await store.getServicesByCustomerId(req.user.id),
     exportedAt: new Date().toISOString(),
   });

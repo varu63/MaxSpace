@@ -60,6 +60,8 @@ const loadPostgresStore = async () => {
       const { createPostgresStore } = await import("./postgres/index.js");
       const store = await createPostgresStore({
         databaseUrl: config.db.databaseUrl,
+        legacySchema: config.db.legacySchema,
+        allowReset: config.db.allowReset,
       });
       await pingWithTimeout(store);
       console.log("[data] Using PostgreSQL repository.");

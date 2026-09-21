@@ -238,7 +238,7 @@ const AddBatteryModal = () => {
               <Battery className="w-4 h-4 text-[#B48611] mt-0.5 shrink-0" />
               <p>
                 A new EU Digital Battery Passport will be minted with EU DPP
-                2023/1542 compliance fields and an 8-year warranty record.
+                2023/1542 compliance fields and a 3-year warranty record.
               </p>
             </div>
           </div>

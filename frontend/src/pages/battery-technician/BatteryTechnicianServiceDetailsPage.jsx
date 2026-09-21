@@ -320,8 +320,8 @@ const BatteryTechnicianServiceDetailsPage = () => {
           </div>
           <div className="p-6 space-y-3">
             {[
-              { label: "Name", value: service.customer?.name || "Alex Rivera", icon: User },
-              { label: "Email", value: service.customer?.email || "alex.rivera@maxspace-energy.com", icon: Mail },
+              { label: "Name", value: service.customer?.name || "—", icon: User },
+              { label: "Email", value: service.customer?.email || "—", icon: Mail },
               { label: "Phone", value: service.customer?.phone || service.mobileNumber || "—", icon: Phone },
               { label: "Location", value: service.center || "—", icon: MapPin },
             ].map((row) => {

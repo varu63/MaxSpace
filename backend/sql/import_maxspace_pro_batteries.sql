@@ -116,9 +116,9 @@ SELECT
   jsonb_build_object(
     'status', 'Active',
     'startDate', to_char(created_at, 'YYYY-MM-DD'),
-    'endDate', to_char(created_at + interval '8 years', 'YYYY-MM-DD'),
-    'remainingDays', 2920,
-    'terms', '8 Years / 160,000 km Guaranteed Health Retention',
+    'endDate', to_char(created_at + interval '3 years', 'YYYY-MM-DD'),
+    'remainingDays', 1095,
+    'terms', '3 Years / 60,000 km Guaranteed Health Retention',
     'provider', 'EcoVolt Global Warranty Direct',
     'certificateNumber', 'WAR-MGPT-' || battery_id
   ),

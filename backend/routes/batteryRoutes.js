@@ -6,6 +6,7 @@ import {
   getBatteryPassport,
   getBatteryHealthHistory,
   createBattery,
+  claimBattery,
   updateBattery,
   deleteBattery,
 } from "../controllers/batteryController.js";
@@ -17,6 +18,7 @@ const router = express.Router();
 router.get("/lookup", optionalProtect, lookupBattery);
 router.get("/:id/passport", optionalProtect, getBatteryPassport);
 router.get("/:id/health-history", optionalProtect, getBatteryHealthHistory);
+router.post("/:id/claim", protect, claimBattery);
 
 // Fleet list and creation
 router.route("/").get(protect, getBatteries).post(protect, createBattery);

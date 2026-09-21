@@ -119,22 +119,22 @@ const AdminCustomersPage = () => {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3.5">
                         <div className="w-10 h-10 rounded-2xl bg-[#173B5C] text-[#FBF1C9] flex items-center justify-center text-xs font-black shrink-0">
-                          {customer.name
-                            .split(" ")
+                          {String(customer.name || "?")
+                            .split(/\s+/)
                             .map((n) => n[0])
                             .join("")
                             .slice(0, 2)
                             .toUpperCase()}
                         </div>
                         <span className="font-bold text-sm text-[#16263A]">
-                          {customer.name}
+                          {customer.name || "—"}
                         </span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <span className="flex items-center gap-2 text-xs text-[#747B83]">
                         <Mail className="w-3.5 h-3.5 text-[#8A7A4A] shrink-0" />
-                        {customer.email}
+                        {customer.email || "—"}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -164,7 +164,7 @@ const AdminCustomersPage = () => {
                     <td className="px-6 py-4">
                       <span className="chip border bg-green-50 text-green-700 border-green-200">
                         <CheckCircle2 className="w-3 h-3" />
-                        {customer.accountStatus}
+                        {customer.accountStatus || "active"}
                       </span>
                     </td>
                   </tr>

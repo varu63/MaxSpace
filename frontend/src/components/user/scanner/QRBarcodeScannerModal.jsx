@@ -165,6 +165,7 @@ export const QRBarcodeScannerModal = () => {
     isScannerOpen, 
     closeScanner, 
     findBatteryByBarcode, 
+    claimBattery,
     openAddBattery, 
     addToast 
   } = useBattery();
@@ -240,12 +241,43 @@ export const QRBarcodeScannerModal = () => {
         const existingBattery = await findBatteryByBarcode(lookupId);
 
         if (existingBattery) {
-          setRecentScanResult({
-            status: 'found',
-            battery: existingBattery,
-            code
-          });
-          addToast('Battery Identified!', `Found passport for ${existingBattery.modelName}`);
+          // Persist the ownership relationship (POST /batteries/:id/claim)
+          // so the scanned unit shows up in the user's Profile fleet list.
+          try {
+            const claimResult = await claimBattery(existingBattery.id);
+            const alreadyClaimed = Boolean(claimResult?.alreadyClaimed);
+            setRecentScanResult({
+              status: 'found',
+              battery: existingBattery,
+              code,
+              alreadyClaimed,
+            });
+            addToast(
+              alreadyClaimed ? 'Battery in Your Profile' : 'Battery Added to Profile',
+              alreadyClaimed
+                ? `${existingBattery.modelName} was already linked to your account.`
+                : `Found passport for ${existingBattery.modelName}`,
+              alreadyClaimed ? 'info' : 'success'
+            );
+          } catch (claimError) {
+            const claimStatus = claimError?.status;
+            let claimErrorText;
+            if (claimStatus === 401) {
+              claimErrorText = 'Please sign in to add a scanned battery to your profile.';
+            } else if (claimStatus === 403) {
+              claimErrorText = 'You do not have permission to claim this battery.';
+            } else if (claimStatus === 404) {
+              claimErrorText = 'Battery not found. It may have been removed from the database.';
+            } else if (claimStatus === 409) {
+              claimErrorText = 'This battery is already associated with another user.';
+            } else if (claimStatus >= 500) {
+              claimErrorText = 'The battery database is unavailable right now. Please try again in a moment.';
+            } else {
+              claimErrorText = 'Could not add the battery to your profile. Please try again.';
+            }
+            setRecentScanResult({ status: 'error', code, error: claimErrorText });
+            addToast('Could Not Add Battery', claimErrorText, 'error');
+          }
         } else {
           setRecentScanResult({
             status: 'new',
@@ -272,7 +304,7 @@ export const QRBarcodeScannerModal = () => {
         setLookingUp(false);
       }
     },
-    [findBatteryByBarcode, addToast]
+    [findBatteryByBarcode, claimBattery, addToast]
   );
 
   /* Decode a video frame using jsQR. Runs in a rAF loop while the camera
@@ -901,7 +933,9 @@ export const QRBarcodeScannerModal = () => {
                             : 'text-[#B03A2E]'
                       }`}>
                         {recentScanResult.status === 'found'
-                          ? 'Passport Found in Fleet'
+                          ? recentScanResult.alreadyClaimed
+                            ? 'Battery Already in Your Profile'
+                            : 'Battery Added to Your Profile'
                           : recentScanResult.status === 'new'
                             ? 'Unregistered Battery Detected'
                             : 'Scan Error'}
@@ -929,6 +963,13 @@ export const QRBarcodeScannerModal = () => {
                         'Double-check the code and try again, or switch to manual entry.'
                       )}
                     </p>
+                    {recentScanResult.status === 'found' && (
+                      <p className="text-[11px] text-[#A77A08] font-bold mt-1">
+                        {recentScanResult.alreadyClaimed
+                          ? 'This battery is already linked to your profile.'
+                          : 'Linked to your profile — it now appears in your fleet.'}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# Environment variables (never commit real secrets)
+.env
+.env.*
+!backend/.env.example
+!frontend/.env.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -22,11 +28,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-*.lock
-package-lock.json
-yarn.lock
-package.json
 
-# Legacy backup of an unrelated database (maxvolt_prod)
+# Database dumps and backups (never commit production data)
 maxtrace_backup.dump
 *.dump
+*.sql.gz
+*.pgdump

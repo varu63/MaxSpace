@@ -62,26 +62,23 @@ export default function HomePage() {
   const { activeServiceCount, pendingCount, healthyCount, needsAttention } = useMemo(() => {
     let active = 0;
     let pending = 0;
-    let healthy = 0;
-    let attention = 0;
 
     for (const b of batteries) {
-      const health = Number(b.stateOfHealth);
-      if (health >= 80) healthy += 1;
-      else attention += 1;
-
       const status = getBatteryServiceStatus(b);
       if (status === "Active") active += 1;
       else if (status === "Pending") pending += 1;
     }
 
+    // Reuse the context's NaN-safe health buckets so all pages agree.
+    const healthy = (stats.optimalBatteries || 0) + (stats.goodBatteries || 0);
+
     return {
       activeServiceCount: active,
       pendingCount: pending,
       healthyCount: healthy,
-      needsAttention: attention,
+      needsAttention: stats.attentionBatteries || 0,
     };
-  }, [batteries, getBatteryServiceStatus]);
+  }, [batteries, getBatteryServiceStatus, stats.optimalBatteries, stats.goodBatteries, stats.attentionBatteries]);
 
   const fleetStats = useMemo(
     () => [
