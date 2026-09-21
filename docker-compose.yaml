@@ -8,7 +8,7 @@ services:
     environment:
       POSTGRES_USER: maxspace_user
       POSTGRES_PASSWORD: maxspace_password
-      POSTGRES_DB: maxspace_db
+      POSTGRES_DB: maxvolt_prod
 
     ports:
       - "5432:5432"
@@ -17,7 +17,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U maxspace_user -d maxspace_db"]
+      test: ["CMD-SHELL", "pg_isready -U maxspace_user -d maxvolt_prod"]
       interval: 10s
       timeout: 5s
       retries: 5

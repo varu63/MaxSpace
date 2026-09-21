@@ -980,11 +980,12 @@ Open http://localhost:5173. Dev mode proxies `/api` calls to the backend, so no 
 ### Run with PostgreSQL (maxvolt_prod production database)
 
 The container `maxspace-postgres` hosts `maxvolt_prod` — the legacy production
-database, **adapted in place** by the migrations. Do **not** apply `schema.sql`
-here.
+database, **adapted in place** by the migrations. `docker-compose.yaml` creates
+the `maxvolt_prod` database automatically on a fresh clone (first start only);
+on an existing `postgres_data` volume the current databases are kept untouched.
 
 ```bash
-# 1. Start PostgreSQL 17
+# 1. Start PostgreSQL 17 (fresh machines: auto-creates the empty maxvolt_prod DB)
 docker compose up -d postgres
 
 # 2. Point the backend at maxvolt_prod (edit backend/.env)
@@ -1005,8 +1006,10 @@ npm run dev
 curl http://localhost:5000
 ```
 
-For a brand-new (empty) database, apply `backend/sql/schema.sql` once first,
-then run the migrations the same way.
+For a brand-new (empty) database, apply `backend/sql/schema.sql` once first
+(the app-shaped greenfield schema), then run the migrations the same way — the
+initial migration detects the schema shape and only backfills data where the
+legacy tables exist.
 
 ### Demo accounts (mock / seed mode only)
 
