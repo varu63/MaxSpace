@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Battery,
@@ -21,7 +21,6 @@ import {
   Pagination,
 } from "../../components/common";
 import { useBattery } from "../../context/BatteryContext";
-import { fetchBatteriesPaginated } from "../../services/api";
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -31,33 +30,30 @@ export default function HomePage() {
     getBatteryServiceStatus,
   } = useBattery();
 
-  const [pageBatteries, setPageBatteries] = useState([]);
-  const [pagination, setPagination] = useState(null);
-  const [fetching, setFetching] = useState(false);
+  const [page, setPage] = useState(1);
 
-  /* Server-side battery page for the "Your Batteries" grid; the fleet stats
-     above keep using the context list (the backend still honors the legacy
-     full-array call) so the dashboard is consistent regardless of page. */
-  const fetchPage = async (nextPage = 1) => {
-    setFetching(true);
-    try {
-      const result = await fetchBatteriesPaginated({ page: nextPage, limit: 6 });
-      setPageBatteries(result.data || []);
-      setPagination(result.pagination || null);
-    } catch {
-      // The fleet stats above still render from the context list; a failed
-      // page load simply leaves the grid at its current contents.
-    } finally {
-      setFetching(false);
-    }
-  };
+  /* The "Your Batteries" grid paginates the live context list so a battery
+     added, updated, claimed or removed shows up immediately — the fleet stats
+     above and the grid can never disagree or go stale until a reload. */
+  const limit = 6;
+  const { pageBatteries, pagination } = useMemo(() => {
+    const total = batteries.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const current = Math.min(page, totalPages);
+    return {
+      pageBatteries: batteries.slice((current - 1) * limit, current * limit),
+      pagination: {
+        page: current,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: current < totalPages,
+        hasPreviousPage: current > 1,
+      },
+    };
+  }, [batteries, page]);
 
-  useEffect(() => {
-    fetchPage(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handlePageChange = (nextPage) => fetchPage(nextPage);
+  const handlePageChange = (nextPage) => setPage(nextPage);
 
   const { activeServiceCount, pendingCount, healthyCount, needsAttention } = useMemo(() => {
     let active = 0;
@@ -183,9 +179,6 @@ export default function HomePage() {
 
         <div className="mt-6">
           <Pagination pagination={pagination} onPageChange={handlePageChange} />
-          {fetching && (
-            <p className="text-xs text-[#8A9096] mt-2">Loading more batteries…</p>
-          )}
         </div>
       </section>
 

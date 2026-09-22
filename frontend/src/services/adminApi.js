@@ -124,6 +124,34 @@ export const fetchAdminCustomersPaginated = (params = {}) => {
   return client(`/admin/customers${query ? `?${query}` : ""}`, { admin: true });
 };
 
+/* ============================================================
+   ALL ACCOUNTS / BATTERIES (read-only registries)
+============================================================ */
+
+/* Every account (ADMIN / USER / EMPLOYEE): { data, pagination } envelope. */
+export const fetchUsersPaginated = (params = {}) => {
+  const qs = new URLSearchParams();
+  if (params.page) qs.set("page", params.page);
+  if (params.limit) qs.set("limit", params.limit);
+  if (params.search) qs.set("search", params.search);
+  if (params.sort) qs.set("sort", params.sort);
+  if (params.order) qs.set("order", params.order);
+  const query = qs.toString();
+  return client(`/admin/users${query ? `?${query}` : ""}`, { admin: true });
+};
+
+/* Full fleet registry (every battery field + owner): { data, pagination }. */
+export const fetchAdminBatteriesPaginated = (params = {}) => {
+  const qs = new URLSearchParams();
+  if (params.page) qs.set("page", params.page);
+  if (params.limit) qs.set("limit", params.limit);
+  if (params.search) qs.set("search", params.search);
+  if (params.sort) qs.set("sort", params.sort);
+  if (params.order) qs.set("order", params.order);
+  const query = qs.toString();
+  return client(`/admin/batteries${query ? `?${query}` : ""}`, { admin: true });
+};
+
 export const fetchAdminTechniciansPaginated = (params = {}) => {
   const qs = new URLSearchParams();
   if (params.page) qs.set("page", params.page);

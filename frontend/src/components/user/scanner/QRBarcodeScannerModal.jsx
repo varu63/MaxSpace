@@ -576,7 +576,7 @@ export const QRBarcodeScannerModal = () => {
             }`}
           >
             <Sparkles className="w-4 h-4 text-[#B48611]" />
-            <span>Quick Sample Barcodes</span>
+            <span>Fleet Barcodes</span>
           </button>
 
           <button

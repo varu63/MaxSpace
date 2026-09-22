@@ -48,7 +48,6 @@ export {
   updateProfile,
   updateNotifications,
   changePassword,
-  resetData,
 } from "./api";
 
 /* Admin API */

@@ -13,6 +13,84 @@ import { ownerScopeFor } from "../utils/ownerScope.js";
 
 const barcodePrefix = "BATT-GEN";
 
+/* Whether the caller may see full ownership / detailed records for a battery:
+   fleet operators (ADMIN/EMPLOYEE) or the battery's linked owner. */
+const canViewOwnerDetails = (req, battery) =>
+  req.user && (req.user.role !== "USER" || req.user.id === battery.ownerId);
+
+/* Public-facing subset of a battery's service history for non-owners. EU DPP
+   passports are publicly scannable, but customer identity, contact details and
+   operational notes must not leak through a barcode lookup. */
+const publicServiceView = (services) =>
+  services.map(
+    ({
+      id,
+      serviceType,
+      ticketNumber,
+      scheduledDate,
+      scheduledTime,
+      status,
+      center,
+      technician,
+      cost,
+      notes,
+    }) => ({
+      id,
+      serviceType,
+      ticketNumber,
+      scheduledDate,
+      scheduledTime,
+      status,
+      center,
+      technician,
+      cost,
+      notes,
+    })
+  );
+
+/* Fields end users may edit on their own battery passport. Identity, ownership,
+   QR-linked and audit fields (id, ownerId, barcode, serialNumber, qrCode,
+   modalId, hangStatus, overallStatus, serviceCount, createdAt) and the
+   health-history ledger are intentionally excluded. */
+const EDITABLE_BATTERY_FIELDS = [
+  "name",
+  "modelName",
+  "model",
+  "type",
+  "manufacturer",
+  "chemistry",
+  "capacityKwh",
+  "capacity",
+  "nominalVoltage",
+  "voltage",
+  "weightKg",
+  "dimensionsMm",
+  "manufactureDate",
+  "assemblyLocation",
+  "location",
+  "cells",
+  "stateOfHealth",
+  "stateOfCharge",
+  "cycleCount",
+  "maxRatedCycles",
+  "internalResistanceMOhms",
+  "operatingTempC",
+  "carbonFootprintKgPerKwh",
+  "recycledContent",
+  "warranty",
+  "complianceStandards",
+  "dismantlingManual",
+  "notes",
+];
+
+const pickEditableBatteryFields = (body = {}) => {
+  const updates = {};
+  for (const key of EDITABLE_BATTERY_FIELDS) {
+    if (key in body) updates[key] = body[key];
+  }
+  return updates;
+};
+
 // GET /api/batteries
 export const getBatteries = asyncHandler(async (req, res) => {
   const { barcode } = req.query;
@@ -56,7 +134,14 @@ export const getBattery = asyncHandler(async (req, res) => {
       ? await store.getBatteryRelatedDetails(battery)
       : {};
 
-  res.json({ ...battery, ...details });
+  const response = { ...battery, ...details };
+  // Ownership identity (owner name/email/location) is private to the owner
+  // and fleet operators; barcode/passport routes are otherwise public.
+  if (!canViewOwnerDetails(req, battery) && response.ownership) {
+    response.ownership = null;
+  }
+
+  res.json(response);
 });
 
 // GET /api/batteries/lookup?barcode=...|serial=...|id=...|code=...
@@ -79,7 +164,12 @@ export const lookupBattery = asyncHandler(async (req, res) => {
       ? await store.getBatteryRelatedDetails(battery)
       : {};
 
-  res.json({ ...battery, ...details });
+  const response = { ...battery, ...details };
+  if (!canViewOwnerDetails(req, battery) && response.ownership) {
+    response.ownership = null;
+  }
+
+  res.json(response);
 });
 
 // GET /api/batteries/:id/passport
@@ -111,9 +201,14 @@ export const getBatteryPassport = asyncHandler(async (req, res) => {
     ...details,
   };
 
+  const ownerView = canViewOwnerDetails(req, battery);
+  if (!ownerView && fullBattery.ownership) {
+    fullBattery.ownership = null;
+  }
+
   res.json({
     battery: fullBattery,
-    serviceHistory,
+    serviceHistory: ownerView ? serviceHistory : publicServiceView(serviceHistory),
     generatedAt: new Date().toISOString(),
     qrUrl: battery.qrCode || `https://passport.battery-eu.org/passports/${battery.modalId || battery.barcode}`,
   });
@@ -323,7 +418,12 @@ export const updateBattery = asyncHandler(async (req, res) => {
     throw new Error("Battery not found");
   }
 
-  const updated = await store.updateBattery(req.params.id, req.body);
+  // Only curated, non-identity fields are accepted; anything else in the body
+  // (id, ownerId, barcode, serialNumber, healthHistory, ...) is ignored.
+  const updated = await store.updateBattery(
+    req.params.id,
+    pickEditableBatteryFields(req.body)
+  );
   res.json(updated);
 });
 

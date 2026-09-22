@@ -13,9 +13,11 @@ import { protect, requireEmployee } from "../middleware/auth.js";
 const router = express.Router();
 
 // Public routes (login is rate-limited to slow down credential stuffing)
+// Only FAILED attempts consume the window (see adminRoutes for rationale).
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
+  skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: "Too many login attempts from this IP, please try again later." },

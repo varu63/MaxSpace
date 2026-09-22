@@ -35,26 +35,31 @@ export const batteryTechnicianLogin = asyncHandler(async (req, res) => {
     throw new Error("Invalid email or password");
   }
 
-  const token = signToken(user.id, user.role);
-
   const servicePerson = user.servicePersonId
     ? await store.getServicePersonById(user.servicePersonId)
     : null;
+
+  // Employees without a linked (active) service-person record are locked out
+  // at login, not just on subsequent authenticated requests.
+  if (!servicePerson || String(servicePerson.status || "").toLowerCase() !== "active") {
+    res.status(403);
+    throw new Error("This technician account is inactive. Contact an administrator.");
+  }
+
+  const token = signToken(user.id, user.role);
 
   res.status(200).json({
     token,
     user: {
       ...sanitizeUser(user),
       servicePersonId: user.servicePersonId,
-      servicePerson: servicePerson
-        ? {
-            id: servicePerson.id,
-            name: servicePerson.name,
-            certification: servicePerson.certification,
-            specialization: servicePerson.specialization,
-            status: servicePerson.status,
-          }
-        : null,
+      servicePerson: {
+        id: servicePerson.id,
+        name: servicePerson.name,
+        certification: servicePerson.certification,
+        specialization: servicePerson.specialization,
+        status: servicePerson.status,
+      },
     },
   });
 });

@@ -1026,8 +1026,7 @@ const SettingsPage = () => {
                       </h2>
 
                       <p className="text-sm text-[#747B83]">
-                        Export your records as a JSON file or
-                        restore the sample dataset
+                        Export your records as a JSON file
                       </p>
                     </div>
                   </div>

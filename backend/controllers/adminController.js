@@ -5,7 +5,7 @@ import { signToken, sanitizeUser, matchesPassword } from "../utils/auth.js";
 import { todayISO } from "../utils/date.js";
 import { VALID_STATUSES, isActiveStatus } from "../constants/serviceStatuses.js";
 import { upsertScheduleForService } from "../services/schedulerService.js";
-import { parsePagination } from "../utils/pagination.js";
+import { parsePagination, matchesSearch, compareSorted, paginateArray } from "../utils/pagination.js";
 import {
   enrichServiceSummaries,
   enrichServiceDetail,
@@ -369,6 +369,87 @@ export const getCustomers = asyncHandler(async (req, res) => {
     ? { success: true, data: enriched, pagination: results.pagination }
     : enriched;
   res.json(body);
+});
+
+// GET /api/admin/users — read-only registry of every account (ADMIN / USER /
+// EMPLOYEE) with the identity columns the app stores (name, username,
+// full_name, email, role) plus a link to the technician record when present.
+export const getUsers = asyncHandler(async (req, res) => {
+  const { page, limit, sort, order } = parsePagination(req.query);
+  const { search = "" } = req.query;
+
+  let users = await store.getAllUsers();
+
+  if (search) {
+    const needle = String(search).toLowerCase();
+    users = users.filter(
+      (u) =>
+        matchesSearch(u.name, needle) ||
+        matchesSearch(u.email, needle) ||
+        matchesSearch(u.username, needle) ||
+        matchesSearch(u.role, needle)
+    );
+  }
+
+  users.sort((a, b) => compareSorted(a, b, sort, order));
+
+  const persons = await store.getAllServicePersons();
+  const personById = new Map((persons || []).map((p) => [p.id, p]));
+
+  const enriched = users.map((u) => {
+    const clean = sanitizeUser(u);
+    const person = u.servicePersonId ? personById.get(u.servicePersonId) : null;
+    return {
+      ...clean,
+      servicePerson: person
+        ? {
+            id: person.id,
+            technicianId: person.technicianId,
+            name: person.name,
+            certification: person.certification,
+            specialization: person.specialization,
+            status: person.status,
+          }
+        : null,
+    };
+  });
+
+  const { data, pagination } = paginateArray(enriched, { page, limit });
+  res.json({ success: true, data, pagination });
+});
+
+// GET /api/admin/batteries — read-only fleet registry with every battery
+// field, plus the linked owner name/email, search and pagination.
+export const getAdminBatteries = asyncHandler(async (req, res) => {
+  const { page, limit, sort, order } = parsePagination(req.query);
+  const { search = "" } = req.query;
+
+  const results = await store.listBatteries({
+    ownerId: null,
+    search,
+    page,
+    limit,
+    sort,
+    order,
+  });
+
+  const ownerIds = [...new Set(results.data.map((b) => b.ownerId).filter(Boolean))];
+  const owners = await store.getUsersByIds(ownerIds);
+  const ownerById = new Map(owners.map((o) => [o.id, o]));
+
+  const data = results.data.map((b) => {
+    const owner = b.ownerId ? ownerById.get(b.ownerId) : null;
+    return {
+      ...b,
+      owner: owner
+        ? { id: owner.id, name: owner.name, username: owner.username, email: owner.email, role: owner.role }
+        : null,
+      ownerName: owner?.name || "",
+      ownerEmail: owner?.email || "",
+    };
+  });
+
+  res.json({ success: true, data, pagination: results.pagination });
 });
 
 /* Batch service-person enrichment: assigned/completed/active counts plus a

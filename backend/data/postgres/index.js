@@ -29,6 +29,8 @@ const mapUserRow = (row) =>
     ? {
         id: row.id,
         name: row.name,
+        username: row.username || "",
+        fullName: row.full_name || "",
         email: row.email,
         password: row.password_hash,
         role: row.role,
@@ -40,6 +42,23 @@ const mapUserRow = (row) =>
         createdAt: row.created_at,
       }
     : null;
+
+/* Derive the legacy-friendly username and full_name columns for every user
+   row the app creates. username prefers an explicit value, then the email
+   local-part, then the name; full_name mirrors the display name. */
+const toUsername = (userData) => {
+  if (userData.username) return String(userData.username);
+  const fromEmail = String(userData.email || "").split("@")[0]?.trim();
+  if (fromEmail) return fromEmail;
+  const fromName = String(userData.name || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ".")
+    .replace(/[^a-z0-9._-]/g, "");
+  return fromName || String(userData.id || "user");
+};
+
+const toFullName = (userData) => userData.fullName || userData.name || "";
 
 const mapServicePersonRow = (row) =>
   row
@@ -462,12 +481,14 @@ export const createPostgresStore = async ({
     async createUser(userData) {
       const passwordHash = await hashPassword(userData.password);
       const { rows } = await pool.query(
-        `INSERT INTO users (id, name, email, password_hash, role, service_person_id, google_id, auth_provider, avatar, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        `INSERT INTO users (id, name, username, full_name, email, password_hash, role, service_person_id, google_id, auth_provider, avatar, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
          RETURNING *`,
         [
           userData.id,
           userData.name,
+          toUsername(userData),
+          toFullName(userData),
           userData.email,
           passwordHash,
           userData.role,
@@ -488,13 +509,15 @@ export const createPostgresStore = async ({
       const passwordHash = await hashPassword(next.password);
       const { rows } = await pool.query(
         `UPDATE users
-         SET name = $2, email = $3, password_hash = $4, role = $5, service_person_id = $6,
-             google_id = $7, auth_provider = $8, avatar = $9
+         SET name = $2, username = $3, full_name = $4, email = $5, password_hash = $6,
+             role = $7, service_person_id = $8, google_id = $9, auth_provider = $10, avatar = $11
          WHERE id = $1
          RETURNING *`,
         [
           id,
           next.name,
+          toUsername(next),
+          toFullName(next),
           next.email,
           passwordHash,
           next.role,

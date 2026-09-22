@@ -20,11 +20,21 @@ const app = express();
 // Security headers
 app.use(helmet());
 
-// CORS
+// CORS — restrict to the configured frontend origin(s) so the API is not
+// callable cross-site with credentials. FRONTEND_URL/CLIENT_URL may hold a
+// comma-separated list (e.g. localhost + LAN IP for mobile testing).
+const allowedOrigins = String(config.clientUrl || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    // origin: config.clientUrl,
-    origin: "*", // Allow all origins for development; change to specific origin in production
+    origin(origin, callback) {
+      // Non-browser callers (curl, tests) send no Origin header — allow them.
+      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+      callback(null, false);
+    },
     credentials: true,
   })
 );
@@ -33,10 +43,13 @@ app.use(
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 
-// Rate limiting on auth routes (100 requests per 15 minutes per IP)
+// Rate limiting on auth routes (100 failed requests per 15 minutes per IP).
+// Successful requests (sign-in, sign-up, forgot-password, logout) are skipped
+// so legitimate users are never blacklisted by their own normal activity.
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100,
+  skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: "Too many requests from this IP, please try again later." },

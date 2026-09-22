@@ -19,6 +19,8 @@ import {
   UserCheck,
   Users,
   HardHat,
+  Battery,
+  UserRound,
 } from "lucide-react";
 
 import { useLocation, useNavigate } from "react-router-dom";
@@ -48,7 +50,9 @@ export const Sidebar = ({ role = "user", onNavigateProfile, onLogout }) => {
         { id: "dashboard", label: "Dashboard", description: "Service Management Overview", icon: LayoutDashboard, path: "/admin", badge: null },
         { id: "services", label: "Service Requests", description: "Bookings & Assignments", icon: Wrench, path: "/admin/services", badge: admin.services?.filter((s) => s.status === "Confirmed").length || 0, badgeColor: "bg-amber-100 text-amber-900 border-amber-300", hideZeroBadge: false },
         { id: "service-persons", label: "Battery Technicians", description: "Manage Technicians", icon: UserCheck, path: "/admin/service-persons", badge: null },
+        { id: "batteries", label: "Batteries", description: "Full Fleet Registry", icon: Battery, path: "/admin/batteries", badge: null },
         { id: "customers", label: "Customers", description: "Registered Customers", icon: Users, path: "/admin/customers", badge: null },
+        { id: "users", label: "Users", description: "All Accounts & Roles", icon: UserRound, path: "/admin/users", badge: null },
         { id: "analytics", label: "Analytics", description: "Service Insights", icon: BarChart3, path: "/admin/analytics", badge: null },
         { id: "profile", label: "Admin Profile", description: "Account & Settings", icon: User, path: "/admin/profile", badge: null },
       ]

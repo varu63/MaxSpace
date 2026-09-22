@@ -13,8 +13,9 @@
    app keeps working today with zero behavior change. Setting
    DATA_SOURCE=postgres (plus DATABASE_URL) switches the whole app
    to the PostgreSQL repository — and if the DB/driver is missing,
-   this facade logs a warning and falls back to the seeded mock
-   store so the app never crashes.
+   the process fails to start with a clear error. There is NO silent
+   fallback to the seeded mock store in PostgreSQL mode, so demo data
+   can never be served to production traffic.
 
    The PostgreSQL repository is loaded lazily via a dynamic import,
    so the `pg` driver is only required when postgres mode is on.
@@ -23,7 +24,6 @@ import config from "../config/app.js";
 import mockStore from "./store.js";
 
 let activeStorePromise = null;
-let fallbackWarned = false;
 
 /* Await this when the storage layer may be async (postgres mode). */
 export const getStore = () => {
@@ -49,34 +49,32 @@ const pingWithTimeout = async (store) => {
   ]);
 };
 
-/* PostgreSQL-mode loader with safe fallback to the mock store. */
+/* PostgreSQL-mode loader. Fails hard when the configuration or the
+   database itself is unavailable — never falls back to the seeded
+   in-memory store, so production traffic cannot silently hit demo data. */
 const loadPostgresStore = async () => {
   if (!config.db.databaseUrl) {
-    console.warn(
-      "[data] DATA_SOURCE=postgres set but DATABASE_URL is missing. Falling back to the seeded in-memory store (mock mode)."
+    throw new Error(
+      "[data] DATA_SOURCE=postgres set but DATABASE_URL is missing. Refusing to run — set DATABASE_URL or switch to DATA_SOURCE=mock."
     );
-  } else {
-    try {
-      const { createPostgresStore } = await import("./postgres/index.js");
-      const store = await createPostgresStore({
-        databaseUrl: config.db.databaseUrl,
-        legacySchema: config.db.legacySchema,
-        allowReset: config.db.allowReset,
-      });
-      await pingWithTimeout(store);
-      console.log("[data] Using PostgreSQL repository.");
-      return store;
-    } catch (error) {
-      if (!fallbackWarned) {
-        fallbackWarned = true;
-        console.warn(
-          `[data] PostgreSQL repository unavailable (${error.message}). Falling back to the seeded in-memory store (mock mode).`
-        );
-      }
-    }
   }
 
-  return mockStore;
+  const { createPostgresStore } = await import("./postgres/index.js");
+  let store;
+  try {
+    store = await createPostgresStore({
+      databaseUrl: config.db.databaseUrl,
+      legacySchema: config.db.legacySchema,
+      allowReset: config.db.allowReset,
+    });
+    await pingWithTimeout(store);
+  } catch (error) {
+    throw new Error(
+      `[data] PostgreSQL repository unavailable: ${error.message} — refusing to start. Check that the database is up and DATABASE_URL is correct.`
+    );
+  }
+  console.log("[data] Using PostgreSQL repository.");
+  return store;
 };
 
 /* Live connectivity check for the health endpoint. Returns true when the

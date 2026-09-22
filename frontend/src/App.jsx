@@ -40,6 +40,8 @@ const AdminServicePersonsPage = lazy(() =>
   import("./pages/admin/AdminServicePersonsPage")
 );
 const AdminCustomersPage = lazy(() => import("./pages/admin/AdminCustomersPage"));
+const AdminBatteriesPage = lazy(() => import("./pages/admin/AdminBatteriesPage"));
+const AdminUsersPage = lazy(() => import("./pages/admin/AdminUsersPage"));
 const AdminAnalyticsPage = lazy(() => import("./pages/admin/AdminAnalyticsPage"));
 const AdminProfilePage = lazy(() => import("./pages/admin/AdminProfilePage"));
 
@@ -353,7 +355,9 @@ const App = () => {
                   element={<AdminServiceDetailsPage />}
                 />
                 <Route path="service-persons" element={<AdminServicePersonsPage />} />
+                <Route path="batteries" element={<AdminBatteriesPage />} />
                 <Route path="customers" element={<AdminCustomersPage />} />
+                <Route path="users" element={<AdminUsersPage />} />
                 <Route path="analytics" element={<AdminAnalyticsPage />} />
                 <Route path="profile" element={<AdminProfilePage />} />
               </Route>

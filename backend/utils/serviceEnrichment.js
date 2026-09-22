@@ -102,7 +102,12 @@ export const enrichServiceDetail = async (store, service) => {
   const [battery, users, schedule] = await Promise.all([
     service.batteryId ? store.getBatteryById(service.batteryId) : Promise.resolve(null),
     store.getCustomers(),
-    service.id ? store.getServiceSchedule(service.id).catch(() => null) : Promise.resolve(null),
+    // The schedule lookup may resolve to null (no row exists) and some stores
+    // implement it synchronously (mock) while others are async (postgres).
+    // Promise.resolve normalizes both so .catch never fails on null/undefined.
+    service.id
+      ? Promise.resolve(store.getServiceSchedule(service.id)).catch(() => null)
+      : Promise.resolve(null),
   ]);
   const customer = users.find((u) => u.id === service.customerId);
   const batterySummary = battery

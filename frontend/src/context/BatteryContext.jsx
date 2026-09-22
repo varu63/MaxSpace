@@ -448,20 +448,6 @@ export const BatteryProvider = ({ children }) => {
   }, [batteries, services]);
 
   /* =======================================================
-     RESET DATA
-  ======================================================= */
-
-  const resetToSampleData = useCallback(async () => {
-    try {
-      await api.resetData();
-      await loadAllData();
-      addToast("Sample Data Restored", "Reset all records to initial EU DPP sample dataset.", "info");
-    } catch (error) {
-      addToast("Reset Failed", api.getErrorMessage(error), "error");
-    }
-  }, [loadAllData, addToast]);
-
-  /* =======================================================
      CONTEXT VALUE
   ======================================================= */
 
@@ -528,8 +514,6 @@ export const BatteryProvider = ({ children }) => {
       setIsSidebarOpen,
       toggleSidebar,
       closeSidebar,
-
-      resetToSampleData,
     }),
     [
       loading,
@@ -571,7 +555,6 @@ export const BatteryProvider = ({ children }) => {
       setIsSidebarOpen,
       toggleSidebar,
       closeSidebar,
-      resetToSampleData,
     ]
   );
 

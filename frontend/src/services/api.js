@@ -100,9 +100,3 @@ export const updateNotifications = (settings) =>
 
 export const changePassword = (payload) =>
   client("/profile/password", { method: "POST", body: payload });
-
-/* ============================================================
-   DATA / RESET
-============================================================ */
-
-export const resetData = () => client("/data/reset", { method: "POST" });

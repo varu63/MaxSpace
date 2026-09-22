@@ -124,7 +124,7 @@ const AdminLoginPage = () => {
                     }
                     if (formError) setFormError("");
                   }}
-                  placeholder="admin@maxspace.com"
+                  placeholder="Admin email"
                   autoComplete="email"
                   className="w-full py-3 bg-transparent text-sm text-[#16263A] placeholder:text-[#8A9096] focus:outline-none"
                 />

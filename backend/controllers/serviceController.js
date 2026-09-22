@@ -6,6 +6,21 @@ import { upsertScheduleForService } from "../services/schedulerService.js";
 import { VALID_STATUSES, isActiveStatus, isCancelled } from "../constants/serviceStatuses.js";
 import { ownerScopeFor } from "../utils/ownerScope.js";
 
+/* Fields a customer may update on their own service record via PATCH. Identity
+   and operational fields (customerId, batteryId, batteryName, assignedServicePersonId,
+   approvedBy, adminApprovedAt, history, ticketNumber, technician, estimatedArrival)
+   are never writable from the client — the store layer would otherwise accept
+   them and persist cross-user values. Status is validated separately below. */
+const EDITABLE_SERVICE_FIELDS = [
+  "notes",
+  "scheduledDate",
+  "scheduledTime",
+  "mobileNumber",
+  "priority",
+  "center",
+  "cost",
+];
+
 // GET /api/services
 export const getServices = asyncHandler(async (req, res) => {
   const batteryId = req.query.batteryId;
@@ -161,7 +176,18 @@ export const updateService = asyncHandler(async (req, res) => {
     }
   }
 
-  const updated = await store.updateService(req.params.id, { ...restFields, ...(status ? { status } : {}) });
+  // Mass-assignment guard: unknown / operational fields in the body are
+  // dropped rather than persisted (e.g. a user trying to move their service
+  // record onto another customer).
+  const editableFields = {};
+  for (const key of EDITABLE_SERVICE_FIELDS) {
+    if (key in restFields) editableFields[key] = restFields[key];
+  }
+
+  const updated = await store.updateService(
+    req.params.id,
+    { ...editableFields, ...(status ? { status } : {}) }
+  );
 
   if (status) {
     await store.addServiceHistory(req.params.id, {

@@ -2,6 +2,22 @@ import jwt from "jsonwebtoken";
 import config from "../config/app.js";
 import store from "../data/index.js";
 
+/* Attach the re-fetched user to the request. For EMPLOYEE accounts the
+   linked battery-technician record must still be active — deactivated
+   technicians are locked out immediately, even with a valid token. */
+const attachUser = async (req, user) => {
+  if (user.role === "EMPLOYEE") {
+    const servicePerson = user.servicePersonId
+      ? await store.getServicePersonById(user.servicePersonId)
+      : null;
+    if (!servicePerson || String(servicePerson.status || "").toLowerCase() !== "active") {
+      return false;
+    }
+  }
+  req.user = { id: user.id, role: user.role, name: user.name, email: user.email };
+  return true;
+};
+
 export const protect = async (req, res, next) => {
   const header = req.headers.authorization || "";
 
@@ -20,7 +36,10 @@ export const protect = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({ success: false, status: 401, message: "Not authorized, user not found" });
     }
-    req.user = { id: user.id, role: user.role, name: user.name, email: user.email };
+    const active = await attachUser(req, user);
+    if (!active) {
+      return res.status(401).json({ success: false, status: 401, message: "Not authorized, account is inactive" });
+    }
     next();
   } catch (error) {
     return res.status(401).json({ success: false, status: 401, message: "Not authorized, token invalid or expired" });
@@ -40,7 +59,7 @@ export const optionalProtect = async (req, res, next) => {
     const decoded = jwt.verify(token, config.jwtSecret);
     const user = await store.getUserById(decoded.id);
     if (user) {
-      req.user = { id: user.id, role: user.role, name: user.name, email: user.email };
+      await attachUser(req, user);
     }
   } catch {
     // Invalid/expired token is ignored on optional routes

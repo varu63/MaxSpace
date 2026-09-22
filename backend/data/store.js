@@ -24,7 +24,20 @@ class Store {
     this.batteries = [...seedBatteries];
     this.services = [...seedServices];
     this.profiles = { "user-1": { ...seedUserProfile } };
-    this.users = [...seedAdminUsers, ...seedRegularUsers, ...seedEmployeeUsers];
+    this.users = [...seedAdminUsers, ...seedRegularUsers, ...seedEmployeeUsers].map(
+      (u) => ({
+        ...u,
+        // Mirror the postgres repository so seeded accounts expose the same
+        // username/full_name columns as accounts created through createUser.
+        username:
+          u.username ||
+          String(u.email || "").split("@")[0]?.trim() ||
+          String(u.name || "").trim().toLowerCase().replace(/\s+/g, ".") ||
+          u.id ||
+          "user",
+        fullName: u.fullName || u.name || "",
+      })
+    );
     this.servicePersons = [...seedServicePersons];
     this.notifications = [];
     this.batteryAlerts = [];
@@ -83,6 +96,16 @@ class Store {
       authProvider: "local",
       ...userData,
     };
+    // Always fill the legacy-friendly username / full_name columns so both
+    // data sources store them identically (see postgres repository).
+    if (!user.username) {
+      user.username =
+        String(user.email || "").split("@")[0]?.trim() ||
+        String(user.name || "").trim().toLowerCase().replace(/\s+/g, ".") ||
+        user.id ||
+        "user";
+    }
+    if (!user.fullName) user.fullName = user.name || user.fullName || "";
     this.users = [...this.users, user];
     return user;
   }
@@ -485,7 +508,20 @@ class Store {
     this.batteries = [...seedBatteries];
     this.services = [...seedServices];
     this.profiles = { "user-1": { ...seedUserProfile } };
-    this.users = [...seedAdminUsers, ...seedRegularUsers, ...seedEmployeeUsers];
+    this.users = [...seedAdminUsers, ...seedRegularUsers, ...seedEmployeeUsers].map(
+      (u) => ({
+        ...u,
+        // Mirror the postgres repository so seeded accounts expose the same
+        // username/full_name columns as accounts created through createUser.
+        username:
+          u.username ||
+          String(u.email || "").split("@")[0]?.trim() ||
+          String(u.name || "").trim().toLowerCase().replace(/\s+/g, ".") ||
+          u.id ||
+          "user",
+        fullName: u.fullName || u.name || "",
+      })
+    );
     this.servicePersons = [...seedServicePersons];
     this.notifications = [];
     this.batteryAlerts = [];

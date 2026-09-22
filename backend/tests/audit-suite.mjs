@@ -381,7 +381,59 @@ check(r.status === 404 && r.data?.success === false && typeof r.data?.message ==
 r = await req("/batteries", {});
 check(r.status === 401 && r.data?.success === false, name("401 returns structured error body"), `${r.status}`);
 
-console.log("\n# 11. Cleanup");
+console.log("\n# 11. Security hardening (mass-assignment, enumeration, CORS, lockout, PII)");
+// Non-enumerating forgot-password: unknown emails must receive the same 200
+// as known ones. All of the suite's previous forgot-password checks used the
+// freshly-created tempEmail; this pins the unknown-address behavior too.
+r = await req("/auth/forgot-password", { method: "POST", body: { email: `missing.${uid}@example.com` } });
+check(r.status === 200 && r.data?.success === true, name("forgot-password unknown email -> non-enumerating 200"), r.status);
+
+// CORS restricted to the configured frontend origin(s). Mirror the backend's
+// resolution (FRONTEND_URL || CLIENT_URL || http://localhost:5173).
+const expectedOrigin =
+  (process.env.FRONTEND_URL || process.env.CLIENT_URL || "http://localhost:5173").split(",")[0]?.trim() ||
+  "http://localhost:5173";
+const corsAllowed = await fetch(ROOT + "/", { headers: { Origin: expectedOrigin } });
+const acao = corsAllowed.headers.get("access-control-allow-origin");
+check(acao === expectedOrigin, name("CORS echoes configured origin"), acao || "(none)");
+const corsBlocked = await fetch(ROOT + "/", { headers: { Origin: "http://evil.example.com" } });
+check(corsBlocked.headers.get("access-control-allow-origin") === null, name("CORS blocks unknown origin"), corsBlocked.headers.get("access-control-allow-origin") || "(none)");
+
+// Battery mass-assignment guard: PUT must not let a user overwrite ownership,
+// identity (barcode) or audit fields even though `name` is editable.
+const victimUserId = "user-2";
+r = await req(`/batteries/${tempBatteryId}`, { method: "PUT", token: tempUserToken, body: { ownerId: victimUserId, barcode: "HACKED-BAR", name: "Owner-Modified Name" } });
+check(r.status === 200 && r.data?.name === "Owner-Modified Name" && r.data?.ownerId !== victimUserId && r.data?.barcode !== "HACKED-BAR", name("PUT battery guards ownerId/barcode (mass-assignment)"), `owner=${r.data?.ownerId} barcode=${r.data?.barcode}`);
+
+// Service mass-assignment guard: PATCH must not let a user reassign their
+// record to another customer or to a technician.
+r = await req("/services", { method: "POST", token: tempUserToken, body: { batteryId: tempBatteryId, serviceType: "BMS Recheck" } });
+const guardServiceId = r.data?.id;
+r = await req(`/services/${guardServiceId}`, { method: "PATCH", token: tempUserToken, body: { customerId: victimUserId, assignedServicePersonId: "sp-1", notes: "guard" } });
+check(r.status === 200 && r.data?.notes === "guard" && r.data?.customerId !== victimUserId && r.data?.assignedServicePersonId !== "sp-1", name("PATCH service guards customerId/assignee (mass-assignment)"), `customer=${r.data?.customerId} tech=${r.data?.assignedServicePersonId || "none"}`);
+
+// Technician deactivation lockout: deactivated technicians are blocked at
+// login, and tokens issued before deactivation are rejected immediately.
+r = await req(`/admin/technicians/${newTechId}`, { method: "PATCH", token: adminToken, body: { status: "active" } });
+check(r.status === 200, name("reactivate technician for lockout test"), r.status);
+r = await req("/battery-technician/login", { method: "POST", body: { email: `tech.${uid}@maxspace.com`, password: "newTechPass1" } });
+const activeTechToken = r.data?.token;
+check(r.status === 200 && activeTechToken, name("active technician login"), r.status);
+r = await req(`/admin/technicians/${newTechId}`, { method: "PATCH", token: adminToken, body: { status: "inactive" } });
+check(r.status === 200, name("deactivate technician"), r.status);
+r = await req("/battery-technician/login", { method: "POST", body: { email: `tech.${uid}@maxspace.com`, password: "newTechPass1" } });
+check(r.status === 403, name("deactivated technician login -> 403"), r.status);
+r = await req("/battery-technician/me", { token: activeTechToken });
+check(r.status === 401, name("stale token of deactivated technician -> 401"), r.status);
+
+// Public (non-owner) passport must hide ownership and strip service-history PII
+r = await req("/batteries/batt-1/passport", { token: tempUserToken });
+const noServicePii = (r.data?.serviceHistory || []).every((s) => s.customerId === undefined && s.mobileNumber === undefined);
+check(r.data?.battery?.ownership === null && noServicePii, name("public passport hides ownership + service PII"), `ownership=${r.data?.battery?.ownership ?? "null"}`);
+r = await req(`/batteries/${tempBatteryId}/passport`, { token: tempUserToken });
+check(r.data?.battery?.ownership != null, name("owner passport includes ownership"), r.data?.battery?.ownership?.ownerId ? `owner=${r.data.battery.ownership.ownerId}` : "missing");
+
+console.log("\n# 12. Cleanup");
 r = await req("/data/reset", { method: "POST", token: adminToken });
 check(r.status === 200, name("POST /data/reset restores seed"), r.status);
 r = await req("/batteries", { token: userToken });

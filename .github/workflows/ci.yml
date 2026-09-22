@@ -60,6 +60,9 @@ jobs:
       DATABASE_URL: postgresql://maxspace_user:maxspace_password@localhost:5432/maxspace_db
       DATA_SOURCE: postgres
       JWT_SECRET: ci-only-secret-for-audit-suite
+      # The audit suite is destructive (TRUNCATE + seed); the ephemeral
+      # postgres service container above is disposable, so allow the reset.
+      ALLOW_DB_RESET: "true"
     defaults:
       run:
         working-directory: backend

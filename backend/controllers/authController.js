@@ -208,9 +208,14 @@ export const forgotPassword = asyncHandler(async (req, res) => {
 
   const user = await store.getUserByEmail(email);
 
+  // Deliberately non-enumerating: unknown emails receive the identical
+  // 200 response as known ones so the endpoint cannot be used to probe
+  // which addresses have accounts.
   if (!user) {
-    res.status(404);
-    throw new Error("Account does not exist. Please check your email address or create a new account.");
+    return res.status(200).json({
+      success: true,
+      message: "If this email is registered, a password reset link has been sent.",
+    });
   }
 
   const token = crypto.randomBytes(32).toString("hex");
