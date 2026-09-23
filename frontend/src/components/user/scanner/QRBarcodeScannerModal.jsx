@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import jsQR from 'jsqr';
 import { useBattery } from '../../../context/BatteryContext';
@@ -7,9 +7,7 @@ import {
   X, 
   Camera, 
   QrCode, 
-  Barcode, 
   UploadCloud, 
-  Sparkles, 
   CheckCircle2, 
   PlusCircle, 
   ShieldCheck,
@@ -66,18 +64,18 @@ const getCameraSupportError = () => {
     return {
       code: 'insecure',
       message:
-        'Camera scanning requires a secure (HTTPS) connection. Open this page over HTTPS, or use the Upload / Manual entry options below.',
-    };
-  }
-  if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
-    return {
-      code: 'unsupported',
-      message:
-        'This browser does not support camera access. Use the Upload or Manual entry options below instead.',
-    };
-  }
-  return null;
-};
+'Camera scanning requires a secure (HTTPS) connection. Open this page over HTTPS, or upload a QR image below.',
+      };
+    }
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+      return {
+        code: 'unsupported',
+        message:
+          'This browser does not support camera access. Use the Upload Image option below instead.',
+      };
+    }
+    return null;
+  };
 
 /* Distinct, user-actionable messages for the ways getUserMedia can fail. */
 const describeCameraError = (error) => {
@@ -88,40 +86,40 @@ const describeCameraError = (error) => {
       return {
         code: 'denied',
         message:
-          'Camera permission was denied. Allow camera access for this site in your browser settings, then tap "Scan with Camera" again — or use Upload / Manual entry.',
+          'Camera permission was denied. Allow camera access for this site in your browser settings, then tap "Scan with Camera" again, or upload a QR image below.',
       };
     case 'NotFoundError':
     case 'DevicesNotFoundError':
       return {
         code: 'unavailable',
         message:
-          'No camera was found on this device. Use the Upload or Manual entry options below instead.',
+          'No camera was found on this device. Use the Upload Image option below instead.',
       };
     case 'NotReadableError':
     case 'TrackStartError':
       return {
         code: 'busy',
         message:
-          'The camera is already in use by another app. Close other camera apps and try again — or use Upload / Manual entry.',
+          'The camera is already in use by another app. Close other camera apps and try again, or upload a QR image below.',
       };
     case 'OverconstrainedError':
     case 'ConstraintNotSatisfiedError':
       return {
         code: 'constraints',
         message:
-          'This device does not support the requested camera mode. Try again — or use Upload / Manual entry.',
+          'This device does not support the requested camera mode. Try again, or upload a QR image below.',
       };
     case 'NotSupportedError':
       return {
         code: 'unsupported',
         message:
-          'This browser does not support camera access. Use the Upload or Manual entry options below instead.',
+          'This browser does not support camera access. Use the Upload Image option below instead.',
       };
     default:
       return {
         code: 'unknown',
         message:
-          'The camera could not be started. Use the Upload or Manual entry options below, or try again.',
+          'The camera could not be started. Use the Upload Image option below, or try again.',
       };
   }
 };
@@ -161,7 +159,6 @@ const requestCameraStream = async () => {
 export const QRBarcodeScannerModal = () => {
   const navigate = useNavigate();
   const { 
-    batteries,
     isScannerOpen, 
     closeScanner, 
     findBatteryByBarcode, 
@@ -170,27 +167,7 @@ export const QRBarcodeScannerModal = () => {
     addToast 
   } = useBattery();
 
-  /* Presets are built from the operator's real fleet records (PostgreSQL),
-     so the "try a registered barcode" shortcuts never invent sample units. */
-  const fleetPresets = useMemo(
-    () =>
-      batteries
-        .filter((battery) => battery.barcode)
-        .slice(0, 10)
-        .map((battery) => ({
-          code: battery.barcode,
-          name: battery.modelName || battery.name || battery.barcode,
-          model:
-            battery.model ||
-            battery.chemistry ||
-            (battery.capacityKwh ? `${battery.capacityKwh} kWh` : "Battery"),
-          badge: "Existing in Fleet",
-        })),
-    [batteries]
-  );
-
-  const [activeTab, setActiveTab] = useState('camera'); // 'camera' | 'presets' | 'manual' | 'upload'
-  const [manualCode, setManualCode] = useState('');
+  const [activeTab, setActiveTab] = useState('camera'); // 'camera' | 'upload'
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraStarting, setCameraStarting] = useState(false);
   /* { code, message } — `code` selects the guidance/retry affordances. */
@@ -296,7 +273,7 @@ export const QRBarcodeScannerModal = () => {
         } else if (!status) {
           errorText = 'Cannot reach the battery service. Check your connection and try again.';
         } else {
-          errorText = 'The battery lookup failed. Please try again, or switch to manual entry.';
+          errorText = 'The battery lookup failed. Please try again, or upload a clearer image.';
         }
         setRecentScanResult({ status: 'error', code, error: errorText });
         addToast('Lookup Failed', error?.message || errorText, 'error');
@@ -566,36 +543,6 @@ export const QRBarcodeScannerModal = () => {
 
           <button
             onClick={() => {
-              setActiveTab('presets');
-              setRecentScanResult(null);
-            }}
-            className={`flex items-center space-x-2 px-4 py-2.5 rounded-t-xl text-xs font-bold border-b-2 transition-all ${
-              activeTab === 'presets'
-                ? 'border-[#B48611] text-[#16263A] bg-[#FFFDF8] font-black'
-                : 'border-transparent text-[#747B83] hover:text-[#16263A] hover:bg-[#F0E6C8]/50'
-            }`}
-          >
-            <Sparkles className="w-4 h-4 text-[#B48611]" />
-            <span>Fleet Barcodes</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveTab('manual');
-              setRecentScanResult(null);
-            }}
-            className={`flex items-center space-x-2 px-4 py-2.5 rounded-t-xl text-xs font-bold border-b-2 transition-all ${
-              activeTab === 'manual'
-                ? 'border-[#B48611] text-[#16263A] bg-[#FFFDF8] font-black'
-                : 'border-transparent text-[#747B83] hover:text-[#16263A] hover:bg-[#F0E6C8]/50'
-            }`}
-          >
-            <Barcode className="w-4 h-4 text-[#B48611]" />
-            <span>Enter QR/Battery ID</span>
-          </button>
-
-          <button
-            onClick={() => {
               setActiveTab('upload');
               setRecentScanResult(null);
             }}
@@ -741,137 +688,14 @@ export const QRBarcodeScannerModal = () => {
                     >
                       Upload QR Image
                     </button>
-                    <button
-                      onClick={() => {
-                        setActiveTab('manual');
-                        setRecentScanResult(null);
-                      }}
-                      className="px-4 py-2 rounded-xl bg-[#FFFDF8] border border-[#E7E1D3] text-[#16263A] text-xs font-bold hover:bg-[#F5F1E7] transition-colors"
-                    >
-                      Enter ID Manually
-                    </button>
                   </div>
                 </div>
               )}
 
-              {/* Real fleet barcodes below camera (trigger the real API lookup) */}
-              {fleetPresets.length > 0 && (
-                <div className="bg-[#F5F1E7] p-3 rounded-2xl border border-[#F0E6C8] flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs text-[#747B83] font-semibold">
-                    Try a registered fleet barcode:
-                  </span>
-                  <div className="flex flex-wrap gap-2">
-                    {fleetPresets.slice(0, 2).map((item, index) => (
-                      <button
-                        key={item.code}
-                        onClick={() => handleProcessBarcode(item.code)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold border transition-colors ${
-                          index === 0
-                            ? "bg-[#FBF1C9] hover:bg-[#B48611] hover:text-white text-[#A77A08] border-[#F0E6C8]"
-                            : "bg-[#FFFDF8] hover:bg-[#E7E1D3] text-[#16263A] border-[#E7E1D3] shadow-sm"
-                        }`}
-                      >
-                        {item.code}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
-          {/* 2. Presets Tab */}
-          {activeTab === 'presets' && (
-            <div className="space-y-3">
-              <p className="text-xs text-[#747B83]">
-                Click any of your registered fleet barcodes below to run an instant scan:
-              </p>
-
-              {fleetPresets.length === 0 ? (
-                <div className="p-4 rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3] text-xs text-[#747B83]">
-                  No batteries registered yet. Use the Camera, Upload, or Manual Entry tabs to register your first battery.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-2.5">
-                {fleetPresets.map((item) => (
-                  <div
-                    key={item.code}
-                    onClick={() => handleProcessBarcode(item.code)}
-                    className="group p-4 rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3] hover:border-[#B48611] hover:bg-[#FFFDF8] cursor-pointer transition-all duration-200 flex items-center justify-between shadow-sm"
-                  >
-                    <div className="flex items-center space-x-3.5">
-                      <div className="p-2.5 rounded-xl bg-[#FFFDF8] border border-[#E7E1D3] group-hover:border-[#B48611] text-[#A77A08] transition-colors shadow-sm">
-                        <Barcode className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <h4 className="text-sm font-bold text-[#16263A] group-hover:text-[#8A7A4A] transition-colors">
-                            {item.name}
-                          </h4>
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                            item.badge.includes('Existing')
-                              ? 'bg-yellow-100 text-yellow-900 border border-yellow-300'
-                              : 'bg-[#E7E1D3] text-[#747B83]'
-                          }`}>
-                            {item.badge}
-                          </span>
-                        </div>
-                        <p className="text-xs text-[#747B83] mt-0.5">
-                          {item.model} • <span className="font-mono text-[#16263A] font-bold">{item.code}</span>
-                        </p>
-                      </div>
-                    </div>
-
-                    <button className="px-3 py-1.5 rounded-xl bg-[#FFFDF8] group-hover:bg-[#B48611] group-hover:text-white text-xs font-bold text-[#16263A] border border-[#E7E1D3] transition-colors shadow-sm">
-                      Scan Code →
-                    </button>
-                  </div>
-                ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* 3. Manual Entry Tab */}
-          {activeTab === 'manual' && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-[#16263A] mb-2">
-                  Enter Barcode String, QR Payload or Serial Number:
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={manualCode}
-                    onChange={(e) => setManualCode(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && manualCode.trim()) handleProcessBarcode(manualCode);
-                    }}
-                    placeholder="e.g. BATT-EV-9823-LFP or SN-2024-EV-88390"
-                    className="w-full px-4 py-3.5 rounded-xl bg-[#F5F1E7] border border-[#E7E1D3] text-[#16263A] placeholder:text-[#8A9096] focus:outline-none focus:border-[#B48611] focus:bg-[#FFFDF8] font-mono text-sm"
-                  />
-                  <button
-                    onClick={() => handleProcessBarcode(manualCode)}
-                    disabled={!manualCode.trim() || lookingUp}
-                    className="absolute right-2 top-2 bottom-2 px-4 rounded-lg bg-[#173B5C] text-white font-black text-xs hover:bg-[#102F4A] disabled:opacity-40 disabled:hover:bg-[#173B5C] transition-colors shadow-sm"
-                  >
-                    {lookingUp ? 'Checking…' : 'Process Code'}
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-[#F5F1E7] border border-[#E7E1D3] text-xs text-[#747B83] space-y-1.5">
-                <p className="font-bold text-[#16263A]">Supported Formats:</p>
-                <ul className="list-disc list-inside space-y-1 text-[#747B83]">
-                  <li>Standard 1D Barcode (Code-128, Code-39)</li>
-                  <li>2D Matrix / QR Code compliant with EU Battery DPP URI schema</li>
-                  <li>Manufacturer Serial Number (SN-YYYY-*)</li>
-                </ul>
-              </div>
-            </div>
-          )}
-
-          {/* 4. Upload QR Image Tab */}
+          {/* 2. Upload QR Image Tab */}
           {activeTab === 'upload' && (
             <div className="space-y-4">
               <label className="border-2 border-dashed border-[#E7E1D3] hover:border-[#B48611] rounded-3xl p-8 flex flex-col items-center justify-center cursor-pointer bg-[#F5F1E7] hover:bg-[#FBF1C9]/40 transition-all text-center">
@@ -960,7 +784,7 @@ export const QRBarcodeScannerModal = () => {
                       ) : recentScanResult.status === 'new' ? (
                         'This battery is not yet in your account. You can create a new EU Digital Battery Passport for it.'
                       ) : (
-                        'Double-check the code and try again, or switch to manual entry.'
+                        'Double-check the code and try again, or upload a clearer image.'
                       )}
                     </p>
                     {recentScanResult.status === 'found' && (
