@@ -125,6 +125,24 @@ const mapBatteryRow = (row) =>
       }
     : null;
 
+const mapTelemetryRow = (row) =>
+  row
+    ? {
+        id: row.id,
+        batteryId: row.battery_id,
+        voltage: row.voltage,
+        current: row.current,
+        temperatureC: row.temperature_c,
+        soc: row.soc,
+        soh: row.soh,
+        cycleCount: row.cycle_count,
+        chargingStatus: row.charging_status,
+        faultStatus: row.fault_status,
+        source: row.source,
+        recordedAt: row.recorded_at instanceof Date ? row.recorded_at.toISOString() : row.recorded_at,
+      }
+    : null;
+
 const mapServiceRow = (row) =>
   row
     ? {
@@ -407,7 +425,7 @@ export const createPostgresStore = async ({
       await pool.query("BEGIN");
       try {
         await pool.query(
-          'TRUNCATE TABLE services, batteries, profiles, users, service_persons RESTART IDENTITY CASCADE'
+          'TRUNCATE TABLE services, batteries, battery_telemetry, profiles, users, service_persons RESTART IDENTITY CASCADE'
         );
         // Insert order respects the FK graph added by migration 001:
         // service_persons → users → batteries → services → profiles
@@ -1297,6 +1315,64 @@ export const createPostgresStore = async ({
       const activityLogs = [log, ...(profile.activityLogs || [])].slice(0, 20);
       await store.updateProfile(userId, { activityLogs });
       return log;
+    },
+
+    /* ---------- Battery telemetry (IoT/BMS readings) ---------- */
+    async addBatteryTelemetry(reading) {
+      const { rows } = await pool.query(
+        `INSERT INTO battery_telemetry
+           (battery_id, voltage, current, temperature_c, soc, soh, cycle_count,
+            charging_status, fault_status, source, recorded_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         RETURNING *`,
+        [
+          reading.batteryId,
+          reading.voltage ?? null,
+          reading.current ?? null,
+          reading.temperatureC ?? null,
+          reading.soc ?? null,
+          reading.soh ?? null,
+          reading.cycleCount ?? null,
+          reading.chargingStatus ?? null,
+          reading.faultStatus ?? null,
+          reading.source || "api",
+          reading.recordedAt,
+        ]
+      );
+      return mapTelemetryRow(rows[0]);
+    },
+
+    async getLatestBatteryTelemetry(batteryId) {
+      const { rows } = await pool.query(
+        `SELECT * FROM battery_telemetry WHERE battery_id = $1 ORDER BY recorded_at DESC, id DESC LIMIT 1`,
+        [batteryId]
+      );
+      return mapTelemetryRow(rows[0]);
+    },
+
+    async getBatteryTelemetryHistory(batteryId, { limit = 100, from, to } = {}) {
+      const params = [batteryId];
+      const where = ["battery_id = $1"];
+      if (from) {
+        params.push(new Date(from).toISOString());
+        where.push(`recorded_at >= $${params.length}`);
+      }
+      if (to) {
+        params.push(new Date(to).toISOString());
+        where.push(`recorded_at <= $${params.length}`);
+      }
+      const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 500));
+      params.push(safeLimit);
+      // Most recent `safeLimit` readings, returned oldest→newest so chart
+      // consumers can append left-to-right without a reverse.
+      const { rows } = await pool.query(
+        `SELECT * FROM (
+           SELECT * FROM battery_telemetry WHERE ${where.join(" AND ")}
+           ORDER BY recorded_at DESC, id DESC LIMIT $${params.length}
+         ) t ORDER BY recorded_at ASC, id ASC`,
+        params
+      );
+      return rows.map(mapTelemetryRow);
     },
 
     /* ------------------------------------------------------------

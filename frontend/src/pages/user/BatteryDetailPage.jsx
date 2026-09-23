@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -16,19 +16,38 @@ import {
   Wrench,
   CheckCircle2,
   AlertTriangle,
-  Pencil,
 } from "lucide-react";
 import { useBattery } from "../../context/BatteryContext";
 import { DetailRow, InfoBlock } from "../../components/common";
-import EditBatteryDetailsModal from "../../components/user/battery/EditBatteryDetailsModal";
+import { fetchBatteryTelemetryLatest } from "../../services";
 
 export default function BatteryDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { batteries = [] } = useBattery();
-  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [telemetry, setTelemetry] = useState(null);
+  const [telemetryLoaded, setTelemetryLoaded] = useState(false);
 
   const battery = useMemo(() => batteries.find((b) => b.id === id), [batteries, id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (battery && !telemetryLoaded) {
+      fetchBatteryTelemetryLatest(id)
+        .then((res) => {
+          if (!cancelled) setTelemetry(res?.available ? res.data : null);
+        })
+        .catch(() => {
+          if (!cancelled) setTelemetry(null);
+        })
+        .finally(() => {
+          if (!cancelled) setTelemetryLoaded(true);
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [battery, id, telemetryLoaded]);
 
   const soh = Number(battery?.stateOfHealth) || 0;
   const soc = Number(battery?.stateOfCharge) || 0;
@@ -94,13 +113,6 @@ export default function BatteryDetailPage() {
         </div>
         <div className="flex flex-wrap gap-3">
           <button
-            onClick={() => setIsEditOpen(true)}
-            className="h-10 px-5 rounded-xl border-2 border-[#B48611] text-[#B48611] text-xs font-semibold hover:bg-[#FBF1C9] transition flex items-center gap-1.5"
-          >
-            <Pencil className="w-3.5 h-3.5" />
-            Edit Details
-          </button>
-          <button
             onClick={() => navigate(`/battery/${battery.id}/passport`)}
             className="h-10 px-5 rounded-xl border-2 border-[#B48611] text-[#B48611] text-xs font-semibold hover:bg-[#FBF1C9] transition flex items-center gap-1.5"
           >
@@ -149,6 +161,44 @@ export default function BatteryDetailPage() {
           </p>
         </div>
       </div>
+
+      {/* Live / recorded status distinction: the stat cards above are static
+          passport values; only values from the telemetry source are "live". */}
+      {telemetry && (
+        <div className="rounded-2xl bg-[#FFFDF8] border border-[#EEE9DA] p-5 shadow-sm">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 text-green-700 px-2.5 py-1 text-[10px] font-bold">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-600 animate-pulse" />
+              LIVE TELEMETRY
+            </span>
+            <span className="text-[10px] text-[#747B83]">
+              Latest connected-device reading &middot; source: {telemetry.source}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-center">
+            <div>
+              <p className="text-[10px] text-[#747B83] font-semibold uppercase">Voltage</p>
+              <p className="text-sm font-bold text-[#16263A] mt-1">{telemetry.voltage != null ? `${telemetry.voltage} V` : "—"}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-[#747B83] font-semibold uppercase">Current</p>
+              <p className="text-sm font-bold text-[#16263A] mt-1">{telemetry.current != null ? `${telemetry.current} A` : "—"}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-[#747B83] font-semibold uppercase">Temperature</p>
+              <p className="text-sm font-bold text-[#16263A] mt-1">{telemetry.temperatureC != null ? `${telemetry.temperatureC}\u00B0C` : "—"}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-[#747B83] font-semibold uppercase">Charging</p>
+              <p className="text-sm font-bold text-[#16263A] mt-1">{telemetry.chargingStatus || "—"}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-[#747B83] font-semibold uppercase">Recorded</p>
+              <p className="text-sm font-bold text-[#16263A] mt-1">{telemetry.recordedAt ? new Date(telemetry.recordedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <InfoBlock title="Battery Specifications">
         <DetailRow icon={Battery} label="Model" value={battery.modelName} />
@@ -235,12 +285,6 @@ export default function BatteryDetailPage() {
           </div>
         </InfoBlock>
       )}
-
-      <EditBatteryDetailsModal
-        battery={battery}
-        isOpen={isEditOpen}
-        onClose={() => setIsEditOpen(false)}
-      />
     </div>
   );
 }

@@ -182,6 +182,39 @@ CREATE INDEX IF NOT EXISTS idx_technician_availability_person
   ON technician_availability (service_person_id, day_of_week);
 
 -- ============================================================
+-- Battery telemetry / IoT-BMS history
+-- Append-only time-series of device readings. No rows exist until a
+-- real BMS/gateway pushes them (see sql/migrations/003_telemetry.sql).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS battery_telemetry (
+  id               BIGSERIAL PRIMARY KEY,
+  battery_id       TEXT NOT NULL REFERENCES batteries(id) ON DELETE CASCADE,
+  voltage          NUMERIC,
+  current          NUMERIC,
+  temperature_c    NUMERIC,
+  soc              NUMERIC,
+  soh              NUMERIC,
+  cycle_count      INTEGER,
+  charging_status  TEXT,
+  fault_status     TEXT,
+  source           TEXT NOT NULL DEFAULT 'api',
+  recorded_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT battery_telemetry_soc_check CHECK (soc IS NULL OR (soc >= 0 AND soc <= 100)),
+  CONSTRAINT battery_telemetry_soh_check CHECK (soh IS NULL OR (soh >= 0 AND soh <= 100)),
+  CONSTRAINT battery_telemetry_cycle_count_check CHECK (cycle_count IS NULL OR cycle_count >= 0),
+  CONSTRAINT battery_telemetry_voltage_check CHECK (voltage IS NULL OR voltage >= 0),
+  CONSTRAINT battery_telemetry_temperature_check CHECK (temperature_c IS NULL OR (temperature_c >= -100 AND temperature_c <= 300)),
+  CONSTRAINT battery_telemetry_charging_status_check CHECK (charging_status IS NULL OR charging_status IN ('charging','discharging','idle','standby','unknown'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_battery_telemetry_battery
+  ON battery_telemetry (battery_id);
+CREATE INDEX IF NOT EXISTS idx_battery_telemetry_recorded_at
+  ON battery_telemetry (recorded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_battery_telemetry_battery_time
+  ON battery_telemetry (battery_id, recorded_at DESC);
+
+-- ============================================================
 -- MIGRATION (idempotent — safe to run against an existing DB)
 -- Adds the ownership + QR fields introduced for user isolation
 -- and complete battery QR mapping, then backfills legacy rows.

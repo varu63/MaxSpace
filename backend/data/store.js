@@ -53,6 +53,7 @@ class Store {
     this.invitations = [];
     this.refreshTokens = [];
     this.appSettings = {};
+    this.batteryTelemetry = [];
   }
 
   /* ---------- Users (multi-user with roles) ---------- */
@@ -503,6 +504,51 @@ class Store {
     return log;
   }
 
+  /* ---------- Battery telemetry (IoT/BMS readings) ---------- */
+  addBatteryTelemetry(reading) {
+    const row = {
+      id: reading.id ?? `tele-${Date.now()}-${this.batteryTelemetry.length + 1}`,
+      batteryId: reading.batteryId,
+      voltage: reading.voltage ?? null,
+      current: reading.current ?? null,
+      temperatureC: reading.temperatureC ?? null,
+      soc: reading.soc ?? null,
+      soh: reading.soh ?? null,
+      cycleCount: reading.cycleCount ?? null,
+      chargingStatus: reading.chargingStatus ?? null,
+      faultStatus: reading.faultStatus ?? null,
+      source: reading.source || "api",
+      recordedAt:
+        reading.recordedAt !== undefined && reading.recordedAt !== null
+          ? reading.recordedAt
+          : new Date().toISOString(),
+    };
+    this.batteryTelemetry = [...this.batteryTelemetry, row];
+    return row;
+  }
+
+  getLatestBatteryTelemetry(batteryId) {
+    const rows = this.batteryTelemetry.filter((r) => r.batteryId === batteryId);
+    if (!rows.length) return null;
+    return rows.reduce((latest, r) =>
+      new Date(r.recordedAt).getTime() > new Date(latest.recordedAt).getTime() ? r : latest
+    );
+  }
+
+  getBatteryTelemetryHistory(batteryId, { limit = 100, from, to } = {}) {
+    let rows = this.batteryTelemetry.filter((r) => r.batteryId === batteryId);
+    if (from) {
+      const fromMs = new Date(from).getTime();
+      rows = rows.filter((r) => new Date(r.recordedAt).getTime() >= fromMs);
+    }
+    if (to) {
+      const toMs = new Date(to).getTime();
+      rows = rows.filter((r) => new Date(r.recordedAt).getTime() <= toMs);
+    }
+    rows.sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime());
+    return rows.slice(-Math.max(1, Math.min(Number(limit) || 100, 500)));
+  }
+
   /* ---------- Reset ---------- */
   reset() {
     this.batteries = [...seedBatteries];
@@ -537,6 +583,7 @@ class Store {
     this.invitations = [];
     this.refreshTokens = [];
     this.appSettings = {};
+    this.batteryTelemetry = [];
   }
 
   /* ------------------------------------------------------------

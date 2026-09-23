@@ -41,6 +41,8 @@ export {
   deleteBattery,
   lookupBattery,
   fetchBatteryPassport,
+  fetchBatteryTelemetryLatest,
+  fetchBatteryTelemetryHistory,
   fetchServices,
   createService,
   updateService,

@@ -229,6 +229,34 @@ routes that also work without one (public passport lookup).
 | PUT    | `/batteries/:id`            | protect         | Update the battery (owner only) |
 | DELETE | `/batteries/:id`            | protect         | Remove the battery (owner only) |
 
+**Battery telemetry (IoT / BMS readings):**
+
+| Method | Path                                  | Auth            | Description |
+| ------ | ------------------------------------- | --------------- | ----------- |
+| GET    | `/batteries/:id/telemetry/latest`     | optionalProtect | Most recent device reading, or `{ data: null, available: false }` when no source is connected |
+| GET    | `/batteries/:id/telemetry/history`    | optionalProtect | Time series (oldest→newest); query `?limit=&from=&to=` |
+| POST   | `/batteries/:id/telemetry`            | admin or device | Ingest a reading (**rate-limited**; see section 6.2.1) |
+
+Telemetry is append-only and read-only for customers. Ingest requires either an
+**ADMIN** JWT (manual/testing) or a device key in the `X-IoT-Device-Key` header
+matching `IOT_DEVICE_KEY` from the environment. When `IOT_DEVICE_KEY` is unset
+the device path is disabled entirely — see the root `README.md` section
+*Future BMS / IoT Integration* for the full design.
+
+**Ingest request (representative):**
+```json
+{ "voltage": 48.2, "current": -3.5, "temperatureC": 28.4,
+  "soc": 87, "soh": 95.2, "cycleCount": 212,
+  "chargingStatus": "discharging", "faultStatus": null,
+  "source": "mqtt", "recordedAt": "2026-09-23T10:30:00Z" }
+```
+Validation: numeric range checks (voltage 0–2000 V, current ±5000 A,
+temperature −100–300 °C, SoC/SoH 0–100, integer cycle count ≥ 0), charging
+status must be one of `charging|discharging|idle|standby|unknown`, `source`
+must be one of `api|bms|mqtt|can-bus|rs485|bluetooth|manual|other`, and
+`recordedAt` must be ISO-8601 or epoch ms (not more than 30 s in the future).
+Any field may be omitted/`null`; `batteryId` is always inherited from the URL.
+
 **Create battery request (minimal):**
 ```json
 { "batteryName": "Model S4 Pack", "batteryModel": "maxvolt_s4", "serialNumber": "SN-2026-0001",

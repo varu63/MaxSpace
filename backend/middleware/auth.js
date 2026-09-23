@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import crypto from "node:crypto";
 import config from "../config/app.js";
 import store from "../data/index.js";
 
@@ -79,4 +80,43 @@ export const requireEmployee = (req, res, next) => {
     return res.status(403).json({ success: false, status: 403, message: "Access denied. Employee privileges required." });
   }
   next();
+};
+
+/* Authentication for IoT/BMS device ingest (POST telemetry).
+   Two accepted identities, in order:
+     1. An ADMIN JWT (human/manual/testing ingest).
+     2. A shared device key in the `X-IoT-Device-Key` header, matching the
+        configured IOT_DEVICE_KEY. When IOT_DEVICE_KEY is unset this path
+        is disabled entirely, so the marketing app's API surface is unchanged
+        and no device can push data until a real integration is configured.
+   The device key comparison is constant-time to avoid timing side-channels. */
+export const iotDeviceOrAdmin = async (req, res, next) => {
+  const deviceKey = config.iot?.deviceKey || "";
+
+  // Device-push path (preferred once a gateway exists).
+  if (deviceKey) {
+    const presented = req.headers["x-iot-device-key"];
+    if (typeof presented === "string" && presented.length > 0) {
+      const expected = Buffer.from(deviceKey);
+      const actual = Buffer.from(presented);
+      const safeCompare =
+        expected.length === actual.length &&
+        crypto.timingSafeEqual(expected, actual);
+      if (safeCompare) {
+        req.device = { kind: "iot-gateway" };
+        return next();
+      }
+    }
+  }
+
+  // Human path: an authenticated ADMIN may also ingest (e.g. manual import).
+  if (req.user && req.user.role === "ADMIN") {
+    return next();
+  }
+
+  return res.status(403).json({
+    success: false,
+    status: 403,
+    message: "Access denied. Provide a valid device key (X-IoT-Device-Key) or authenticate as an admin.",
+  });
 };

@@ -17,11 +17,17 @@ import {
   Gauge,
   RefreshCcw,
   AlertTriangle,
+  Zap,
+  Thermometer,
+  Clock,
 } from "lucide-react";
 
 import { useBattery } from "../../context/BatteryContext";
 import { DetailRow, InfoBlock, LoadingSpinner } from "../../components/common";
-import { fetchBatteryPassport } from "../../services";
+import {
+  fetchBatteryPassport,
+  fetchBatteryTelemetryLatest,
+} from "../../services";
 
 /* Render every value that exists in the database; keep a clear
    placeholder only when the schema has no matching field yet. */
@@ -35,6 +41,19 @@ const formatDate = (value) => {
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 };
 
+const formatDateTime = (value) => {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
 export default function BatteryPassportPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -43,6 +62,7 @@ export default function BatteryPassportPage() {
   const [passport, setPassport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [telemetry, setTelemetry] = useState(null);
 
   const loadPassport = useCallback(async () => {
     setLoading(true);
@@ -50,6 +70,14 @@ export default function BatteryPassportPage() {
     try {
       const data = await fetchBatteryPassport(id);
       setPassport(data);
+      // Latest IoT/BMS reading, when a device is connected. This drives the
+      // LIVE section below; static passport fields are never relabeled as live.
+      try {
+        const t = await fetchBatteryTelemetryLatest(id);
+        setTelemetry(t?.available ? t.data : null);
+      } catch {
+        setTelemetry(null);
+      }
     } catch (err) {
       setError(err?.message || "Could not load the battery passport.");
     } finally {
@@ -293,7 +321,45 @@ export default function BatteryPassportPage() {
           <DetailRow icon={Layers} label="Material: Potting" value={valueOr()} variant="passport" />
         </InfoBlock>
 
-        <InfoBlock title="Current Status & Health" icon={Activity} variant="passport">
+        <InfoBlock title="Live Telemetry (BMS / IoT)" icon={Activity} variant="passport">
+          {telemetry ? (
+            <>
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 text-green-700 px-2.5 py-1 text-[10px] font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-600 animate-pulse" />
+                  LIVE READING
+                </span>
+                <span className="text-[10px] text-[#747B83]">
+                  Pushed by a connected device &middot; source: {valueOr(telemetry.source)}
+                </span>
+              </div>
+              <DetailRow icon={Zap} label="Voltage" value={telemetry.voltage != null ? `${telemetry.voltage} V` : "—"} variant="passport" />
+              <DetailRow icon={Zap} label="Current" value={telemetry.current != null ? `${telemetry.current} A` : "—"} variant="passport" />
+              <DetailRow icon={Thermometer} label="Temperature" value={telemetry.temperatureC != null ? `${telemetry.temperatureC}°C` : "—"} variant="passport" />
+              <DetailRow icon={Gauge} label="State of Charge (SoC)" value={telemetry.soc != null ? `${telemetry.soc}%` : "—"} variant="passport" />
+              <DetailRow icon={Activity} label="State of Health (SoH)" value={telemetry.soh != null ? `${telemetry.soh}%` : "—"} variant="passport" />
+              <DetailRow icon={Activity} label="Cycle Count" value={valueOr(telemetry.cycleCount)} variant="passport" />
+              <DetailRow icon={Zap} label="Charging Status" value={valueOr(telemetry.chargingStatus)} variant="passport" />
+              <DetailRow icon={AlertTriangle} label="Fault Status" value={valueOr(telemetry.faultStatus)} variant="passport" />
+              <DetailRow icon={Clock} label="Recorded At" value={formatDateTime(telemetry.recordedAt)} variant="passport" />
+            </>
+          ) : (
+            <div className="rounded-xl bg-[#F5F1E7] border border-dashed border-[#E7E1D3] p-4">
+              <p className="text-xs font-semibold text-[#16263A]">Telemetry unavailable</p>
+              <p className="text-xs text-[#747B83] mt-1 leading-relaxed">
+                No IoT / BMS source is connected to this battery yet. The health values
+                shown in &ldquo;Current Status &amp; Health&rdquo; below are the last recorded passport
+                values — not live readings.
+              </p>
+            </div>
+          )}
+        </InfoBlock>
+
+        <InfoBlock title="Current Status & Health (Static Record)" icon={Activity} variant="passport">
+          <p className="text-[10px] text-[#747B83] mb-3">
+            Recorded passport values from the fleet database — these update when a real
+            device pushes data and are not live telemetry.
+          </p>
           <DetailRow icon={Activity} label="State of Health (SoH)" value={battery.stateOfHealth != null ? `${battery.stateOfHealth}%` : "—"} variant="passport" />
           <DetailRow icon={Gauge} label="State of Charge (SoC)" value={battery.stateOfCharge != null ? `${battery.stateOfCharge}%` : "—"} variant="passport" />
           <DetailRow icon={Activity} label="Cycle Count" value={valueOr(battery.cycleCount)} variant="passport" />
@@ -366,6 +432,8 @@ export default function BatteryPassportPage() {
               Passport generated from the live fleet database record {battery.id} (
               {valueOr(battery.barcode)}) at {new Date(passport.generatedAt).toLocaleString()}. Related
               service &amp; maintenance history is included from the <span className="font-mono">services</span> database table.
+              Health/SoC values are the last recorded passport values; live device readings appear under
+              &ldquo;Live Telemetry (BMS / IoT)&rdquo; when a connected source is available.
             </p>
           </div>
         </div>

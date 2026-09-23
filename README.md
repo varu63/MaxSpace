@@ -27,8 +27,9 @@ A full-stack web application for managing battery fleets and generating
 9. [Testing & QA](#9-testing--qa)
 10. [Security design](#10-security-design)
 11. [Database](#11-database)
-12. [Documentation](#12-documentation)
-13. [License](#13-license)
+12. [Future BMS / IoT Integration](#12-future-bms--iot-integration)
+13. [Documentation](#13-documentation)
+14. [License](#14-license)
 
 ---
 
@@ -216,8 +217,81 @@ cd frontend
   tables (users, profiles, batteries, service_persons, services, schedules).
 - If PostgreSQL is configured but unavailable at boot, the app logs a warning
   and falls back to the mock store — it never crashes at startup.
+- Telemetry / IoT readings append to `battery_telemetry` (created by
+  `backend/sql/migrations/003_telemetry.sql`); the existing battery columns
+  remain the static passport record.
 
-## 12. Documentation
+## 12. Future BMS / IoT Integration
+
+MaxSpace is **architecture-ready** for real-time battery telemetry, but no
+device, gateway, or MQTT broker is installed or required today. The app ships
+with the seam in place so a physical BMS can connect with zero schema or API
+changes later.
+
+**Why it behaves the way it does now:** the passports and fleet views show the
+last **recorded** passport values (SoH, SoC, temperature, cycle count), which
+are plainly labeled as recorded — not "live". A "Live Telemetry" section only
+appears once a real device pushes data. No telemetry is fabricated.
+
+**What's already in place (this change set):**
+
+- **Schema** — `battery_telemetry` table (time-series; voltage, current,
+  temperature, SoC, SoH, cycle count, charging/fault status, source,
+  recorded_at) with an FK onto the actual battery key (`battery_id` on
+  `maxvolt_prod`) and composite `(battery_id, recorded_at)` indexes.
+  Migration: `backend/sql/migrations/003_telemetry.sql`.
+- **Service layer** — `backend/services/batteryTelemetryService.js`:
+  validated reading ingestion (`validateTelemetryReading` range/enum/timestamp
+  checks) plus a documented `TelemetryProvider` contract for future adapters
+  (MQTT, BMS API, CAN bus, RS-485, Bluetooth).
+- **Repositories** — both the mock store and the PostgreSQL repository
+  implement `addBatteryTelemetry`, `getLatestBatteryTelemetry`, and
+  `getBatteryTelemetryHistory` (bounded, windowable).
+- **API** — `backend/routes/batteryRoutes.js`:
+  - `GET /api/batteries/:id/telemetry/latest` — newest reading (or `available:false`)
+  - `GET /api/batteries/:id/telemetry/history` — time series (`limit`/`from`/`to`)
+  - `POST /api/batteries/:id/telemetry` — device ingest
+- **Frontend** — passport & battery detail pages request the latest reading and
+  render a clearly-labeled LIVE block; without a source they show
+  "Telemetry unavailable" and never relabel recorded values as live.
+
+**Connecting a real device later (no code changes required):**
+
+1. Configure a shared secret: `IOT_DEVICE_KEY=<random 32 bytes hex>` in
+   `backend/.env` (generate with
+   `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`).
+2. Have the gateway send each reading as:
+   `POST /api/batteries/:id/telemetry` with header
+   `X-IoT-Device-Key: <secret>` and a JSON body such as:
+   ```json
+   { "voltage": 48.2, "current": -3.5, "temperatureC": 28.4,
+     "soc": 87, "soh": 95.2, "cycleCount": 212,
+     "chargingStatus": "discharging", "faultStatus": null,
+     "source": "mqtt", "recordedAt": "2026-09-23T10:30:00Z" }
+   ```
+3. Or implement a `TelemetryProvider` (see the contract in
+   `batteryTelemetryService.js`) and call
+   `BatteryTelemetryService.record(snapshot)` from your MQTT/BMS/CAN/RS-485
+   subscriber.
+4. Readings appear automatically in `/telemetry/latest`, `/telemetry/history`,
+   and the frontend's Live Telemetry blocks.
+
+**Security posture for ingest:**
+
+- Device key comparison is constant-time (`crypto.timingSafeEqual`); when
+  `IOT_DEVICE_KEY` is unset, only an ADMIN JWT can ingest — the public app
+  surface is unchanged until a real integration ships.
+- Every reading is validated (numeric ranges, allowed charging statuses,
+  source vocabulary, ISO-8601/epoch timestamp parsing, future-timestamp
+  rejection beyond 30 s clock skew) before it touches the store.
+- Ingest is rate-limited per IP (120 readings/min) and the body size is capped
+  at the existing 1 MB JSON limit.
+- Readings are append-only; battery identity is enforced by an FK, so a device
+  can never attach data to a non-existent battery.
+- TLS is assumed for production hosting; device credentials ship only in the
+  server env, never in the frontend.
+
+## 13. Documentation
 
 | Document | What you'll find |
 | -------- | ---------------- |
@@ -225,6 +299,6 @@ cd frontend
 | [frontend/README.md](frontend/README.md) | Beginner-friendly guide: how the app works, where each screen lives, how to add one |
 | [docs/](docs/) | Additional project documentation |
 
-## 13. License
+## 14. License
 
 ISC (as declared in `package.json`; no separate LICENSE file is shipped).

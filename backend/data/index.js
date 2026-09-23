@@ -22,18 +22,24 @@
 ============================================================ */
 import config from "../config/app.js";
 import mockStore from "./store.js";
+import { setTelemetryStore } from "../services/batteryTelemetryService.js";
 
 let activeStorePromise = null;
 
 /* Await this when the storage layer may be async (postgres mode). */
 export const getStore = () => {
-  if (activeStorePromise) return activeStorePromise;
+  if (activeStorePromise) {
+    return activeStorePromise;
+  }
 
   if (config.db.dataSource === "postgres") {
     activeStorePromise = loadPostgresStore();
   } else {
     activeStorePromise = Promise.resolve(mockStore);
   }
+
+  // Give the telemetry service the store to read/write through.
+  activeStorePromise.then((s) => setTelemetryStore(s));
 
   return activeStorePromise;
 };

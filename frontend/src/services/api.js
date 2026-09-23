@@ -63,6 +63,22 @@ export const claimBattery = (identifier) =>
 export const fetchBatteryPassport = (identifier) =>
   client(`/batteries/${encodeURIComponent(identifier)}/passport`);
 
+/* Telemetry / IoT-BMS readings. Returns { success, data, available } for
+   latest and { success, data, count, limit } for history. When no device
+   is connected, data is null and available is false — callers must render
+   the "telemetry unavailable" state rather than showing a live value. */
+export const fetchBatteryTelemetryLatest = (identifier) =>
+  client(`/batteries/${encodeURIComponent(identifier)}/telemetry/latest`);
+
+export const fetchBatteryTelemetryHistory = (identifier, params = {}) => {
+  const qs = new URLSearchParams();
+  if (params.limit) qs.set("limit", params.limit);
+  if (params.from) qs.set("from", params.from);
+  if (params.to) qs.set("to", params.to);
+  const query = qs.toString();
+  return client(`/batteries/${encodeURIComponent(identifier)}/telemetry/history${query ? `?${query}` : ""}`);
+};
+
 /* ============================================================
    SERVICES
 ============================================================ */

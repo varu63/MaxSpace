@@ -35,6 +35,14 @@ const config = {
     // keep this off; enable only on a disposable dev database.
     allowReset: process.env.ALLOW_DB_RESET === "true",
   },
+  iot: {
+    // Optional shared secret for future IoT/BMS device ingest. When set, a
+    // device may push telemetry by sending `X-IoT-Device-Key: <secret>` on
+    // POST /api/batteries/:id/telemetry. When unset (default), ingest is
+    // ADMIN-JWT-only, so the current API surface is unchanged and no device
+    // can submit readings until a real integration is configured.
+    deviceKey: (process.env.IOT_DEVICE_KEY || "").trim(),
+  },
 };
 
 export default config;
