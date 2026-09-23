@@ -193,44 +193,46 @@ const AdminBatteriesPage = () => {
 
       {detail && (
         <Modal isOpen={!!detail} onClose={() => setDetail(null)} z={50}>
-          <div className="p-6 max-h-[85vh] overflow-y-auto bg-[#FFFDF8] rounded-3xl shadow-2xl w-full max-w-2xl">
-            <div className="flex items-start justify-between gap-4 mb-5">
-              <div>
-                <h3 className="text-lg font-black text-[#173B5C]">Battery Details</h3>
-                <p className="text-xs text-[#8A9096] mt-0.5 font-mono">{detail.id}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setDetail(null)}
-                className="text-[#8A9096] hover:text-[#16263A]"
-                aria-label="Close details"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            {detail.owner && (
-              <div className="mb-4 rounded-2xl border border-[#E7E1D3] bg-[#F5F1E7] px-4 py-3">
-                <p className="text-[11px] uppercase tracking-wider text-[#747B83] font-semibold mb-1">
-                  Owner
-                </p>
-                <p className="text-sm font-bold text-[#16263A]">
-                  {detail.owner.name || "—"}
-                  <span className="font-normal text-[#8A9096]"> · {detail.owner.email || "—"}</span>
-                </p>
-                <p className="text-[11px] text-[#8A9096] font-mono">
-                  {detail.owner.id} · username: {detail.owner.username || "—"} · role: {detail.owner.role || "—"}
-                </p>
-              </div>
-            )}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-              {detailRows.map((row) => (
-                <div key={row.key} className="border-b border-[#EEE9DA] pb-2">
-                  <p className="text-[11px] uppercase tracking-wider text-[#747B83] font-semibold">
-                    {row.key.replace(/[A-Z]/g, (m) => " " + m.toLowerCase())}
-                  </p>
-                  <p className="text-sm text-[#16263A] break-words">{row.value}</p>
+          <div className="w-full max-w-2xl min-h-full flex flex-col justify-center py-10">
+            <div className="relative w-full bg-[#FFFDF8] rounded-3xl shadow-2xl p-6">
+              <div className="flex items-start justify-between gap-4 mb-5">
+                <div>
+                  <h3 className="text-lg font-black text-[#173B5C]">Battery Details</h3>
+                  <p className="text-xs text-[#8A9096] mt-0.5 font-mono">{detail.id}</p>
                 </div>
-              ))}
+                <button
+                  type="button"
+                  onClick={() => setDetail(null)}
+                  className="text-[#8A9096] hover:text-[#16263A]"
+                  aria-label="Close details"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              {detail.owner && (
+                <div className="mb-4 rounded-2xl border border-[#E7E1D3] bg-[#F5F1E7] px-4 py-3">
+                  <p className="text-[11px] uppercase tracking-wider text-[#747B83] font-semibold mb-1">
+                    Owner
+                  </p>
+                  <p className="text-sm font-bold text-[#16263A]">
+                    {detail.owner.name || "—"}
+                    <span className="font-normal text-[#8A9096]"> · {detail.owner.email || "—"}</span>
+                  </p>
+                  <p className="text-[11px] text-[#8A9096] font-mono">
+                    {detail.owner.id} · username: {detail.owner.username || "—"} · role: {detail.owner.role || "—"}
+                  </p>
+                </div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+                {detailRows.map((row) => (
+                  <div key={row.key} className="border-b border-[#EEE9DA] pb-2">
+                    <p className="text-[11px] uppercase tracking-wider text-[#747B83] font-semibold">
+                      {row.key.replace(/[A-Z]/g, (m) => " " + m.toLowerCase())}
+                    </p>
+                    <p className="text-sm text-[#16263A] break-words">{row.value}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </Modal>
