@@ -1,0 +1,87 @@
+/* Fleet Map — custom Leaflet divIcon pins + cluster pins. Plain
+   divIcons avoid the default Leaflet image-path problem entirely.
+   Pins are Google-Maps-style teardrops (SVG from ./mapPins.js)
+   anchored at their tip; cluster bubbles keep the markercluster UX. */
+.maxspace-popup p {
+  line-height: 1.35;
+}
+
+.maxspace-marker-pin {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.maxspace-marker-pin svg {
+  display: block;
+  filter: drop-shadow(0 2px 3px rgba(22, 38, 58, 0.35));
+  transition: transform 0.15s ease;
+}
+
+.maxspace-marker:hover .maxspace-marker-pin svg {
+  transform: translateY(-1px) scale(1.05);
+}
+
+/* Service-center marker — distinct from battery dot pins. */
+.maxspace-cluster-pin {
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  background: #173b5c;
+  color: #fbf1c9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 800;
+  font-size: 13px;
+  border: 3px solid #fffdf8;
+  box-shadow: 0 1px 8px rgba(22, 38, 58, 0.4);
+}
+
+.leaflet-container {
+  font-family:
+    'Inter',
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 14px;
+  border: 1px solid #eee9da;
+  box-shadow: 0 8px 24px rgba(22, 38, 58, 0.18);
+}
+
+.leaflet-popup-content {
+  margin: 12px 14px;
+}
+
+.leaflet-container a.leaflet-popup-close-button {
+  color: #8a9096;
+}
+
+/* Mobile: keep popups inside the viewport so they never cover the
+   whole map, and keep zoom controls comfortably tappable. */
+@media (max-width: 640px) {
+  .leaflet-popup-content-wrapper {
+    max-width: calc(100vw - 16px) !important;
+  }
+
+  .leaflet-popup-content {
+    max-width: calc(100vw - 44px);
+    overflow-wrap: break-word;
+  }
+
+  .leaflet-control-zoom a {
+    width: 34px !important;
+    height: 34px !important;
+    line-height: 34px !important;
+    font-size: 16px !important;
+  }
+}

@@ -165,3 +165,98 @@ export const fetchAdminTechniciansPaginated = (params = {}) => {
 };
 
 export const fetchAdminAnalytics = () => client("/admin/analytics", { admin: true });
+
+/* ============================================================
+   INDIA COMPLIANCE (BWMR 2022)
+============================================================ */
+
+const queryString = (params = {}) => {
+  const qs = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== "") qs.set(key, value);
+  }
+  const query = qs.toString();
+  return query ? `?${query}` : "";
+};
+
+/* ---- Overview + audit log ---- */
+export const fetchComplianceOverview = () => client("/admin/compliance/overview", { admin: true });
+
+export const fetchComplianceEvents = (params = {}) =>
+  client(`/admin/compliance/events${queryString(params)}`, { admin: true });
+
+/* ---- Producers ---- */
+export const fetchComplianceProducers = (params = {}) =>
+  client(`/admin/compliance/producers${queryString(params)}`, { admin: true });
+
+export const fetchComplianceProducer = (id) =>
+  client(`/admin/compliance/producers/${id}`, { admin: true });
+
+export const createComplianceProducer = (payload) =>
+  client("/admin/compliance/producers", { method: "POST", body: payload, admin: true });
+
+export const updateComplianceProducer = (id, payload) =>
+  client(`/admin/compliance/producers/${id}`, { method: "PATCH", body: payload, admin: true });
+
+export const deleteComplianceProducer = (id) =>
+  client(`/admin/compliance/producers/${id}`, { method: "DELETE", admin: true });
+
+/* ---- Per-battery compliance records ---- */
+export const fetchComplianceBatteries = (params = {}) =>
+  client(`/admin/compliance/batteries${queryString(params)}`, { admin: true });
+
+export const fetchComplianceBattery = (batteryId) =>
+  client(`/admin/compliance/batteries/${encodeURIComponent(batteryId)}`, { admin: true });
+
+export const createComplianceBattery = (batteryId, payload) =>
+  client(`/admin/compliance/batteries/${encodeURIComponent(batteryId)}`, {
+    method: "POST",
+    body: payload,
+    admin: true,
+  });
+
+export const updateComplianceBattery = (batteryId, payload) =>
+  client(`/admin/compliance/batteries/${encodeURIComponent(batteryId)}`, {
+    method: "PATCH",
+    body: payload,
+    admin: true,
+  });
+
+/* ---- EPR obligations ---- */
+export const fetchComplianceObligations = (params = {}) =>
+  client(`/admin/compliance/obligations${queryString(params)}`, { admin: true });
+
+export const createComplianceObligation = (payload) =>
+  client("/admin/compliance/obligations", { method: "POST", body: payload, admin: true });
+
+export const updateComplianceObligation = (id, payload) =>
+  client(`/admin/compliance/obligations/${id}`, { method: "PATCH", body: payload, admin: true });
+
+export const deleteComplianceObligation = (id) =>
+  client(`/admin/compliance/obligations/${id}`, { method: "DELETE", admin: true });
+
+/* ---- EPR credits / certificates ---- */
+export const fetchComplianceCredits = (params = {}) =>
+  client(`/admin/compliance/credits${queryString(params)}`, { admin: true });
+
+export const createComplianceCredit = (payload) =>
+  client("/admin/compliance/credits", { method: "POST", body: payload, admin: true });
+
+export const updateComplianceCredit = (id, payload) =>
+  client(`/admin/compliance/credits/${id}`, { method: "PATCH", body: payload, admin: true });
+
+export const deleteComplianceCredit = (id) =>
+  client(`/admin/compliance/credits/${id}`, { method: "DELETE", admin: true });
+
+/* ---- Documents (metadata-only) ---- */
+export const fetchComplianceDocuments = (params = {}) =>
+  client(`/admin/compliance/documents${queryString(params)}`, { admin: true });
+
+export const createComplianceDocument = (payload) =>
+  client("/admin/compliance/documents", { method: "POST", body: payload, admin: true });
+
+export const updateComplianceDocument = (id, payload) =>
+  client(`/admin/compliance/documents/${id}`, { method: "PATCH", body: payload, admin: true });
+
+export const deleteComplianceDocument = (id) =>
+  client(`/admin/compliance/documents/${id}`, { method: "DELETE", admin: true });

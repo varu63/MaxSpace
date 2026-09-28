@@ -43,6 +43,7 @@ export {
   fetchBatteryPassport,
   fetchBatteryTelemetryLatest,
   fetchBatteryTelemetryHistory,
+  fetchBatteryCompliance,
   fetchServices,
   createService,
   updateService,
@@ -73,6 +74,29 @@ export {
   resetAdminTechnicianPassword,
   fetchAdminCustomers,
   fetchAdminAnalytics,
+  fetchComplianceOverview,
+  fetchComplianceEvents,
+  fetchComplianceProducers,
+  fetchComplianceProducer,
+  createComplianceProducer,
+  updateComplianceProducer,
+  deleteComplianceProducer,
+  fetchComplianceBatteries,
+  fetchComplianceBattery,
+  createComplianceBattery,
+  updateComplianceBattery,
+  fetchComplianceObligations,
+  createComplianceObligation,
+  updateComplianceObligation,
+  deleteComplianceObligation,
+  fetchComplianceCredits,
+  createComplianceCredit,
+  updateComplianceCredit,
+  deleteComplianceCredit,
+  fetchComplianceDocuments,
+  createComplianceDocument,
+  updateComplianceDocument,
+  deleteComplianceDocument,
 } from "./adminApi";
 
 /* Battery Technician API */
@@ -86,3 +110,18 @@ export {
   fetchAssignedServiceDetail,
   updateBatteryTechnicianStatus,
 } from "./batteryTechnicianApi";
+
+/* Fleet Map API */
+export {
+  fetchUserMapBatteries,
+  fetchAdminMapBatteries,
+  fetchUserServiceCenters,
+  fetchAdminServiceCenters,
+  fetchUserOrganizations,
+  fetchAdminOrganizations,
+  fetchMapLocations,
+  fetchMapLocation,
+  saveMapLocation,
+  deleteMapLocation,
+  fetchMapLocationHistory,
+} from "./mapApi";

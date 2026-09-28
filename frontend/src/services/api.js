@@ -79,6 +79,13 @@ export const fetchBatteryTelemetryHistory = (identifier, params = {}) => {
   return client(`/batteries/${encodeURIComponent(identifier)}/telemetry/history${query ? `?${query}` : ""}`);
 };
 
+/* India compliance read view (BWMR 2022) surfaced on the passport.
+   Returns { success, data, available } — when no compliance record has
+   been entered, data is null and available is false. Callers must render
+   the honest "not yet tracked" state rather than inventing data. */
+export const fetchBatteryCompliance = (identifier) =>
+  client(`/batteries/${encodeURIComponent(identifier)}/compliance`);
+
 /* ============================================================
    SERVICES
 ============================================================ */
@@ -101,6 +108,9 @@ export const createService = (service) =>
 
 export const updateService = (id, fields) =>
   client(`/services/${id}`, { method: "PATCH", body: fields });
+
+export const fetchServiceCenters = () =>
+  client("/services/service-centers");
 
 /* ============================================================
    PROFILE

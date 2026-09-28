@@ -5,6 +5,7 @@ import { parsePagination } from "../utils/pagination.js";
 import { upsertScheduleForService } from "../services/schedulerService.js";
 import { VALID_STATUSES, isActiveStatus, isCancelled } from "../constants/serviceStatuses.js";
 import { ownerScopeFor } from "../utils/ownerScope.js";
+import { resolveServiceLocation } from "../utils/serviceLocation.js";
 
 /* Fields a customer may update on their own service record via PATCH. Identity
    and operational fields (customerId, batteryId, batteryName, assignedServicePersonId,
@@ -20,6 +21,11 @@ const EDITABLE_SERVICE_FIELDS = [
   "center",
   "cost",
 ];
+
+// GET /api/services/service-centers — the real service_centers rows
+export const getServiceCenters = asyncHandler(async (req, res) => {
+  res.json({ success: true, data: await store.getServiceCenters() });
+});
 
 // GET /api/services
 export const getServices = asyncHandler(async (req, res) => {
@@ -43,6 +49,10 @@ export const getServices = asyncHandler(async (req, res) => {
     data = data.filter((s) => s.batteryId === batteryId);
   }
 
+  // Attach shared serviceLocation to every service
+  data = await Promise.all(
+    data.map(async (s) => ({ ...s, serviceLocation: await resolveServiceLocation(s) }))
+  );
   if (paginated) {
     return res.json({ success: true, data, pagination: results.pagination });
   }
@@ -56,7 +66,7 @@ export const getService = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error("Service record not found");
   }
-  res.json(service);
+  res.json({ ...service, serviceLocation: await resolveServiceLocation(service) });
 });
 
 // GET /api/services/battery/:batteryId/status  (derived per-battery status)
@@ -133,6 +143,7 @@ export const createService = asyncHandler(async (req, res) => {
     `Ticket #${newService.ticketNumber} for ${newService.batteryName}`,
     "service"
   );
+  newService.serviceLocation = await resolveServiceLocation(newService);
 
   // P2.1: create the schedule slot when the request carries a preferred date.
   try {
@@ -184,10 +195,11 @@ export const updateService = asyncHandler(async (req, res) => {
     if (key in restFields) editableFields[key] = restFields[key];
   }
 
-  const updated = await store.updateService(
+  const updatedRaw = await store.updateService(
     req.params.id,
     { ...editableFields, ...(status ? { status } : {}) }
   );
+  const updated = { ...updatedRaw, serviceLocation: await resolveServiceLocation(updatedRaw) };
 
   if (status) {
     await store.addServiceHistory(req.params.id, {

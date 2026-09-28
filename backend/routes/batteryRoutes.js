@@ -16,6 +16,8 @@ import {
   getTelemetryHistory,
   submitTelemetry,
 } from "../controllers/telemetryController.js";
+import { getBatteryCompliance } from "../controllers/complianceController.js";
+import { getBatteryCompliancePassport } from "../controllers/complianceManagementController.js";
 import {
   protect,
   optionalProtect,
@@ -44,6 +46,15 @@ router.post("/:id/claim", protect, claimBattery);
 router.get("/:id/telemetry/latest", optionalProtect, getLatestTelemetry);
 router.get("/:id/telemetry/history", optionalProtect, getTelemetryHistory);
 router.post("/:id/telemetry", optionalProtect, telemetryIngestLimiter, iotDeviceOrAdmin, submitTelemetry);
+
+// India compliance read view (owner-scoped, surfaced on the passport)
+router.get("/:id/compliance", optionalProtect, getBatteryCompliance);
+
+// Hierarchical compliance passport: the company, model and battery-level
+// certificates that apply to this battery, with derived expiry state.
+// Development/reference rows and Internal documents are filtered out by
+// the service, never by the client.
+router.get("/:id/compliance-passport", optionalProtect, getBatteryCompliancePassport);
 
 // Fleet list and creation
 router.route("/").get(protect, getBatteries).post(protect, createBattery);

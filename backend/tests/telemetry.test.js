@@ -14,7 +14,7 @@ import {
   BatteryTelemetryService,
   setTelemetryStore,
 } from "../services/batteryTelemetryService.js";
-import mockStore from "../data/store.js";
+import { withTestDatabase } from "./helpers/testDatabase.js";
 
 /* A tiny fake store that mirrors the interface the service expects,
    so tests never depend on the seeded dataset. */
@@ -233,35 +233,64 @@ describe("BatteryTelemetryService", () => {
   });
 });
 
-/* The real seeded mock store must expose the telemetry surface too. */
-describe("mock store telemetry integration", () => {
-  beforeEach(() => setTelemetryStore(mockStore));
+/* The telemetry surface must work end-to-end against the real
+   PostgreSQL repository. This runs in a throwaway database created
+   from schema.sql, so it never touches dev or maxvolt_prod. */
+describe("postgres telemetry integration", async () => {
+  const { store, teardown } = await withTestDatabase(import.meta.url);
+  const { testPool } = await import("./helpers/testDatabase.js");
+  const pool = await testPool();
 
-  test("addBatteryTelemetry / getLatestBatteryTelemetry / getBatteryTelemetryHistory work end-to-end", () => {
-    const batteryId = mockStore.batteries[0].id;
-    const a = mockStore.addBatteryTelemetry({
+  test("addBatteryTelemetry / getLatestBatteryTelemetry / getBatteryTelemetryHistory work end-to-end", async () => {
+    /* Minimal battery: telemetry.battery_id is a real FK, so the row has
+       to exist and reference a registered model. battery_models is
+       reference data with no write path in the app, so it is seeded here
+       directly. */
+    await pool.query(
+      `INSERT INTO battery_models
+         (model_id, category, series_count, parallel_count, cell_type, welding_type)
+       VALUES ('tm-model-1', 'Test', 1, 1, 'NMC', 'LASER')`
+    );
+    const battery = await store.createBattery({
+      modelId: "tm-model-1",
+      name: "Telemetry Battery",
+      modelName: "Test Model",
+      barcode: "TM0001",
+      serialNumber: "TMSN0001",
+    });
+    const batteryId = battery.id;
+    assert.ok(batteryId, "battery should be created with an id");
+
+    const a = await store.addBatteryTelemetry({
       batteryId,
       soc: 55,
       recordedAt: new Date(Date.now() - 1000).toISOString(),
     });
-    const b = mockStore.addBatteryTelemetry({
+    const b = await store.addBatteryTelemetry({
       batteryId,
       soc: 56,
       recordedAt: new Date().toISOString(),
     });
     assert.ok(a.id);
     assert.ok(b.id);
-    assert.equal(mockStore.getLatestBatteryTelemetry(batteryId).soc, 56);
-    const history = mockStore.getBatteryTelemetryHistory(batteryId);
+    const latest = await store.getLatestBatteryTelemetry(batteryId);
+    assert.equal(latest.soc, 56);
+    const history = await store.getBatteryTelemetryHistory(batteryId);
     assert.equal(history.length, 2);
     assert.deepEqual(history.map((r) => r.id), [a.id, b.id]);
   });
 
-  test("service wired to the seeded mock store can record", async () => {
-    const batteryId = mockStore.batteries[0].id;
-    const svc = new BatteryTelemetryService(mockStore);
+  test("service wired to the postgres store can record", async () => {
+    const batteryId = (await store.getAllBatteries())[0]?.id;
+    assert.ok(batteryId, "previous test should have created a battery");
+    const svc = new BatteryTelemetryService(store);
     const row = await svc.record({ batteryId, soc: 42, source: "other" });
     assert.ok(row);
     assert.equal(row.batteryId, batteryId);
+  });
+
+  test("teardown drops the throwaway database", async () => {
+    await pool.end().catch(() => {});
+    await teardown();
   });
 });

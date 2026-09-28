@@ -5,7 +5,11 @@
    records. These rely on BATCH lookups (get*ByIds) instead of
    per-record queries to keep list endpoints O(1) queries rather
    than N+1.
+   Also attaches the shared serviceLocation (same object for User/
+   Admin/Technician) derived from existing service.center via
+   serviceLocation.js — no new location table.
 ============================================================ */
+import { resolveServiceLocation } from "./serviceLocation.js";
 
 export const enrichServiceSummaries = async (store, services) => {
   if (!services.length) return [];
@@ -89,12 +93,15 @@ export const enrichServiceSummaries = async (store, services) => {
     return person;
   };
 
-  return services.map((s) => ({
-    ...s,
-    battery: batterySummary(batteryMap.get(s.batteryId)),
-    customer: customerSummary(userMap.get(s.customerId)),
-    technician: techSummary(resolveTech(s)),
-  }));
+  return Promise.all(
+    services.map(async (s) => ({
+      ...s,
+      battery: batterySummary(batteryMap.get(s.batteryId)),
+      customer: customerSummary(userMap.get(s.customerId)),
+      technician: techSummary(resolveTech(s)),
+      serviceLocation: await resolveServiceLocation(s),
+    }))
+  );
 };
 
 /* Small detail-level enrichment used by single-service endpoints. */
@@ -137,5 +144,6 @@ export const enrichServiceDetail = async (store, service) => {
         }
       : null,
     schedule: schedule || null,
+    serviceLocation: await resolveServiceLocation(service),
   };
 };

@@ -4,6 +4,7 @@ import { signToken, sanitizeUser, matchesPassword } from "../utils/auth.js";
 import { VALID_STATUSES } from "../constants/serviceStatuses.js";
 import { parsePagination, buildPagination } from "../utils/pagination.js";
 import { enrichServiceSummaries, enrichServiceDetail } from "../utils/serviceEnrichment.js";
+import { resolveServiceLocation } from "../utils/serviceLocation.js";
 
 /* Battery Technician status transitions — only these moves are allowed for employees */
 const EMPLOYEE_ALLOWED_TRANSITIONS = {
@@ -188,6 +189,7 @@ export const getAssignedServiceDetail = asyncHandler(async (req, res) => {
 
   res.json({
     ...service,
+    serviceLocation: await resolveServiceLocation(service),
     battery: battery
       ? {
           id: battery.id,

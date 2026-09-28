@@ -51,6 +51,19 @@ MaxSpace lets a fleet owner:
 - **Book services** and follow the request from `Pending → Accepted → Assigned
   → In Progress → Completed → Approved`.
 - **View analytics** per battery and for the whole fleet.
+- **Track India compliance** (BWMR 2022 / CPCB EPR) — admin-managed producer
+  registrations, per-battery compliance records, obligations, credits and
+  documents; the customer battery passport shows the honest "not yet tracked"
+  state until real data exists (never fabricated).
+- **See the fleet on a map** — the Global Battery & Compliance Map
+  (`/map` customers, `/admin/map` admins, `/battery-technician/map`
+  technicians): clustered real Leaflet markers color-coded by health
+  (Healthy / Warning / Critical), lifecycle, compliance (including validated
+  "Not Tracked" buckets — never fabricated) and service state, with
+  dynamically loaded tiles via `VITE_MAP_TILE_URL`. ADMINS see the whole fleet
+  (owner included); USER / EMPLOYEE markers are strictly owner- or
+  assigned-service-scoped. Server-derived summary stats, filters, popup → Battery
+  Passport, and an admin location registry with append-only movement history.
 - **Admins** run the back office: accept/assign/approve services, manage
   technicians, and inspect read-only registries of the full battery fleet and
   every account.
@@ -186,7 +199,7 @@ cd frontend
 
 ## 9. Testing & QA
 
-- **Backend:** `npm test` (14 unit/integration tests) + `node scripts/audit.js`
+- **Backend:** `npm test` (55 unit/integration tests) + `node scripts/audit.js`
   against a disposable dev database (plaintext-password scan, orphan-FK checks,
   CORS, unified 401s, sanitized payloads, role access control, pagination).
 - **Frontend:** `npm run lint` (0 errors) and `npm run build`.
@@ -220,6 +233,13 @@ cd frontend
 - Telemetry / IoT readings append to `battery_telemetry` (created by
   `backend/sql/migrations/003_telemetry.sql`); the existing battery columns
   remain the static passport record.
+- India battery compliance (BWMR 2022) lives in six tables created by
+  `backend/sql/migrations/004_battery_compliance.sql`: `compliance_producers`,
+  `battery_compliance` (one record per tracked battery, FK onto the real
+  `batteries.battery_id`), `epr_obligations`, `epr_credits`,
+  `compliance_documents`, and `compliance_events` (audit log). Vocabulary is
+  enforced in `backend/constants/compliance.js` and read in both stores — the
+  database has no compliance CHECK constraints, so nothing is ever fabricated.
 
 ## 12. Future BMS / IoT Integration
 

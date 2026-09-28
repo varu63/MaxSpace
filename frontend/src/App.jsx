@@ -26,6 +26,7 @@ const BatteryPassportPage = lazy(() => import("./pages/user/BatteryPassportPage"
 const SignInPage = lazy(() => import("./pages/user/SignInPage"));
 const SignUpPage = lazy(() => import("./pages/user/SignUpPage"));
 const ResetPasswordPage = lazy(() => import("./pages/user/ResetPasswordPage"));
+const GlobalMapPage = lazy(() => import("./pages/user/GlobalMapPage"));
 
 const AdminLoginPage = lazy(() => import("./pages/admin/AdminLoginPage"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
@@ -44,6 +45,12 @@ const AdminBatteriesPage = lazy(() => import("./pages/admin/AdminBatteriesPage")
 const AdminUsersPage = lazy(() => import("./pages/admin/AdminUsersPage"));
 const AdminAnalyticsPage = lazy(() => import("./pages/admin/AdminAnalyticsPage"));
 const AdminProfilePage = lazy(() => import("./pages/admin/AdminProfilePage"));
+const AdminCompliancePage = lazy(() =>
+  import("./pages/admin/AdminCompliancePage")
+);
+const AdminMapPage = lazy(() =>
+  import("./pages/admin/AdminMapPage")
+);
 
 const BatteryTechnicianLoginPage = lazy(() =>
   import("./pages/battery-technician/BatteryTechnicianLoginPage")
@@ -260,6 +267,14 @@ const MainLayout = () => {
               }
             />
             <Route
+              path="/map"
+              element={
+                <ProtectedRoute>
+                  <GlobalMapPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/profile"
               element={
                 <ProtectedRoute>
@@ -360,6 +375,8 @@ const App = () => {
                 <Route path="users" element={<AdminUsersPage />} />
                 <Route path="analytics" element={<AdminAnalyticsPage />} />
                 <Route path="profile" element={<AdminProfilePage />} />
+                <Route path="compliance" element={<AdminCompliancePage />} />
+                <Route path="map" element={<AdminMapPage />} />
               </Route>
 
               {/* ============ BATTERY TECHNICIAN PANEL ============ */}

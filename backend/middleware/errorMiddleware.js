@@ -22,9 +22,18 @@ export const errorHandler = (err, req, res, next) => {
   // Standard envelope: the message is always present (frontends read
   // error.message), plus success:false and the numeric status for callers
   // that need them (e.g. distinguishing 404 from 5xx failures).
-  res.status(statusCode).json({
+  // Validation/access errors also carry a machine-readable `code` and the
+  // offending `field`, so a form can highlight the right input instead of
+  // showing a generic banner.
+  const body = {
     success: false,
     status: statusCode,
     message,
-  });
+  };
+  if (statusCode < 500) {
+    if (err.code) body.code = err.code;
+    if (err.field) body.field = err.field;
+    if (Array.isArray(err.fieldErrors) && err.fieldErrors.length) body.fieldErrors = err.fieldErrors;
+  }
+  res.status(statusCode).json(body);
 };

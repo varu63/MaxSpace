@@ -231,7 +231,7 @@ export default function BatteryDetailPage() {
         </InfoBlock>
       )}
 
-      <InfoBlock title="Compliance Standards">
+      {/* <InfoBlock title="Compliance Standards">
         <div className="flex flex-wrap gap-2">
           {battery.complianceStandards?.map((std) => (
             <span
@@ -243,7 +243,7 @@ export default function BatteryDetailPage() {
             </span>
           ))}
         </div>
-      </InfoBlock>
+      </InfoBlock> */}
 
       <InfoBlock title="Dismantling & Safety">
         <div className="rounded-xl bg-[#FBF1C9] border border-[#F0E6C8] p-4">

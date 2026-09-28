@@ -36,6 +36,7 @@ const ServicePage = () => {
 
   const [bookingForm, setBookingForm] = useState({
     serviceType: "Regular Maintenance",
+    center: "MaxVolt Noida Service Center",
     date: "",
     time: "",
     mobileNumber: "",
@@ -151,6 +152,7 @@ const ServicePage = () => {
 
     setBookingForm({
       serviceType: "Regular Maintenance",
+      center: "MaxVolt Noida Service Center",
       date: "",
       time: "",
       mobileNumber: "",
@@ -178,6 +180,7 @@ const ServicePage = () => {
       bookService({
         batteryId: getBatteryId(selectedBattery),
         serviceType: bookingForm.serviceType,
+        center: bookingForm.center,
         scheduledDate: bookingForm.date,
         scheduledTime: bookingForm.time,
         mobileNumber: bookingForm.mobileNumber,

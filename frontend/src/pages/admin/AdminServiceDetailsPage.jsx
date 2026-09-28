@@ -28,6 +28,7 @@ import { Card } from "../../components/common";
 import { Modal } from "../../components/common/Modal";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import StatusBadge from "../../components/admin/StatusBadge";
+import ServiceLocationMap from "../../components/common/map/ServiceLocationMap";
 import {
   SERVICE_STATUS_FLOW,
   statusLabel,
@@ -336,7 +337,28 @@ const AdminServiceDetailsPage = () => {
         </div>
       </Card>
 
-      {/* Info grid */}
+        {/* Service Location — shared with User & Technician */}
+        <Card padded={false} className="overflow-hidden">
+          <div className="p-6 border-b border-[#EEE9DA]">
+            <h2 className="font-bold text-lg text-[#16263A] flex items-center gap-2.5"><MapPin className="w-5 h-5 text-[#B48611]"/>Service Location</h2>
+            <p className="text-xs text-[#747B83] mt-0.5">Same location visible to User & Battery Technician — source: existing service center data</p>
+          </div>
+          <div className="p-6 space-y-3">
+            {service.serviceLocation ? (
+              <>
+                <div className="grid sm:grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-xl bg-[#F5F1E7] p-3"><p className="text-[10px] font-bold uppercase text-[#8A9096]">Center</p><p className="font-semibold">{service.serviceLocation.name}</p></div>
+                  <div className="rounded-xl bg-[#F5F1E7] p-3"><p className="text-[10px] font-bold uppercase text-[#8A9096]">Address</p><p className="font-semibold">{[service.serviceLocation.address, service.serviceLocation.city, service.serviceLocation.state, service.serviceLocation.pincode].filter(Boolean).join(", ")}</p></div>
+                </div>
+                <ServiceLocationMap serviceLocation={service.serviceLocation} height={360} />
+              </>
+            ) : (
+              <p className="text-sm text-[#8A9096]">No service location available</p>
+            )}
+          </div>
+        </Card>
+
+        {/* Info grid */}
       <div className="grid md:grid-cols-2 gap-6">
         {/* Customer Information */}
         <Card padded={false} className="overflow-hidden">

@@ -23,17 +23,12 @@ const config = {
     callbackUrl: process.env.GOOGLE_CALLBACK_URL || "",
   },
   db: {
-    // Data source mode:
-    //   "mock"     — in-memory seeded store (default, no database required)
-    //   "postgres" — PostgreSQL repository (requires DATABASE_URL)
-    dataSource: process.env.DATA_SOURCE || "mock",
+    // PostgreSQL is the only data source. There is no in-memory fallback
+    // and no seed path: if DATABASE_URL is missing or the database is
+    // unreachable the process refuses to start. DATA_SOURCE and
+    // LEGACY_SCHEMA are no longer read — the v2 schema is authoritative
+    // and lives entirely in `public`.
     databaseUrl: process.env.DATABASE_URL || null,
-    // Legacy production tables live in `public` on maxvolt_prod; set
-    // LEGACY_SCHEMA (e.g. maxspace_pro) when pointing at the old mirror.
-    legacySchema: (process.env.LEGACY_SCHEMA || "").trim(),
-    // POST /api/data/reset truncates tables. Production databases must
-    // keep this off; enable only on a disposable dev database.
-    allowReset: process.env.ALLOW_DB_RESET === "true",
   },
   iot: {
     // Optional shared secret for future IoT/BMS device ingest. When set, a

@@ -15,7 +15,17 @@ const attachUser = async (req, user) => {
       return false;
     }
   }
-  req.user = { id: user.id, role: user.role, name: user.name, email: user.email };
+  // companyId scopes the account for company-restricted modules
+  // (compliance). null/undefined = MaxSpace platform operator, which
+  // may act for any company. Taken from the stored user, never from the
+  // token body, so a forged claim cannot widen an account's scope.
+  req.user = {
+    id: user.id,
+    role: user.role,
+    name: user.name,
+    email: user.email,
+    companyId: user.companyId ?? null,
+  };
   return true;
 };
 

@@ -43,7 +43,13 @@ const AddBatteryModal = () => {
       barcode: addBatteryPrefill?.barcode || "",
       serialNumber: addBatteryPrefill?.serialNumber || "",
       modalId: addBatteryPrefill?.modalId || "",
-      hangStatus: addBatteryPrefill?.hangStatus || "",
+      // hangStatus arrives as a real boolean from the API (and as raw text
+      // from the QR scanner). This is a text input, so coerce explicitly
+      // rather than letting `false` become "" or a boolean reach the input.
+      hangStatus:
+        addBatteryPrefill?.hangStatus == null
+          ? ""
+          : String(addBatteryPrefill.hangStatus),
       overallStatus: addBatteryPrefill?.overallStatus || "",
     });
   } else if (!isAddBatteryOpen && prevOpen) {

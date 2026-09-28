@@ -10,8 +10,8 @@ import batteryRoutes from "./routes/batteryRoutes.js";
 import serviceRoutes from "./routes/serviceRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
 import analyticsRoutes from "./routes/analyticsRoutes.js";
-import dataRoutes from "./routes/dataRoutes.js";
 import batteryTechnicianRoutes from "./routes/batteryTechnicianRoutes.js";
+import mapRoutes from "./routes/mapRoutes.js";
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
 import { isDatabaseConnected } from "./data/index.js";
 
@@ -62,7 +62,7 @@ app.get("/", async (req, res, next) => {
     res.json({
       message: "MaxSpace API is running",
       version: "1.0.0",
-      dataSource: config.db.dataSource,
+      dataSource: "postgres",
       databaseConfigured: Boolean(config.db.databaseUrl),
       databaseConnected,
       endpoints: {
@@ -73,6 +73,7 @@ app.get("/", async (req, res, next) => {
         profile: "/api/profile",
         analytics: "/api/analytics",
         batteryTechnician: "/api/battery-technician",
+        map: "/api/map",
       },
     });
   } catch (error) {
@@ -87,11 +88,13 @@ app.use("/api/batteries", batteryRoutes);
 app.use("/api/services", serviceRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/analytics", analyticsRoutes);
-app.use("/api/data", dataRoutes);
 app.use("/api/battery-technician", batteryTechnicianRoutes);
 
 // Backward compatibility: old /api/service-man routes redirect to battery technician
 app.use("/api/service-man", batteryTechnicianRoutes);
+
+// Global Battery & Compliance Map (role-scoped markers + admin location registry)
+app.use("/api/map", mapRoutes);
 
 // 404 + error handling
 app.use(notFound);
@@ -99,6 +102,5 @@ app.use(errorHandler);
 
 // Start server
 app.listen(config.port, "0.0.0.0", () => {
-  const dbMode = config.db.dataSource === "postgres" ? "PostgreSQL" : "mock (in-memory seed)";
-  console.log(`🚀 MaxSpace API running on http://localhost:${config.port} (data source: ${dbMode})`);
+  console.log(`🚀 MaxSpace API running on http://localhost:${config.port} (data source: PostgreSQL)`);
 });

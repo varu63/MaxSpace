@@ -24,6 +24,7 @@ import {
 
 import { useBattery } from "../../context/BatteryContext";
 import { DetailRow, InfoBlock, LoadingSpinner } from "../../components/common";
+import BatteryComplianceSection from "../../components/user/battery/BatteryComplianceSection";
 import {
   fetchBatteryPassport,
   fetchBatteryTelemetryLatest,
@@ -365,7 +366,21 @@ export default function BatteryPassportPage() {
           <DetailRow icon={Activity} label="Cycle Count" value={valueOr(battery.cycleCount)} variant="passport" />
           <DetailRow icon={Activity} label="Max Rated Cycles" value={valueOr(battery.maxRatedCycles)} variant="passport" />
           <DetailRow icon={Activity} label="Operating Temperature" value={battery.operatingTempC != null ? `${battery.operatingTempC}°C` : "—"} variant="passport" />
-          <DetailRow icon={Activity} label="Hang Status (QR)" value={valueOr(battery.hangStatus)} variant="passport" />
+          <DetailRow
+            icon={Activity}
+            label="Hang Status (QR)"
+            value={
+              battery.hangStatus == null
+                ? "—"
+                : battery.hangStatus
+                  ? "Yes"
+                  : "No"
+            }
+            variant="passport"
+          />
+          {battery.hangStatusNote ? (
+            <DetailRow icon={Activity} label="Hang Status (raw QR text)" value={battery.hangStatusNote} variant="passport" />
+          ) : null}
           <DetailRow icon={Activity} label="Overall Status (QR)" value={valueOr(battery.overallStatus)} variant="passport" />
           <DetailRow icon={MapPin} label="Current Location" value={valueOr(battery.location)} variant="passport" />
           <DetailRow icon={Wrench} label="Last Service Date" value={formatDate(derived.lastServiceDate)} variant="passport" />
@@ -407,6 +422,8 @@ export default function BatteryPassportPage() {
             ))
           )}
         </InfoBlock>
+
+        <BatteryComplianceSection batteryId={id} />
 
         <InfoBlock title="Lifecycle, Compliance & Carbon Footprint" icon={Leaf} variant="passport">
           <DetailRow icon={Leaf} label="Total Carbon Footprint" value={battery.carbonFootprintKgPerKwh != null ? `${battery.carbonFootprintKgPerKwh} kgCO₂e/kWh` : "—"} variant="passport" />

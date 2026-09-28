@@ -21,6 +21,8 @@ import {
   HardHat,
   Battery,
   UserRound,
+  ScrollText,
+  Map,
 } from "lucide-react";
 
 import { useLocation, useNavigate } from "react-router-dom";
@@ -54,6 +56,8 @@ export const Sidebar = ({ role = "user", onNavigateProfile, onLogout }) => {
         { id: "customers", label: "Customers", description: "Registered Customers", icon: Users, path: "/admin/customers", badge: null },
         { id: "users", label: "Users", description: "All Accounts & Roles", icon: UserRound, path: "/admin/users", badge: null },
         { id: "analytics", label: "Analytics", description: "Service Insights", icon: BarChart3, path: "/admin/analytics", badge: null },
+        { id: "map", label: "Map", description: "Fleet Locations & Moves", icon: Map, path: "/admin/map", badge: null },
+        { id: "compliance", label: "Compliance", description: "BWMR 2022 / EPR Credits", icon: ScrollText, path: "/admin/compliance", badge: null },
         { id: "profile", label: "Admin Profile", description: "Account & Settings", icon: User, path: "/admin/profile", badge: null },
       ]
     : isTech
@@ -63,6 +67,7 @@ export const Sidebar = ({ role = "user", onNavigateProfile, onLogout }) => {
       ]
     : [
         { id: "home", label: "Home", description: "Fleet & Battery Passports", icon: LayoutDashboard, path: "/home", badge: battery.stats.totalBatteries, badgeColor: "bg-yellow-100 text-yellow-900 border-yellow-300" },
+        { id: "map", label: "Global Map", description: "Your batteries on the map", icon: Map, path: "/map", badge: null },
         { id: "services", label: "Services & Maintenance", description: "Bookings & Diagnostics", icon: Wrench, path: "/services", badge: battery.stats.upcomingServices > 0 ? battery.stats.upcomingServices : null, badgeColor: "bg-amber-100 text-amber-900 border-amber-300" },
         { id: "analytics", label: "Analytics", description: "Battery Performance & Insights", icon: BarChart3, path: "/analytics", badge: null },
         { id: "profile", label: "User Profile", description: "Operator Info & Settings", icon: User, path: "/profile", badge: null },

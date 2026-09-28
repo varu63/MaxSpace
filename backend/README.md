@@ -62,6 +62,7 @@ values live in `.env` (git‑ignored). Copy from `.env.example` and fill in.
 backend/
 ├── index.js                 # Express app: middleware, route mounting, server
 ├── config/app.js            # Loads + validates environment/config
+├── constants/compliance.js  # BWMR 2022/CPCB EPR vocabulary source of truth
 ├── routes/                  # One router per resource (auth, admin, batteries, …)
 ├── controllers/             # Request handlers (validation, auth, response shape)
 ├── middleware/
@@ -76,7 +77,9 @@ backend/
 ├── scripts/
 │   ├── migrate.js           # Idempotent schema-adaptation migrations
 │   └── audit.js             # Security/consistency audit (disposable DB only!)
+├── sql/migrations/          # 000…004 idempotent SQL migrations
 ├── utils/
+│   ├── complianceValidation.js # Throwing validators; partial-PATCH semantics
 │   ├── jwt.js               # signToken / verifyToken
 │   ├── password.js          # bcrypt hash / match
 │   ├── sanitize.js          # strips password_hash, google_id from user objects
@@ -174,7 +177,7 @@ Rules of thumb:
 ```json
 { "message": "MaxSpace API is running", "version": "1.0.0",
   "dataSource": "postgres", "databaseConfigured": true, "databaseConnected": true,
-  "endpoints": { "auth": "/api/auth", "admin": "/api/admin", "batteries": "/api/batteries", "services": "/api/services", "profile": "/api/profile", "analytics": "/api/analytics", "batteryTechnician": "/api/battery-technician" } }
+  "endpoints": { "auth": "/api/auth", "admin": "/api/admin", "batteries": "/api/batteries", "services": "/api/services", "profile": "/api/profile", "analytics": "/api/analytics", "batteryTechnician": "/api/battery-technician", "compliance": "/api/admin/compliance*", "map": "/api/map" } }
 ```
 
 ---
@@ -429,6 +432,119 @@ Access: **EMPLOYEE** token (all except `/login`).
 
 ---
 
+### 6.9 India Compliance (BWMR 2022 / CPCB EPR)
+
+Framework: **Battery Waste Management Rules, 2022** with CPCB EPR vocabulary
+(defined once in `backend/constants/compliance.js` and mirrored in the admin
+UI — the database has no compliance CHECKs, so recorded values always come from
+the app, never fabricated).
+
+**Customer view (on the battery passport):**
+
+| Method | Path                     | Auth            | Description |
+| ------ | ------------------------ | --------------- | ----------- |
+| GET    | `/batteries/:id/compliance` | optionalProtect | The battery's compliance record + producer + documents + recent audit events |
+
+```json
+{ "success": true, "data": null, "available": false }
+```
+When no record exists the payload is empty with `available:false` (honest "not
+yet tracked"). With a token the lookup is owner-scoped.
+
+**Admin surface — `/admin/compliance*` (all require `protect + requireAdmin`):**
+
+| Method | Path                                  | Description |
+| ------ | ------------------------------------- | ----------- |
+| GET    | `/admin/compliance/overview`          | Counts: producers, batteries tracked, obligations/credits |
+| GET    | `/admin/compliance/events`            | Audit log (newest-first) |
+| GET/POST      | `/admin/compliance/producers`         | List / create CPCB producers |
+| GET/PATCH/DELETE | `/admin/compliance/producers/:id`   | One producer (delete cascades its obligations + credits) |
+| GET/POST      | `/admin/compliance/batteries`         | List / attach a compliance record to a battery |
+| GET/PATCH     | `/admin/compliance/batteries/:batteryId` | One record (verified-in-MaxSpace) |
+| GET/POST      | `/admin/compliance/obligations`       | List / create EPR obligations |
+| GET/PATCH/DELETE | `/admin/compliance/obligations/:id` | One obligation |
+| GET/POST      | `/admin/compliance/credits`           | List / create EPR credits / certificates |
+| GET/PATCH/DELETE | `/admin/compliance/credits/:id`     | One credit |
+| GET/POST      | `/admin/compliance/documents`         | List / create document references |
+| GET/PATCH/DELETE | `/admin/compliance/documents/:id`   | One document |
+
+Field notes:
+
+- **Battery records** have no DELETE route — untracking a battery is out of
+  scope; deleting the battery itself cascades the compliance record via FK.
+- `verifiedAt` is **stamped/cleared by the server** when `verifiedInApp` toggles
+  (`true` → `now()`, `false` → `NULL`); client-supplied `verifiedAt` is ignored.
+- Obligations use `obligationKg` / `achievedKg` (not `targetQuantityKg`);
+  credits require `obligationId` + unique `certificateNumber` (JSON 409 on dup).
+- All list endpoints use the standard pagination envelope (`page`/`limit`,
+  `search`, `status`, `sort`, `order`); `limit` caps at 100.
+
+---
+
+### 6.10 Fleet Map — `/api/map`
+
+The Global Battery & Compliance Map surface. Vocabulary is defined once in
+`backend/constants/mapConfig.js` (health/lifecycle/compliance/service buckets)
+and validated by `backend/utils/mapValidation.js` — the database has no map
+CHECKs, so every marker fact is derived from the real stored battery, service,
+compliance and location data. Nothing is fabricated.
+
+**Role matrix (markers are role-scoped by the backend):**
+
+| Role     | Batteries shown                                              | Owner included |
+| -------- | ------------------------------------------------------------ | -------------- |
+| ADMIN    | Whole fleet                                                  | yes            |
+| USER     | Only batteries owned by the account (`owner_id` isolation)   | no             |
+| EMPLOYEE | Only batteries with a service assigned to the technician     | no             |
+
+Batteries with no recorded location row are never on the map. A battery with no
+compliance record is reported as **"Not Tracked"** — never as compliant.
+
+| Method | Path                       | Auth     | Description |
+| ------ | -------------------------- | -------- | ----------- |
+| GET    | `/map/batteries`           | protect  | Markers + summary for the caller's role scope |
+| GET    | `/map/locations`           | protect + requireAdmin | Registry of recorded locations (paginated) |
+| GET    | `/map/locations/:batteryId` | protect + requireAdmin | One battery's location + movement history |
+| PUT    | `/map/locations/:batteryId` | protect + requireAdmin | Record / update a battery's real location |
+| DELETE | `/map/locations/:batteryId` | protect + requireAdmin | Untrack a battery (removes its location rows) |
+| GET    | `/map/locations/:batteryId/history` | protect + requireAdmin | Append-only movement log |
+
+**Query params for `GET /map/batteries`:** `search` (battery ID / site / city /
+producer / owner), `healthStatus` (`healthy`/`warning`/`critical`),
+`batteryStatus` (`in_service`/`fg_pending`/`defect_hold`), `complianceStatus`
+(`compliant`/`pending`/`under_review`/`non_compliant`/`not_applicable`),
+`serviceStatus` (`active`/`completed`/`none`), `bbox` (`minLng,minLat,maxLng,maxLat`),
+`page`/`limit` (default limit `2000` — the map fetches the whole matched set and
+clusters client-side; page region-by-region via `bbox` for very large fleets).
+
+**Marker shape (abridged):**
+```json
+{ "batteryId": "MVAE0014036", "name": null, "model": null,
+  "overallStatus": "FG PENDING", "hangStatus": false,
+  "lifecycle": { "key": "fg_pending", "label": "FG Pending", "tone": "neutral" },
+  "stateOfHealth": 94.2, "health": { "key": "healthy", "label": "Healthy", "tone": "success" },
+  "compliance": { "status": null, "verifiedInApp": false, "producerName": null,
+                  "bucket": { "key": "not_tracked", "label": "Not Tracked", "tone": "neutral" } },
+  "service": null,
+  "location": { "siteName": null, "locationType": "Warehouse", "address": null, "city": "Bengaluru",
+                "state": "Karnataka", "country": "India", "latitude": 12.9716, "longitude": 77.5946 },
+  "owner": null, "updatedAt": "2026-09-24T09:15:00.000Z" }
+```
+
+**Summary (server-side, over the full filtered set — never just the page):**
+`total`, `plotted`, `byCompliance`, `byHealth`, `byLifecycle`, `byService`,
+`byCountry`, `byState`, `byLocationType` (top-20 each).
+
+**Location record validation (`PUT /map/locations/:batteryId`):**
+`latitude`/`longitude` must be provided together and within range; a payload with
+neither coordinates nor any address field (site/address/city/state/country) is
+rejected — so an address-only row is possible, but an empty row is not.
+`reason` is written into the audit history. Movement history rows keep
+self-contained snapshots of the previous/new location, so a battery's history
+stays truthful even though the current location row is updated in place.
+
+---
+
 ## 7. Database
 
 - **Mock mode (`DATA_SOURCE=mock`)**: in-memory store seeded with demo data. Use
@@ -442,6 +558,13 @@ Access: **EMPLOYEE** token (all except `/login`).
   display name.
 - **Orphans:** batteries reference `owner_id` and technicians reference
   `service_person_id`; deletions are blocked while references still exist.
+- **Compliance tables (BWMR 2022):** migration `004_battery_compliance.sql`
+  adds `compliance_producers`, `battery_compliance` (FK onto the real
+  `batteries.battery_id`, one record per tracked battery),
+  `epr_obligations`, `epr_credits`, `compliance_documents`,
+  `compliance_events`. Deleting a producer cascades obligations/credits and
+  SET NULLs its documents/records; deleting a battery cascades its compliance
+  record.
 
 Quick integrity check:
 ```bash
@@ -453,7 +576,7 @@ node scripts/audit.js   # ⚠ only run against a DISPOSABLE dev database
 ## 8. Tests & QA
 
 ```bash
-npm test                  # 14 unit/integration tests (node:test)
+npm test                  # 55 unit/integration tests (node:test)
 npm run audit             # security/consistency audit (dev DB only)
 node --check <file.js>    # syntax check any changed file
 ```

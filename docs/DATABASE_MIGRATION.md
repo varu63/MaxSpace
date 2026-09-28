@@ -50,8 +50,9 @@ Additional env (`backend/.env`):
 | `ALLOW_DB_RESET` | `true` to permit `POST /api/data/reset`. Default `false` — production returns `403`. |
 
 - If `DATA_SOURCE=postgres` but `DATABASE_URL` is missing **or** the `pg`
-  package is not installed, the app logs a warning and **falls back to the mock
-  store** — it never crashes at boot.
+  package is not installed, the app **fails hard at boot with a clear error** —
+  it never silently falls back to the seeded mock store, so production traffic
+  can never hit demo data (see `backend/data/index.js`).
 - The health endpoint (`GET /`) reports `dataSource` and `databaseConfigured`.
 
 ## 3. Switching to PostgreSQL (enabling the live database)
@@ -184,14 +185,21 @@ Coverage on maxvolt_prod (of 1,215 batteries): pack tests 759, PDI 121, cells
 
 ### 4.6 Verification (all done live against `maxvolt_prod`)
 
-- `schema_migrations` records all three migrations `[APPLIED]`; 18 tables
-  (12 legacy + `profiles`, `service_persons`, `service_schedules`, `services`,
-  `schema_migrations`, `technician_availability`, `users`); 1,215 batteries and
-  6 legacy users intact; backfill values spot-verified on `MVAE0014036`.
+- `schema_migrations` records all six migrations `[APPLIED]`; 27 tables
+  (18 base + `battery_telemetry` + the 6 compliance tables:
+  `compliance_producers`, `battery_compliance`, `epr_obligations`,
+  `epr_credits`, `compliance_documents`, `compliance_events` +
+  `battery_locations` and `battery_location_history`); 1,215 batteries
+  and 6 legacy users intact; backfill values spot-verified on `MVAE0014036`.
 - Health endpoint reports `dataSource: "postgres"`, `databaseConnected: true`.
 - Sign-up + sign-in, QR lookup (`MVAE0014036`), passport with 16 real
   `cellsDetail` rows (`MVBE0001235`), service booking → status → delete
   lifecycle, and technician creation all verified end-to-end.
+- Fleet map verified end-to-end: location recorded on `MVAE0014036` → marker on
+  the ADMIN view (owner included) and the owned-only USER view; health/lifecycle
+  derived on the marker; movement history snapshot recorded (previous null →
+  Bengaluru); registry search hit; USER `PUT /map/locations` rejected with 403;
+  untrack removed the marker from both roles while history was retained.
 - `POST /api/data/reset` returns `403` (`ALLOW_DB_RESET=false`).
 
 ## 5. Frontend service layer
@@ -237,11 +245,11 @@ Service status values are shared as constants on both sides
 - [ ] `DATABASE_URL` points at `maxvolt_prod`, `LEGACY_SCHEMA` empty,
       `ALLOW_DB_RESET=false`
 - [ ] Migrations up to date: `npm run db:migrate` then
-      `npm run db:migrate:status` — `000_maxvolt_prod`, `001_integrity` and
-      `002_scheduling` all `[APPLIED]` (`schema.sql` must NOT be applied)
+      `npm run db:migrate:status` — `000_maxvolt_prod` … `005_battery_locations`
+      (plus `003_telemetry`) all `[APPLIED]` (`schema.sql` must NOT be applied)
 - [ ] Repository methods in `backend/data/postgres/index.js` cover the flows you
       need (verification done: auth, batteries, services lifecycle,
-      technicians, admin list) 
+      technicians, admin list, compliance CRUD + events) 
 - [ ] Backend smoke-tested: login, battery list/lookup/passport, service
       booking, admin view against `maxvolt_prod`
 - [ ] `JWT_SECRET` set to a strong value in production
@@ -271,6 +279,29 @@ node backend/scripts/migrate.js --status   # list status     (npm run db:migrate
   `conname` guards.
 - `002_scheduling.sql` — `service_schedules` and `technician_availability`
   tables used by the admin scheduling board and scheduler service.
+- `003_telemetry.sql` — time-series `battery_telemetry` table (voltage,
+  current, temperature, SoC/SoH, cycle count, charging/fault status, source,
+  recorded_at) with a foreign key onto the real `batteries.battery_id` and
+  composite `(battery_id, recorded_at)` indexes.
+- `004_battery_compliance.sql` — six-table India battery compliance module
+  (BWMR 2022 / CPCB EPR): `compliance_producers`, `battery_compliance`
+  (one record per tracked battery; FK onto `batteries.battery_id`, CASCADE on
+  battery delete, SET NULL on producer delete), `epr_obligations`,
+  `epr_credits`, `compliance_documents`, `compliance_events`. Vocabulary is
+  **not** enforced in the schema — it lives in
+  `backend/constants/compliance.js` and both stores/UI consume it, so recorded
+  compliance values always come from the app (never fabricated).
+- `005_battery_locations.sql` — fleet map locations + movement history:
+  `battery_locations` (one row per battery, `battery_id` UNIQUE + FK onto
+  `batteries.battery_id` CASCADE, latitude/longitude CHECKs that require both
+  or neither, content CHECK that requires coordinates or an address — an
+  empty row is impossible) with indexes on country/state/city/site/type and a
+  btree on `(latitude, longitude)` for bbox queries (no PostGIS), and
+  `battery_location_history` (append-only). History rows store **self-contained
+  snapshots** (`prev_*` / `new_*` columns) because the current location row is
+  updated in place: a battery's movement log stays truthful even after the row
+  it referenced changes. Battery IDs are resolved by the app at write time
+  (`resolveBatteryByIdentifier`), so the schema stays TEXT (like the live DB).
 
 ### 9.2 App-layer parity
 

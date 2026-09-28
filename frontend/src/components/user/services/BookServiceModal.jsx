@@ -1,6 +1,17 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Modal, ModalHeader } from "../../common/Modal";
-import { Battery, CalendarDays, Check, Clock3 } from "lucide-react";
+import { Battery, CalendarDays, Check, Clock3, MapPin } from "lucide-react";
+import ServiceLocationMap from "../../common/map/ServiceLocationMap";
+import { fetchServiceCenters } from "../../../services/api";
+
+const CENTERS = [
+  "MaxVolt Noida Service Center",
+  "MaxVolt Delhi Service Center",
+  "MaxVolt Gurugram Service Center",
+  "MaxVolt Bengaluru Service Center",
+  "MaxVolt Mumbai Service Center",
+  "MaxVolt Pune Service Center",
+];
 
 const BookServiceModal = ({
   battery,
@@ -10,6 +21,24 @@ const BookServiceModal = ({
   onClose,
   getBatteryId,
 }) => {
+  const [serviceCenters, setServiceCenters] = useState([]);
+  useEffect(() => {
+    let mounted = true;
+    fetchServiceCenters()
+      .then((res) => {
+        if (mounted && res?.data) setServiceCenters(res.data);
+      })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, []);
+  const previewLocation = useMemo(() => {
+    const name = form.center || CENTERS[0];
+    const found = serviceCenters.find((c) => c.name === name);
+    if (found) return found;
+    // fallback: lightweight placeholder derived from backend via name, no hardcoded coords beyond names
+    return found || null;
+  }, [form.center, serviceCenters]);
+
   if (!battery) return null;
 
   return (
@@ -34,6 +63,25 @@ const BookServiceModal = ({
                   {battery.model || "ESS"} &bull; {battery.chemistry || "LFP"}
                 </p>
               </div>
+            </div>
+          </div>
+
+          <div className="mb-5">
+            <label className="block text-sm font-semibold mb-2" htmlFor="center">Service Location — Service Center</label>
+            <select id="center" name="center" value={form.center || CENTERS[0]} onChange={onChange} className="w-full h-12 px-4 rounded-xl bg-[#FFFDF8] border border-[#E7E1D3] outline-none focus:border-[#173B5C]">
+              {CENTERS.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <p className="text-[11px] text-[#8A9096] mt-1 flex items-center gap-1"><MapPin className="w-3 h-3"/> Same location shared with Admin & Technician via backend serviceLocation</p>
+          </div>
+
+          <div className="mb-5">
+            <div className="rounded-2xl border border-[#E7E1D3] p-3 bg-[#F5F1E7]">
+              <p className="text-xs font-bold text-[#16263A] mb-2">Service Location Preview — from backend service centers</p>
+              {previewLocation ? (
+                <ServiceLocationMap serviceLocation={previewLocation} height={220} />
+              ) : (
+                <div className="h-[220px] rounded-2xl bg-[#FFFDF8] border border-dashed border-[#E7E1D3] flex items-center justify-center text-xs text-[#8A9096]">Loading preview from backend…</div>
+              )}
             </div>
           </div>
 

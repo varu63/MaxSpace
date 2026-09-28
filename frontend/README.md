@@ -188,6 +188,7 @@ There are **three separate logins** because each panel has a different role
 | ------------------------ | ---------------------------------------------- | ------------------ |
 | `VITE_API_URL`           | Backend API base URL (see §2)                  | `/api` (proxied)   |
 | `VITE_GOOGLE_CLIENT_ID`  | Enables the "Continue with Google" button      | empty (disabled)   |
+| `VITE_MAP_TILE_URL`      | Leaflet tile layer for the fleet map           | OpenStreetMap      |
 
 Values starting with `VITE_` are the **only** ones that reach the browser —
 do not put secrets in this file.
