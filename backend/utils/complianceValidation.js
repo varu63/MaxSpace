@@ -29,12 +29,23 @@ import {
   COMPLIANCE_FRAMEWORK,
 } from "../constants/compliance.js";
 
+/* Every rejection raised by this module is bad caller input, not a server
+   fault. The controllers call these parsers before they set a status on the
+   response, so an error with no explicit statusCode falls through to the
+   error middleware's 500 default (see middleware/errorMiddleware.js) and a
+   mistyped vocabulary value is reported as a server error instead of the
+   clean 400 this module's contract promises. Tagging them here is what
+   delivers that — the same convention used by utils/serviceValidation.js
+   and utils/complianceRecordValidation.js. */
+const invalid = (message) =>
+  Object.assign(new Error(message), { code: "validation", statusCode: 400 });
+
 const cleanText = (value, max = 4000) =>
   value === undefined || value === null ? null : String(value).trim().slice(0, max);
 
 const requiredText = (value, field, max = 4000) => {
   const s = cleanText(value, max);
-  if (!s) throw new Error(`${field} is required`);
+  if (!s) throw invalid(`${field} is required`);
   return s;
 };
 
@@ -64,7 +75,7 @@ const pick = (body = {}, fields) => {
 const assertInList = (value, list, field) => {
   if (value === undefined || value === null || value === "") return;
   if (!list.includes(value)) {
-    throw new Error(
+    throw invalid(
       `${field} "${value}" is not valid. Expected one of: ${list.join(", ")}.`
     );
   }
@@ -125,7 +136,7 @@ export const parseProducerPatch = (body = {}) => {
     const value = parsed[key];
     if (key === "producerName" || key === "registrationNumber") {
       if (value === "_" || value === null) continue; // field was NOT provided
-      if (allowed[key] === "" ) throw new Error(`${key} is required`);
+      if (allowed[key] === "" ) throw invalid(`${key} is required`);
       out[key] = value;
     } else {
       out[key] = value;
@@ -242,8 +253,8 @@ export const parseBatteryCompliancePatch = (body = {}) => {
 
 export const parseObligationPayload = (body = {}) => {
   const { producerId, financialYear, batteryCategory, targetPercent, obligationKg, achievedKg, status, notes } = body || {};
-  if (!Number(producerId)) throw new Error("producerId is required");
-  if (!cleanText(financialYear)) throw new Error("financialYear is required (e.g. 2024-25)");
+  if (!Number(producerId)) throw invalid("producerId is required");
+  if (!cleanText(financialYear)) throw invalid("financialYear is required (e.g. 2024-25)");
   assertInList(batteryCategory, BATTERY_CATEGORIES, "batteryCategory");
   assertInList(status, OBLIGATION_STATUSES, "status");
   const parsed = {
@@ -257,7 +268,7 @@ export const parseObligationPayload = (body = {}) => {
     notes: cleanText(notes),
   };
   if (parsed.targetPercent !== null && (parsed.targetPercent < 0 || parsed.targetPercent > 100)) {
-    throw new Error("targetPercent must be between 0 and 100");
+    throw invalid("targetPercent must be between 0 and 100");
   }
   return parsed;
 };
@@ -278,8 +289,8 @@ export const parseObligationPatch = (body = {}) => {
 
 export const parseCreditPayload = (body = {}) => {
   const { obligationId, certificateNumber, quantityKg, issueDate, validUntil, status, notes } = body || {};
-  if (!Number(obligationId)) throw new Error("obligationId is required");
-  if (!cleanText(certificateNumber)) throw new Error("certificateNumber is required");
+  if (!Number(obligationId)) throw invalid("obligationId is required");
+  if (!cleanText(certificateNumber)) throw invalid("certificateNumber is required");
   assertInList(status, CREDIT_STATUSES, "status");
   return {
     obligationId: Number(obligationId),
@@ -305,7 +316,7 @@ export const parseCreditPatch = (body = {}) => {
 
 export const parseDocumentPayload = (body = {}) => {
   const { batteryId, producerId, documentType, documentName, documentNumber, issuedBy, issuedOn, expiresOn, status, notes } = body || {};
-  if (!cleanText(documentName)) throw new Error("documentName is required");
+  if (!cleanText(documentName)) throw invalid("documentName is required");
   assertInList(documentType, DOCUMENT_TYPES, "documentType");
   assertInList(status, DOCUMENT_STATUSES, "status");
   return {

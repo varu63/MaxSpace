@@ -10,11 +10,15 @@ export const errorHandler = (err, req, res, next) => {
 
   // 4xx messages are user-facing strings set by controllers and can be
   // passed through. 5xx responses are scrubbed in production so database
-  // driver internals / stack traces never reach the client.
+  // driver internals / stack traces never reach the client — EXCEPT when the
+  // controller marked the error `userFacing`, meaning the message was written
+  // for a person (e.g. "we could not send your verification email") and
+  // contains no internals.
   const isProduction = process.env.NODE_ENV === "production";
+  const isUserFacing = err.userFacing === true;
   const message =
     statusCode >= 500
-      ? isProduction
+      ? isProduction && !isUserFacing
         ? "Internal server error"
         : err.message || "Server Error"
       : err.message || "Server Error";
@@ -24,14 +28,18 @@ export const errorHandler = (err, req, res, next) => {
   // that need them (e.g. distinguishing 404 from 5xx failures).
   // Validation/access errors also carry a machine-readable `code` and the
   // offending `field`, so a form can highlight the right input instead of
-  // showing a generic banner.
+  // showing a generic banner. `code` is exposed for 4xx and for explicitly
+  // user-facing 5xx only — a raw driver `code` from a broken query must
+  // never leave the server.
   const body = {
     success: false,
     status: statusCode,
     message,
   };
-  if (statusCode < 500) {
+  if (statusCode < 500 || isUserFacing) {
     if (err.code) body.code = err.code;
+  }
+  if (statusCode < 500) {
     if (err.field) body.field = err.field;
     if (Array.isArray(err.fieldErrors) && err.fieldErrors.length) body.fieldErrors = err.fieldErrors;
   }

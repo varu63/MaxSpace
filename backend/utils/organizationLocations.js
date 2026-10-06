@@ -15,14 +15,12 @@
    whatever this API returns.
    ============================================================ */
 import store from "../data/index.js";
+import { ORGANIZATION_TYPES, ROLE_ORG_TYPES, allowedTypesForRole } from "./organizationAccess.js";
 
-export const ORGANIZATION_TYPES = [
-  "Manufacturer",
-  "Service Provider",
-  "Reseller",
-  "Recycler",
-  "Collection Center",
-];
+/* Re-exported so existing callers keep one import site for the vocabulary
+   and the matrix, both of which are defined store-free in
+   organizationAccess.js. */
+export { ORGANIZATION_TYPES, ROLE_ORG_TYPES };
 
 /* Filter by organisation type (empty string = all). Mirrors the map
    service-layer validation style — unknown types simply match nothing. */
@@ -33,30 +31,11 @@ export const filterOrganizations = async (type = "") => {
     : [];
 };
 
-/* Role visibility matrix for the organisation/facility network markers.
-   Enforced in the BACKEND so a caller can never enumerate company
-   facilities they are not authorised to see (no frontend-only masking):
-     - ADMIN    → the whole network (overall company/facility data).
-     - USER     → only Service Providers: the facilities a customer can
-                  actually book/visit. Manufacturer plants, reseller
-                  hubs, recyclers and collection points are company data.
-     - EMPLOYEE → only Service Providers: the technician's work sites.
-                  Technician roaming is already limited to assigned
-                  services; the network markers they may ever see are
-                  the service centres, not internal company facilities.
-   An empty allowed-list (""/unknown role, unreachable behind `protect`)
-   falls back to the whole network. */
-export const ROLE_ORG_TYPES = {
-  ADMIN: null,
-  USER: ["Service Provider"],
-  EMPLOYEE: ["Service Provider"],
-};
-
 /* Role-scoped organisation markers: applies the caller's visibility
    matrix over `filterOrganizations`. Passing a `type` outside the
    caller's allowed set returns [] (no accidental disclosure). */
 export const organizationsForRole = async (role = "", requested = "") => {
-  const allowed = ROLE_ORG_TYPES[role] || null;
+  const allowed = allowedTypesForRole(role);
   const list = await filterOrganizations(requested);
   return allowed === null ? list : list.filter((o) => allowed.includes(o.type));
 };

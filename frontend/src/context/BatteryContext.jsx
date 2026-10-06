@@ -65,11 +65,11 @@ export const BatteryProvider = ({ children }) => {
   }, []);
 
   const signUp = useCallback(async (credentials = {}) => {
-    const data = await api.signUp(credentials);
-    api.setToken(data.token);
-    setUserProfile(data.user || {});
-    setIsAuthenticated(true);
-    return data.user;
+    // Sign-up does NOT sign the user in: the backend creates the account
+    // unverified and returns { requiresVerification, emailSent, message }.
+    // The caller routes to the verification screen instead of storing a
+    // token that would not work yet.
+    return api.signUp(credentials);
   }, []);
 
   const signInWithGoogle = useCallback(async (credential) => {

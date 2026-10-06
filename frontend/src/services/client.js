@@ -66,8 +66,11 @@ const client = async (path, { method = "GET", body, auth = true, admin = false, 
   if (!response.ok) {
     // Attach the HTTP status so callers can distinguish "not found" (404)
     // from validation errors (4xx) and backend/database failures (5xx).
+    // `code` is the machine-readable reason (e.g. EMAIL_NOT_VERIFIED,
+    // RESET_TOKEN_EXPIRED) so screens can render a specific state.
     const error = new Error(data?.message || `Request failed (${response.status})`);
     error.status = response.status;
+    error.code = data?.code;
     throw error;
   }
 

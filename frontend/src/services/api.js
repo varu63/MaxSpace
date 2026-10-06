@@ -27,6 +27,12 @@ export const forgotPassword = (email) =>
 export const resetPassword = (token, password, confirmPassword) =>
   client("/auth/reset-password", { method: "POST", auth: false, body: { token, password, confirmPassword } });
 
+/* E-mail verification. The link in the e-mail is a GET on the backend
+   that redirects here with ?status=…, so the page only ever needs to
+   re-request a link — never to validate a token itself. */
+export const resendVerificationEmail = (email) =>
+  client("/auth/resend-verification", { method: "POST", auth: false, body: { email } });
+
 /* ============================================================
    BATTERIES
 ============================================================ */

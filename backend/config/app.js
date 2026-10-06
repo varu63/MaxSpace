@@ -38,6 +38,17 @@ const config = {
     // can submit readings until a real integration is configured.
     deviceKey: (process.env.IOT_DEVICE_KEY || "").trim(),
   },
+  /* Transactional e-mail (account verification + password reset) is sent
+     through Resend. The API key lives ONLY here, on the backend: it is
+     never read by the frontend and never prefixed with VITE_. */
+  email: {
+    resendApiKey: (process.env.RESEND_API_KEY || "").trim(),
+    fromEmail: (process.env.RESEND_FROM_EMAIL || "").trim(),
+    fromName: (process.env.RESEND_FROM_NAME || "MaxSpace").trim(),
+    // Public base URL of THIS backend, used to build the verification link
+    // that must be served by the API (it validates the token server-side).
+    appBaseUrl: (process.env.APP_BASE_URL || `http://localhost:${process.env.PORT || 5000}`).trim(),
+  },
 };
 
 export default config;

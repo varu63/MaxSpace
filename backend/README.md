@@ -1,8 +1,13 @@
 # MaxSpace API — Backend
 
 The REST API that powers the [MaxSpace Digital Battery Passport system](../README.md).
-It serves all three panels: the **customer app**, the **admin panel**, and the
-**battery technician portal** — with role‑based access control between them.
+It serves four panels: the **customer app**, the **admin panel**, the **battery
+technician portal** and the **EPR partner portal** — with role‑based access
+control between them.
+
+PostgreSQL is the only data source. There is no in‑memory mock store and no
+demo seed: if `DATABASE_URL` is missing or unreachable the process refuses to
+start rather than serve fabricated data.
 
 ---
 
@@ -11,29 +16,25 @@ It serves all three panels: the **customer app**, the **admin panel**, and the
 ```bash
 cd backend
 npm install
-
-# Option A — run WITHOUT a database (mock mode, seeded demo data, default)
-cp .env.example .env          # DATA_SOURCE stays "mock"
-node index.js                 # -> http://localhost:5000
-
-# Option B — run against the production PostgreSQL database (maxvolt_prod)
-#   edit backend/.env   ->   DATA_SOURCE=postgres
-#                          DATABASE_URL=postgresql://user:pass@localhost:5432/maxvolt_prod
-node scripts/migrate.js       # apply the schema-adaptation migrations (idempotent)
-node index.js                 # -> expect: "Using PostgreSQL repository."
+cp .env.example .env      # then set DATABASE_URL and JWT_SECRET
+npm run db:migrate -- --check   # dry run: applies the schema in a rolled-back txn
+npm run db:migrate              # apply it for real (idempotent, safe to re-run)
+node index.js              # -> http://localhost:5000
 ```
 
-### Demo accounts (mock mode)
+`node index.js` expects the database to be up. If it is not you will see
+`[data] PostgreSQL repository unavailable: … ECONNREFUSED` and the process exits.
 
-| Role            | Email                            | Password      |
-| --------------- | -------------------------------- | ------------- |
-| Admin           | admin@maxspace.com               | admin123      |
-| Customer        | alex.rivera@maxspace-energy.com  | password123   |
-| Technician      | markus.vance@maxspace.com        | employee123   |
+### Accounts
 
-> In **postgres mode** the same endpoints work against your real data. On the
-> bundled `maxvolt_prod` test DB: `integrator@maxspace.local` / `admin123`
-> (ADMIN) and `test@gmail.com` / `Test@12345` (USER).
+There is no seeded demo account any more — accounts exist in the database only.
+
+| Role            | How it is created                                            |
+| --------------- | ------------------------------------------------------------ |
+| `ADMIN`         | Provisioned directly in the database                         |
+| `USER`          | Sign‑up (`POST /api/auth/signup`)                            |
+| `EMPLOYEE`      | `POST /api/admin/technicians` (also creates the `service_persons` row) |
+| `PARTNER`       | `POST /api/admin/partner-accounts` — requires an existing EPR producer registration |
 
 ---
 
@@ -42,17 +43,46 @@ node index.js                 # -> expect: "Using PostgreSQL repository."
 | Variable           | Default                  | Purpose                                                                |
 | ------------------ | ------------------------ | ---------------------------------------------------------------------- |
 | `PORT`             | 5000                     | HTTP port                                                              |
-| `DATA_SOURCE`      | `mock`                   | `mock` (in‑memory seeds) or `postgres` (real DB)                        |
-| `DATABASE_URL`     | —                        | PostgreSQL connection string (required when `DATA_SOURCE=postgres`)    |
+| `DATABASE_URL`     | —                        | PostgreSQL connection string. **Required** — the process will not start without it |
 | `JWT_SECRET`       | —                        | Signs all access tokens — **must be changed in production**            |
 | `JWT_EXPIRES_IN`   | 7d                       | Token lifetime (`7d`, `2h`, `30m`, …)                                  |
 | `FRONTEND_URL`     | localhost:5173           | Allowed CORS origin(s), comma‑separated                                |
 | `CLIENT_URL`       | same as FRONTEND_URL     | Legacy alias for the frontend origin                                   |
+| `IOT_DEVICE_KEY`   | — (empty)                | Enables device-key telemetry ingest. **Empty = ingest is ADMIN‑JWT only** |
 | `GOOGLE_CLIENT_ID` | —                        | Google Sign‑In client ID (optional; enables "Continue with Google")    |
-| `ALLOW_DB_RESET`   | `false`                  | **Stay `false` in production.** Enables `POST /api/data/reset` (TRUNCATE) |
+| `RESEND_API_KEY`   | — (empty)                | Resend API key for auth e‑mail. **Backend only — never `VITE_`‑prefixed.** Empty in dev = links are written to `%TEMP%/maxspace-auth-links.log` instead of sent; empty in production = sending is refused |
+| `RESEND_FROM_EMAIL`| — (empty)                | Verified sender address, e.g. `no-reply@your-domain.com`               |
+| `RESEND_FROM_NAME` | MaxSpace                 | Display name on outgoing mail                                          |
+| `APP_BASE_URL`     | http://localhost:5000    | Public base URL of **this API**, used to build the e‑mail verification link |
+
+### Transactional e‑mail (Resend)
+
+Account verification and password‑reset mail is sent through
+[Resend](https://resend.com) from the backend only. To enable real delivery:
+
+1. Create an API key at <https://resend.com/api-keys> and set `RESEND_API_KEY`.
+2. Verify your sending domain in Resend (add its DNS records) and put the
+   address in `RESEND_FROM_EMAIL`.
+3. Set `APP_BASE_URL` to the public URL of this API (not the React app); the
+   verification link points at `GET /api/auth/verify-email?token=…`.
+
+Without a key the flows stay testable in development: the message is not sent,
+but its link is appended to `%TEMP%/maxspace-auth-links.log` and the API reports
+`emailSent: true`. In production the server refuses to send and answers `503
+EMAIL_DELIVERY_FAILED`; a token is never written to disk. The API key is never
+logged and provider errors are never surfaced to clients.
+
+`DATA_SOURCE` and `LEGACY_SCHEMA` are **no longer read**. The v2 schema is
+authoritative and lives entirely in `public`.
+
+`ALLOW_DB_RESET` and `POST /api/data/reset` no longer exist — there is no
+TRUNCATE endpoint to accidentally enable.
 
 No plaintext secrets are read from the environment beyond these — the reference
 values live in `.env` (git‑ignored). Copy from `.env.example` and fill in.
+
+The database user needs `CREATE DATABASE` rights for the test suite, which
+builds and drops its own throwaway database per file.
 
 ---
 
@@ -62,23 +92,31 @@ values live in `.env` (git‑ignored). Copy from `.env.example` and fill in.
 backend/
 ├── index.js                 # Express app: middleware, route mounting, server
 ├── config/app.js            # Loads + validates environment/config
-├── constants/compliance.js  # BWMR 2022/CPCB EPR vocabulary source of truth
-├── routes/                  # One router per resource (auth, admin, batteries, …)
+├── constants/               # BWMR 2022 / CPCB EPR and map vocabularies
+├── routes/                  # One router per surface (auth, admin, batteries, partner, …)
 ├── controllers/             # Request handlers (validation, auth, response shape)
 ├── middleware/
-│   ├── auth.js              # protect / requireAdmin / requireEmployee / optionalProtect
+│   ├── auth.js              # protect / optionalProtect / requireAdmin /
+│   │                        #   requireEmployee / requireOperator / requirePartner /
+│   │                        #   iotDeviceOrAdmin
 │   ├── errorMiddleware.js   # notFound + global errorHandler (standard envelope)
 │   └── validate.js          # Request body validators
 ├── data/
-│   ├── index.js             # Store factory: picks mock or postgres repository
-│   ├── store.js             # In-memory seeded store (mock mode)
-│   ├── postgres/index.js    # PostgreSQL repository (maxvolt_prod)
-│   └── seed.js              # Demo data used by mock mode
+│   ├── index.js             # Loads the PostgreSQL store; refuses to start if it is down
+│   ├── dbDiagnostics.js     # Connection diagnostics for /api/health
+│   ├── postgres/index.js    # PostgreSQL repository (users, batteries, services, compliance…)
+│   ├── postgres/lifecycle.js# Passport lifecycle: ledger, ownership, provenance, EOL
+│   └── compliance/postgres.js # Compliance management (producers, obligations, credits)
 ├── scripts/
-│   ├── migrate.js           # Idempotent schema-adaptation migrations
+│   ├── migrate.js           # Applies sql/schema.sql — `up | --status | --check`
+│   ├── backfillPassport.js  # One-time legacy passport/provenance classification
 │   └── audit.js             # Security/consistency audit (disposable DB only!)
-├── sql/migrations/          # 000…004 idempotent SQL migrations
+├── sql/schema.sql           # THE authoritative schema (re-runnable, additive)
+├── services/                # Domain logic (telemetry validation, scheduling, …)
 ├── utils/
+│   ├── lifecycleLedger.js   # Lifecycle stages/events/transitions, hashing, provenance rules
+│   ├── partnerAccess.js     # What an external EPR partner may reach, and why
+│   ├── organizationAccess.js# Facility-network visibility matrix (policy, no store import)
 │   ├── complianceValidation.js # Throwing validators; partial-PATCH semantics
 │   ├── jwt.js               # signToken / verifyToken
 │   ├── password.js          # bcrypt hash / match
@@ -149,18 +187,39 @@ Never contains `password_hash` or `google_id`. The public form is:
 
 ## 5. Roles & authorization
 
-| Role       | User type                                   | Entry panel                | Guard middleware      |
-| ---------- | ------------------------------------------- | -------------------------- | --------------------- |
-| `USER`     | Registered customer (sign‑up or Google)     | Customer app               | `protect`             |
-| `ADMIN`    | Administrator (seed / managed in DB)        | Admin panel                | `protect + requireAdmin` |
-| `EMPLOYEE` | Battery technician (created by an admin)    | Technician portal          | `protect + requireEmployee` |
+| Role       | User type                                                | Entry panel   | Guard middleware      |
+| ---------- | -------------------------------------------------------- | ------------- | --------------------- |
+| `USER`     | Registered customer (sign‑up or Google)                  | Customer app  | `protect`             |
+| `ADMIN`    | Administrator (seed / managed in DB)                     | Admin panel   | `protect + requireAdmin` |
+| `EMPLOYEE` | Battery technician (created by an admin)                 | Technician portal | `protect + requireEmployee` |
+| `PARTNER`  | External EPR body — recycler / collection centre / refurbisher / auditor | Partner portal | `protect + requirePartner` |
 
-Rules of thumb:
+Guards:
 - `protect` → a valid `Authorization: Bearer <token>` header is required.
 - `optionalProtect` → works with **or** without a token (public battery lookup).
-- `requireAdmin` / `requireEmployee` → the token's role must match.
-- Sign‑up always creates a `USER`; technicians are created only by admins
-  (which also inserts the linked `service_persons` row).
+- `requireAdmin` / `requireEmployee` → the token's role must match exactly.
+- `requireOperator` → ADMIN **or** EMPLOYEE. Used by the passport lifecycle
+  writes an admin performs and a technician performs on assigned work.
+- `requirePartner` → PARTNER only.
+- Sign‑up always creates a `USER`; technicians and partner accounts are created
+  only by admins.
+
+Three scoping rules are worth knowing before adding an endpoint:
+
+1. **`ownerScopeFor` fails closed.** A `USER` is restricted to their own
+   batteries; ADMIN/EMPLOYEE get the whole fleet; a **PARTNER matches nothing**
+   there. `null` means "no owner filter", so a partner must never resolve to it.
+2. **A `PARTNER` token is not a fleet credential.** Partners reach batteries only
+   through `/api/partner`, gated on an active, unexpired `battery_eol_assignments`
+   row for that specific battery. A partner with no linked EPR registration is
+   refused outright rather than defaulted to fleet access.
+3. **A partner sees no facility network.** The org/facility map matrix in
+   `utils/organizationAccess.js` returns an empty list for `PARTNER` and for any
+   role it does not recognise — an unlisted role must never inherit ADMIN's reach.
+
+Public barcode/passport scans are deliberately narrower than the owner's view:
+ownership, event actors, notes, previous owners, assessor identity and
+`ownerOrganizationId` are withheld from anonymous callers.
 
 ---
 
@@ -172,12 +231,12 @@ Rules of thumb:
 
 | Method | Path       | Auth | Description                          |
 | ------ | ---------- | ---- | ------------------------------------ |
-| GET    | `/api/health` | — | Liveness + data-source + DB status |
+| GET    | `/api/health` | — | Liveness + database status |
 
 ```json
 { "message": "MaxSpace API is running", "version": "1.0.0",
   "dataSource": "postgres", "databaseConfigured": true, "databaseConnected": true,
-  "endpoints": { "auth": "/api/auth", "admin": "/api/admin", "batteries": "/api/batteries", "services": "/api/services", "profile": "/api/profile", "analytics": "/api/analytics", "batteryTechnician": "/api/battery-technician", "compliance": "/api/admin/compliance*", "map": "/api/map" } }
+  "endpoints": { "auth": "/api/auth", "admin": "/api/admin", "batteries": "/api/batteries", "services": "/api/services", "profile": "/api/profile", "analytics": "/api/analytics", "batteryTechnician": "/api/battery-technician", "partner": "/api/partner", "compliance": "/api/admin/compliance*", "map": "/api/map" } }
 ```
 
 ---
@@ -186,28 +245,46 @@ Rules of thumb:
 
 | Method | Path                  | Auth  | Description                                            |
 | ------ | --------------------- | ----- | ------------------------------------------------------ |
-| POST   | `/auth/signup`        | —     | Register a customer → role `USER`. Returns `{ token, user }` (201) |
-| POST   | `/auth/signin`        | —     | Log in with email + password → `{ token, user }`       |
+| POST   | `/auth/signup`        | —     | Register a customer → role `USER`. Creates an **unverified** account and e‑mails a link; returns `{ success, requiresVerification, emailSent, message, user }` (201) — **no token** |
+| POST   | `/auth/signin`        | —     | Log in with email + password → `{ token, user }`. An unverified account is refused with `403 EMAIL_NOT_VERIFIED` |
 | POST   | `/auth/google`        | —     | Verify a Google ID‑token `{ credential }` → new or linked `{ token, user }` |
-| POST   | `/auth/forgot-password` | —   | `{ email }` → sends a reset link/token (returns message) |
-| POST   | `/auth/reset-password`  | —   | `{ token, password }` → sets the new password           |
+| GET    | `/auth/verify-email`  | —     | Link in the e‑mail (`?token=…`). Validates server‑side, then `302`s to `<frontend>/verify-email?status=verified\|expired\|already-verified\|invalid` |
+| POST   | `/auth/resend-verification` | — | `{ email }` → non‑enumerating generic `200`; rate‑limited to 5 / 15 min per IP |
+| POST   | `/auth/forgot-password` | —   | `{ email }` → non‑enumerating generic `200`; rate‑limited to 5 / 15 min per IP |
+| POST   | `/auth/reset-password`  | —   | `{ token, password, confirmPassword? }` → sets the new password. Errors carry `RESET_TOKEN_INVALID` / `RESET_TOKEN_USED` / `RESET_TOKEN_EXPIRED` |
 | POST   | `/auth/logout`        | protect | Invalidates the current token (message only)         |
 | GET    | `/auth/me`            | protect | Returns the current user. Wrapped: `{ user }`           |
 
 **Sign-up request:**
 ```json
-{ "name": "Jane Doe", "email": "jane@example.com", "password": "StrongPass1!", "phone": "+91 90000 00000" }
+{ "name": "Jane Doe", "email": "jane@example.com", "password": "StrongPass1!", "confirmPassword": "StrongPass1!" }
 ```
-**Sign-up / sign-in response (201 / 200):**
+**Sign-up response (201)** — the account exists but no session is issued until the
+e‑mail is verified:
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "success": true,
+  "requiresVerification": true,
+  "emailSent": true,
+  "message": "Account created. Please check your email to verify your account.",
   "user": { "id": 12, "name": "Jane Doe", "email": "jane@example.com", "role": "USER",
-            "username": "jane.doe", "fullName": "Jane Doe",
-            "phone": "+91 90000 00000", "avatarColor": "#22c55e",
-            "emailVerified": true, "isActive": true, "createdAt": "2026-09-21T09:15:00.000Z" }
+            "username": "jane.doe", "fullName": "Jane Doe", "emailVerified": false,
+            "isActive": true, "createdAt": "2026-09-21T09:15:00.000Z" }
 }
 ```
+**Sign-in to an unverified account (403):**
+```json
+{ "success": false, "status": 403,
+  "message": "Your email address has not been verified. Please check your inbox for the verification link, or resend it.",
+  "code": "EMAIL_NOT_VERIFIED" }
+```
+
+> **Verification flow:** tokens are single‑use, expire after 24 h, and only their
+> SHA‑256 is stored. `GET /auth/verify-email` marks the account verified and keeps
+> the hash so a replay reports `already-verified` rather than an error. Existing,
+> admin‑created and Google‑linked accounts are created verified and are unaffected.
+> Password‑reset tokens expire after 30 min and record their use (`RESET_TOKEN_USED`
+> on replay).
 
 > **Real DB note:** role is always `USER` here because sign‑up is the customer
 > path. Admin accounts are provisioned in the database; technicians are created
@@ -226,11 +303,18 @@ routes that also work without one (public passport lookup).
 | POST   | `/batteries`                | protect         | Register a new battery → created entity (201) |
 | GET    | `/batteries/lookup`         | optionalProtect | Find by barcode/serial `?q=` (returns matched battery) |
 | GET    | `/batteries/:id`            | optionalProtect | Full battery record |
-| GET    | `/batteries/:id/passport`   | optionalProtect | **Digital Battery Passport** (identity + health + compliance view) |
+| GET    | `/batteries/:id/passport`   | optionalProtect | **Digital Battery Passport** (identity + health + compliance + lifecycle) |
 | GET    | `/batteries/:id/health-history` | optionalProtect | SoH/health timeline array |
 | POST   | `/batteries/:id/claim`      | protect         | Link an unowned battery to the current user |
-| PUT    | `/batteries/:id`            | protect         | Update the battery (owner only) |
+| PUT    | `/batteries/:id`            | protect         | Update the battery (owner only; manufacturer fields are refused — see 6.10) |
 | DELETE | `/batteries/:id`            | protect         | Remove the battery (owner only) |
+
+The passport response includes a `lifecycle` block. Anonymous callers get the
+summary plus chain integrity and a reduced second‑life assessment; the owner and
+fleet operators additionally get the full event list, custody chain, provenance,
+firmware history and assignments.
+
+The full lifecycle surface is documented in **6.10**.
 
 **Battery telemetry (IoT / BMS readings):**
 
@@ -374,6 +458,14 @@ Access: **ADMIN** token (all except `/login`). This is the full back-office surf
 | PATCH  | `/admin/technicians/:id`                   | Update technician + linked user |
 | PATCH  | `/admin/technicians/:id/reset-password`    | Reset the technician's password |
 
+**EPR partner accounts:**
+| Method | Path                          | Description |
+| ------ | ----------------------------- | ----------- |
+| POST   | `/admin/partner-accounts`     | Create a `PARTNER` login bound to an existing EPR producer registration |
+| PATCH  | `/admin/partner-accounts/:id`         | Re-link the registration, reset the password, or deactivate |
+
+See **6.11** for what a partner account can then reach.
+
 **Registries (read-only views for the admin panel):**
 | Method | Path                | Description |
 | ------ | ------------------- | ----------- |
@@ -481,7 +573,143 @@ Field notes:
 
 ---
 
-### 6.10 Fleet Map — `/api/map`
+### 6.10 Battery Passport Lifecycle — `/api/batteries/:id/…`
+
+The passport's history: an **append-only event ledger with a SHA‑256 hash
+chain**, ownership transfers, per‑field data provenance, derived telemetry
+events, firmware history, EPR partner assignments and second‑life assessments.
+
+The vocabulary (stages, event codes, legal transitions, provenance strength) is
+defined once in `utils/lifecycleLedger.js` and served from
+`GET /batteries/lifecycle/vocabulary`, so the client cannot offer an action the
+API would reject.
+
+Reads are owner‑scoped; writes are operator‑only, and each write re‑checks the
+role inside the controller so mounting a handler elsewhere cannot bypass it.
+
+| Method | Path                                       | Auth            | Description |
+| ------ | ------------------------------------------ | --------------- | ----------- |
+| GET    | `/batteries/lifecycle/vocabulary`          | protect         | Stages, event codes, transitions, defaults |
+| GET    | `/batteries/:id/lifecycle`                 | optionalProtect | Summary + events + custody + provenance + firmware + assignments + assessments |
+| GET    | `/batteries/:id/lifecycle/verify`          | optionalProtect | Re-walk the hash chain → `{ valid, eventsChecked, brokenAt, reason }` |
+| GET    | `/batteries/:id/lifecycle/events`          | optionalProtect | Event rows (`?limit=`) |
+| POST   | `/batteries/:id/lifecycle/events`          | requireOperator | Append one event — `{ eventCode, newValue, occurredAt, notes, metadata }` |
+| POST   | `/batteries/:id/lifecycle/backfill`        | requireAdmin    | Seed the ledger from the existing manufacturing record (idempotent) |
+| GET    | `/batteries/:id/ownership-history`         | optionalProtect | Custody periods |
+| POST   | `/batteries/:id/transfer-ownership`        | requireAdmin    | `{ newOwnerId, ownershipType, transferReference, notes }` |
+| GET    | `/batteries/:id/provenance`                | optionalProtect | Per‑field provenance assertions |
+| POST   | `/batteries/:id/provenance`                | requireOperator | Assert a field's value/source/strength (weaker assertions are refused) |
+| GET    | `/batteries/:id/telemetry-events`          | optionalProtect | Derived events (charge session, excursion, …) |
+| POST   | `/batteries/:id/telemetry-events/detect`   | requireOperator | Derive events from stored readings (`{ thresholds, from, to }`) |
+| GET    | `/batteries/:id/firmware`                  | optionalProtect | Firmware install history |
+| POST   | `/batteries/:id/firmware`                  | requireOperator | `{ firmwareVersion, previousVersion, result }` |
+| GET    | `/batteries/:id/eol-assignments`           | optionalProtect | EPR partner authorisations |
+| POST   | `/batteries/:id/eol-assignments`           | requireAdmin    | `{ partnerId, partnerRole, accessExpiresAt, collectionAddress }` |
+| POST   | `/batteries/:id/eol-assignments/:assignmentId/complete` | requireAdmin  | Close an assignment as completed |
+| POST   | `/batteries/:id/eol-assignments/:assignmentId/revoke`  | requireAdmin  | Revoke an assignment |
+| GET    | `/batteries/:id/second-life`               | optionalProtect | Grading history |
+| POST   | `/batteries/:id/second-life`               | requireAdmin    | `{ grade, decision, healthPercent, capacityPercent, decisionNotes }` |
+| PATCH  | `/batteries/:id/manufacturer-correction`   | requireAdmin    | Audited correction of a locked manufacturer field — **`reason` is mandatory** |
+
+Lifecycle stages: `Unknown`, `Manufactured`, `Commissioned`, `InService`,
+`OwnershipTransferred`, `Serviced`, `Retired`, `Collected`, `UnderAssessment`,
+`Refurbished`, `SecondLife`, `Recycled`, `FinalEvidenceRecorded`.
+
+#### What is recorded automatically
+
+A passport is only trustworthy if its history is complete without anyone
+remembering to write it by hand, so ordinary operations project themselves into
+the ledger:
+
+| Operation | Event written | Source |
+| --------- | ------------- | ------ |
+| Customer registers a battery (`POST /batteries`) | `first_owner_registered` | `user` |
+| Customer claims a battery with no recorded owner | `first_owner_registered` | `user` |
+| Customer claims a battery the ledger already attributes to someone | `ownership_transferred` | `user` |
+| Service → `Confirmed` | `service_scheduled` | `user` |
+| Service → `In Progress` | `service_started` | `service_technician` / `admin` |
+| Service → `Completed` | `service_completed` | `service_technician` / `admin` |
+| Service → `Cancelled` | `service_cancelled` | `user` / `admin` |
+
+`Accepted`, `Assigned`, `On The Way` and `Waiting for Admin Approval` are
+deliberately **silent**: they are workflow bookkeeping about who is doing what,
+not changes in the battery's life, and an event per status change would bury
+the ones that matter.
+
+Claiming is classified by asking the **ledger**, not the batteries row, whether
+the unit already has a prior owner. A battery with a manufacturing record but
+no owner is still getting its first owner — and `Manufactured →
+OwnershipTransferred` is not a legal stage move anyway. The `user-maxvolt`
+production-fleet placeholder is never counted as custody.
+
+Automatic events are ordinary ledger rows: chain-verified, immutable, and
+carrying `metadata.automatic = true`. They are written by
+`utils/serviceLifecycle.js` and `utils/batteryLifecycleBridge.js`.
+
+Neither helper throws. The authoritative write has already committed by the time
+they run, so failing the HTTP request afterwards would misreport a success and
+invite a duplicate retry. A rejected append is logged as
+`[lifecycle] … failed to append` and recorded as a `Lifecycle ledger gap` entry
+in the service history, where an operator can see it.
+
+Design rules enforced by the schema, not only the app:
+
+- The **ledger is append‑only**. Events cannot be updated; they cannot be
+  deleted while the battery exists. There is no endpoint to edit or delete an
+  event, by design.
+- Each event's `event_hash` covers the canonicalised previous event plus its own
+  payload, so a removed or rewritten row breaks `verify`.
+- **Identity is immutable**: `battery_id`, `barcode`, `serial_number`,
+  `modal_id`, `qr_code`, `model_id` and `manufacture_date` cannot be changed by
+  any request. `registration_origin` may only be filled in once, from
+  unclassified to `legacy_import`.
+- **A battery minted here records `registration_origin = 'digital_passport'`.**
+  Left NULL it could later be classified `legacy_import` by the backfill, which
+  would be a false claim about where the record came from.
+- **Measured fields are not owner‑editable.** An owner editing
+  `stateOfHealth`/`stateOfCharge`/`cycleCount`/`internalResistance` is refused
+  unless they already hold an authoritative/measured assertion.
+- **Derived telemetry events are reproducible**: every row stores the reading it
+  came from and the threshold it was compared against, and `dedupe_key` makes
+  re-running detection idempotent.
+- **Second‑life suitability is never inferred.** A grade, decision, assessor and
+  evidence are required.
+
+---
+
+### 6.11 EPR Partners — `/api/partner`
+
+Mounted as its own surface rather than as extra battery routes, because a
+partner's authorised view is per‑battery and narrower than a customer's passport.
+Every route is `protect + requirePartner`, and every handler re‑verifies that the
+battery has an **active, unexpired** assignment for the caller's linked EPR
+registration.
+
+| Method | Path                                   | Description |
+| ------ | -------------------------------------- | ----------- |
+| GET    | `/partner/assignments`                 | Batteries this partner is assigned to |
+| GET    | `/partner/assignments/:id/battery`     | One assigned battery |
+| GET    | `/partner/batteries/:id`               | Narrow partner passport view (no owner identity, no service history) |
+| POST   | `/partner/batteries/:id/eol-action`    | Record collection / recycling / second‑life actions |
+| POST   | `/partner/batteries/:id/second-life`   | Record a graded assessment |
+
+A battery the partner has no assignment for returns **404, not 403** — reporting
+"forbidden" would confirm the battery exists, which is itself a disclosure.
+
+Accounts are created by an admin against an existing EPR registration:
+
+| Method | Path                                  | Auth | Description |
+| ------ | ------------------------------------- | ---- | ----------- |
+| POST   | `/admin/partner-accounts`             | requireAdmin | `{ name, email, password, partnerId }` → a `PARTNER` user linked to that registration |
+| PATCH  | `/admin/partner-accounts/:id`         | requireAdmin | Re‑link, reset password, or deactivate |
+
+The role is fixed to `PARTNER` by the endpoint and never read from the request
+body. A partner account with no `partner_id` cannot use the API at all — that is
+deliberate, and it is what stops an unlinked partner widening its own scope.
+
+---
+
+### 6.12 Fleet Map — `/api/map`
 
 The Global Battery & Compliance Map surface. Vocabulary is defined once in
 `backend/constants/mapConfig.js` (health/lifecycle/compliance/service buckets)
@@ -547,24 +775,64 @@ stays truthful even though the current location row is updated in place.
 
 ## 7. Database
 
-- **Mock mode (`DATA_SOURCE=mock`)**: in-memory store seeded with demo data. Use
-  for dev/tests — nothing persists across restarts.
-- **Postgres mode (`DATA_SOURCE=postgres`)**: the repository lives in
-  `data/postgres/index.js` and talks to the existing **maxvolt_prod**
-  production database. Run `node scripts/migrate.js` first — it applies the
-  schema-adaptation migrations (`000_*`) idempotently (safe to re-run).
+`sql/schema.sql` is the **single authoritative schema**. It is re-runnable and
+additive — there is no separate `migrations/` folder and no ordered upgrade
+scripts to keep in sync. Apply it with:
+
+```bash
+npm run db:migrate -- --status   # what the database looks like now
+npm run db:migrate -- --check    # apply inside a rolled-back txn, then undo
+npm run db:migrate               # apply for real
+```
+
+### 7.1 Battery passport lifecycle (section 7 of the schema)
+
+| Table                        | Purpose |
+| ---------------------------- | ------- |
+| `battery_lifecycle_events`   | The append-only ledger. Hash-chained, immutable, `dedupe`-free by design |
+| `battery_ownership_history`  | Custody periods; a closed period may only have `released_at` set |
+| `battery_data_provenance`    | Per-field assertion of value/source/strength; an assertion may only be superseded |
+| `battery_telemetry_events`   | Conclusions drawn from raw readings, with the source reading + threshold |
+| `battery_firmware_updates`   | What firmware the BMS is running and how it got there |
+| `battery_eol_assignments`    | Per-battery, time-boxed EPR partner authorisation |
+| `battery_second_life_assessments` | Grading and the decision made on evidence |
+| `users.partner_id`           | Links a `PARTNER` login to its `compliance_producers` registration |
+
+Plus new columns on `batteries`: `registration_origin`,
+`registration_recorded_at`, `lifecycle_stage`, `last_lifecycle_event_at`,
+`owner_organization_id`; and lifecycle/EPR annotations on `compliance_documents`.
+
+**The passport reads lifecycle data, so the schema must be applied before the
+API is started.** A battery passport against an un-migrated database will fail.
+
+### 7.2 Legacy backfill
+
+Batteries that predate the passport get one honest event seeded from the
+manufacturing record — no invented commissioning, owner, service or collection
+history:
+
+```bash
+node scripts/backfillPassport.js --dry-run   # report what would change
+node scripts/backfillPassport.js             # apply
+node scripts/backfillPassport.js --battery BATT-GEN-0001   # one battery
+```
+
+It is idempotent (a battery with any event is skipped) and takes an advisory lock
+per battery, so running it while an operator seeds the same battery from the
+admin panel cannot produce two genesis events.
+
+### 7.3 Other notes
+
 - **Users table:** `password_hash` is always bcrypt (`$2…`, 60 chars — never
-  plaintext), plus new `username` / `full_name` columns that mirror the UI's
-  display name.
+  plaintext), plus `username` / `full_name` columns that mirror the UI's display
+  name.
 - **Orphans:** batteries reference `owner_id` and technicians reference
   `service_person_id`; deletions are blocked while references still exist.
-- **Compliance tables (BWMR 2022):** migration `004_battery_compliance.sql`
-  adds `compliance_producers`, `battery_compliance` (FK onto the real
-  `batteries.battery_id`, one record per tracked battery),
-  `epr_obligations`, `epr_credits`, `compliance_documents`,
-  `compliance_events`. Deleting a producer cascades obligations/credits and
-  SET NULLs its documents/records; deleting a battery cascades its compliance
-  record.
+- **Compliance tables (BWMR 2022):** `compliance_producers`, `battery_compliance`
+  (FK onto the real `batteries.battery_id`, one record per tracked battery),
+  `epr_obligations`, `epr_credits`, `compliance_documents`, `compliance_events`.
+  Deleting a producer cascades obligations/credits and SET NULLs its
+  documents/records; deleting a battery cascades its compliance record.
 
 Quick integrity check:
 ```bash
@@ -576,11 +844,31 @@ node scripts/audit.js   # ⚠ only run against a DISPOSABLE dev database
 ## 8. Tests & QA
 
 ```bash
-npm test                  # 55 unit/integration tests (node:test)
+npm test                  # node:test suite
 npm run audit             # security/consistency audit (dev DB only)
 node --check <file.js>    # syntax check any changed file
 ```
 
-The audit suite covers: plaintext-password scan, orphan FKs, CORS behavior,
+145 tests, all passing. Each file is run in its own process and the
+database-backed ones build a throwaway database from the real `schema.sql`:
+
+| Suite | Needs a database? |
+| ----- | ----------------- |
+| `tests/lifecycle.test.js` | no — pure ledger/provenance/detection logic |
+| `tests/serviceLifecycle.test.js` | partly — mapping tests are pure; the chain tests need a throwaway DB |
+| `tests/organizations.test.js` | no — role-visibility policy |
+| `tests/compliance.test.js`, `tests/map.test.js`, `tests/telemetry.test.js`, `tests/batteryRegistration.test.js` | yes — throwaway DB per run |
+
+Database-backed suites **skip rather than fail** when no PostgreSQL is
+reachable (`withOptionalTestDatabase` in `tests/helpers/testDatabase.js`), so
+"Postgres is down" is reported as skipped instead of looking like a code
+defect. A schema that *does* apply badly is still re-thrown — that is a real
+bug, not an environment problem.
+
+```
+[test-db] skipping database-backed suite for map.test.js: [test-db] could not create maxspace_test_map_…
+```
+
+`npm run audit` covers: plaintext-password scan, orphan FKs, CORS behavior,
 unified 401s, sanitized payloads, role access control, and pagination — run it
-against a throwaway DB, never against `maxvolt_prod`.
+against a throwaway DB, never against a real one.

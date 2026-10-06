@@ -174,7 +174,9 @@ Configuration lives in two `.env` files (both git-ignored; copy the `.example`.
 
 - `backend/.env` — `PORT`, `DATA_SOURCE`, `DATABASE_URL`, `JWT_SECRET`,
   `JWT_EXPIRES_IN`, `FRONTEND_URL`/`CLIENT_URL` (CORS origins),
-  `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `ALLOW_DB_RESET`.
+  `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `ALLOW_DB_RESET`, and the
+  Resend mail settings (`RESEND_API_KEY`, `RESEND_FROM_EMAIL`,
+  `RESEND_FROM_NAME`, `APP_BASE_URL`).
   → Full table in [backend/README.md §2](backend/README.md#2-configuration-backendenv).
 - `frontend/.env` — `VITE_API_URL`, `VITE_GOOGLE_CLIENT_ID` (only `VITE_*`
   variables reach the browser).

@@ -7,6 +7,7 @@ import config from "./config/app.js";
 import authRoutes from "./routes/authRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import batteryRoutes from "./routes/batteryRoutes.js";
+import partnerRoutes from "./routes/partnerRoutes.js";
 import serviceRoutes from "./routes/serviceRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
 import analyticsRoutes from "./routes/analyticsRoutes.js";
@@ -89,6 +90,12 @@ app.use("/api/services", serviceRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/battery-technician", batteryTechnicianRoutes);
+
+// External EPR partners (collection centres, recyclers, refurbishers,
+// auditors). Mounted as its own surface rather than as extra battery
+// routes, because a partner's authorised view is gated on a per-battery
+// EOL assignment and is deliberately narrower than a customer's passport.
+app.use("/api/partner", partnerRoutes);
 
 // Backward compatibility: old /api/service-man routes redirect to battery technician
 app.use("/api/service-man", batteryTechnicianRoutes);

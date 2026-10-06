@@ -260,3 +260,68 @@ export const updateComplianceDocument = (id, payload) =>
 
 export const deleteComplianceDocument = (id) =>
   client(`/admin/compliance/documents/${id}`, { method: "DELETE", admin: true });
+
+/* ============================================================
+   BATTERY PASSPORT LIFECYCLE
+
+   These live under /batteries (not /admin) because the passport
+   lifecycle is shared by customers, operators and partners; the admin
+   session token is passed explicitly so the operator guards apply.
+   Every write is append-only or audited server-side — there is no
+   "edit event" or "delete event" call here by design.
+   ============================================================ */
+
+const batteryPath = (id, suffix = "") => `/batteries/${encodeURIComponent(id)}${suffix}`;
+
+export const fetchLifecycleVocabulary = () => client("/batteries/lifecycle/vocabulary", { admin: true });
+
+export const fetchBatteryLifecycle = (id) => client(batteryPath(id, "/lifecycle"), { admin: true });
+
+export const verifyBatteryLifecycle = (id) => client(batteryPath(id, "/lifecycle/verify"), { admin: true });
+
+export const appendBatteryLifecycleEvent = (id, payload) =>
+  client(batteryPath(id, "/lifecycle/events"), { method: "POST", body: payload, admin: true });
+
+export const backfillBatteryLifecycle = (id) =>
+  client(batteryPath(id, "/lifecycle/backfill"), { method: "POST", admin: true });
+
+export const transferBatteryOwnership = (id, payload) =>
+  client(batteryPath(id, "/transfer-ownership"), { method: "POST", body: payload, admin: true });
+
+export const recordBatteryProvenance = (id, payload) =>
+  client(batteryPath(id, "/provenance"), { method: "POST", body: payload, admin: true });
+
+export const detectBatteryTelemetryEvents = (id, payload = {}) =>
+  client(batteryPath(id, "/telemetry-events/detect"), { method: "POST", body: payload, admin: true });
+
+export const recordBatteryFirmware = (id, payload) =>
+  client(batteryPath(id, "/firmware"), { method: "POST", body: payload, admin: true });
+
+export const assignBatteryEolPartner = (id, payload) =>
+  client(batteryPath(id, "/eol-assignments"), { method: "POST", body: payload, admin: true });
+
+export const updateBatteryEolAssignment = (id, assignmentId, action, payload = {}) =>
+  client(batteryPath(id, `/eol-assignments/${assignmentId}/${action}`), {
+    method: "POST",
+    body: payload,
+    admin: true,
+  });
+
+export const recordBatterySecondLife = (id, payload) =>
+  client(batteryPath(id, "/second-life"), { method: "POST", body: payload, admin: true });
+
+/* Manufacturer-authoritative fields (model / manufacture date) are locked
+   by a database trigger, so this is the only path that changes them — and
+   a reason is mandatory. */
+export const correctBatteryManufacturerFields = (id, payload) =>
+  client(batteryPath(id, "/manufacturer-correction"), { method: "PATCH", body: payload, admin: true });
+
+/* ---- External EPR partner logins ----
+   A partner account is always created against an existing EPR producer
+   registration — that link is what limits it to assigned batteries, so it
+   is a required field rather than something to fill in later. */
+export const createPartnerAccount = (payload) =>
+  client("/admin/partner-accounts", { method: "POST", body: payload, admin: true });
+
+export const updatePartnerAccount = (id, payload) =>
+  client(`/admin/partner-accounts/${id}`, { method: "PATCH", body: payload, admin: true });

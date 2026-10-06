@@ -7,7 +7,7 @@
 import { test, describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
-import { withTestDatabase, testPool } from "./helpers/testDatabase.js";
+import { withOptionalTestDatabase, testPool } from "./helpers/testDatabase.js";
 import {
   parseMapFilters,
   parseLocationPayload,
@@ -83,6 +83,36 @@ describe("map validation", () => {
       () => parseMapFilters({ minLat: "40", minLng: "68", maxLat: "37", maxLng: "97" }),
       /minLat <= maxLat/
     );
+  });
+
+  /* A bad bbox or an unknown filter value is caller input, not a server
+     fault: the controller runs these parsers before it sets a status, so
+     without an explicit statusCode the error middleware answers 500 and a
+     typo looks like a broken backend. This pins the 400 contract. */
+  const asError = (fn) => {
+    try {
+      fn();
+    } catch (error) {
+      return error;
+    }
+    assert.fail("expected the parser to reject the input");
+  };
+
+  test("map validation failures carry statusCode 400 and code 'validation'", () => {
+    const cases = [
+      ["non-numeric bbox", () => parseMapFilters({ minLat: "abc", minLng: "68", maxLat: "37", maxLng: "97" })],
+      ["inverted bbox", () => parseMapFilters({ minLat: "40", minLng: "68", maxLat: "37", maxLng: "97" })],
+      ["unknown complianceStatus", () => parseMapFilters({ complianceStatus: "Bogus" })],
+      ["unknown batteryStatus", () => parseMapFilters({ batteryStatus: "Bogus" })],
+      ["latitude without longitude", () => parseLocationPayload({ latitude: 28.6 })],
+      ["out-of-range latitude", () => parseLocationPayload({ latitude: 991, longitude: 77.2 })],
+      ["unknown locationType", () => parseLocationPayload({ address: "1 MG Road", locationType: "Elsewhere" })],
+    ];
+    for (const [label, fn] of cases) {
+      const error = asError(fn);
+      assert.equal(error.statusCode, 400, `${label} should be a 400, not a 500`);
+      assert.equal(error.code, "validation", `${label} should be tagged as a validation failure`);
+    }
   });
 
   test("accepts a complete location payload with coordinates and address", () => {
@@ -183,8 +213,13 @@ describe("map derivation helpers", () => {
    exercise the actual tables, constraints and queries. They create the
    rows they assert on: there is no seeded fake dataset any more.
    ------------------------------------------------------------------ */
-describe("postgres - locations + map surface", async () => {
-  const { store, teardown } = await withTestDatabase(import.meta.url);
+const db = await withOptionalTestDatabase(import.meta.url);
+
+describe(
+  "postgres - locations + map surface",
+  { skip: db ? false : "no PostgreSQL database available" },
+  async () => {
+  const { store, teardown } = db;
   const pool = await testPool();
 
   const createModel = async () => {
@@ -217,8 +252,9 @@ describe("postgres - locations + map surface", async () => {
     return b.id;
   };
 
-  let b1;
+let b1;
   let b2;
+  let b3;
 
   const locate = (batteryId, over = {}) =>
     store.saveBatteryLocation(
@@ -358,7 +394,7 @@ describe("postgres - locations + map surface", async () => {
       specializations: ["Repair"],
       createdAt: "2026-09-01",
     });
-    const b3 = await createBattery("0003", "user-1");
+    b3 = await createBattery("0003", "user-1");
     await locate(b3);
     await store.createService({
       id: "srv-map-2",
@@ -397,7 +433,7 @@ describe("postgres - locations + map surface", async () => {
     assert.equal(outside.summary.total, 0);
   });
 
-  test("search matches battery id, site, city and producer", async () => {
+test("search matches battery id, site, city, producer and owner", async () => {
     const producer = await store.createComplianceProducer({
       producerName: "GreenCycle Pvt Ltd",
       registrationNumber: "CPCB/BAT/2026/0001",
@@ -409,11 +445,21 @@ describe("postgres - locations + map surface", async () => {
       producerId: producer.id,
       complianceStatus: "Pending",
     });
-    assert.equal((await store.listMapBatteries({ search: b1, page: 1, limit: 50 })).data.length, 1);
-    assert.equal((await store.listMapBatteries({ search: "Central", page: 1, limit: 50 })).data.length, 1);
-    assert.equal((await store.listMapBatteries({ search: "New Delhi", page: 1, limit: 50 })).data.length, 1);
-    assert.equal((await store.listMapBatteries({ search: "GreenCycle", page: 1, limit: 50 })).data.length, 1);
-    assert.equal((await store.listMapBatteries({ search: "does-not-exist", page: 1, limit: 50 })).data.length, 0);
+
+    /* Assert which batteries matched, not just how many. Earlier versions of
+       this test counted rows, which silently went stale once another test
+       added a battery at the same site. */
+    const matched = async (search) =>
+      (await store.listMapBatteries({ search, page: 1, limit: 50 })).data
+        .map((marker) => marker.batteryId)
+        .sort();
+
+    assert.deepEqual(await matched(b1), [b1]);
+    assert.deepEqual(await matched("Central"), [b1, b3].sort());
+    assert.deepEqual(await matched("New Delhi"), [b1, b2, b3].sort());
+    assert.deepEqual(await matched("GreenCycle"), [b1]);
+    assert.deepEqual(await matched("Solar Farm"), [b2]);
+    assert.deepEqual(await matched("does-not-exist"), []);
   });
 
   test("saving a location writes history; unchanged saves do not", async () => {
@@ -474,9 +520,10 @@ describe("postgres - locations + map surface", async () => {
     assert.ok(LOCATION_TYPES.includes("Customer Site"));
   });
 
-  test("teardown drops the throwaway database", async () => {
+test("teardown drops the throwaway database", async () => {
     await pool.end().catch(() => {});
     await teardown();
   });
-});
+  }
+);
 

@@ -6,6 +6,7 @@ import { todayISO } from "../utils/date.js";
 import { VALID_STATUSES, isActiveStatus } from "../constants/serviceStatuses.js";
 import { upsertScheduleForService } from "../services/schedulerService.js";
 import { parsePagination, matchesSearch, compareSorted, paginateArray } from "../utils/pagination.js";
+import { recordServiceTransition } from "../utils/serviceLifecycle.js";
 import {
   enrichServiceSummaries,
   enrichServiceDetail,
@@ -239,6 +240,17 @@ export const updateServiceStatus = asyncHandler(async (req, res) => {
     performedBy: "ADMIN",
     performedByName: req.user.name || "Admin",
     notes: `Status changed to ${status} by admin`,
+  });
+
+  /* Mirror the lifecycle-meaningful transitions into the battery passport.
+     ("Accepted"/"Assigned" are deliberately silent — see utils/serviceLifecycle.js.) */
+  await recordServiceTransition({
+    store,
+    service: updated,
+    fromStatus: service.status,
+    toStatus: status,
+    actorRole: "ADMIN",
+    actorName: req.user.name || "Admin",
   });
 
   if (status === "Completed") {
@@ -552,6 +564,17 @@ export const approveService = asyncHandler(async (req, res) => {
     notes: "Service completion approved by admin",
   });
 
+  /* An approved completion is the moment the battery actually comes back
+     into service, so it belongs on the passport timeline. */
+  await recordServiceTransition({
+    store,
+    service: updated,
+    fromStatus: service.status,
+    toStatus: "Completed",
+    actorRole: "ADMIN",
+    actorName: req.user.name || "Admin",
+  });
+
   await store.logActivity(
     req.user.id,
     "Service Completed",
@@ -806,4 +829,135 @@ export const resetTechnicianPassword = asyncHandler(async (req, res) => {
   await store.updateUser(employee.id, { password: hashedPassword });
 
   res.json({ message: "Password reset successfully" });
+});
+
+/* ============================================================
+   EXTERNAL EPR PARTNER ACCOUNTS
+   --------------------------------------------------------
+   A collection centre / recycler / refurbisher / auditor needs an
+   account to record what it did to a battery, and that account must be
+   tied to the `compliance_producers` registration it is acting under.
+   Creating the login without that link would produce an account that can
+   log in but reach nothing, so the registration is required here rather
+   than defaulted later.
+
+   The role is fixed to PARTNER by this endpoint and never read from the
+   request body: a partner account is an external identity, and letting a
+   caller choose its own role is how "create a partner" turns into "create
+   an admin".
+   ============================================================ */
+
+// POST /api/admin/partner-accounts
+export const createPartnerAccount = asyncHandler(async (req, res) => {
+  const { name, email, password, confirmPassword, partnerId } = req.body || {};
+
+  if (!name || !String(name).trim()) {
+    res.status(400);
+    throw new Error("Contact name is required");
+  }
+
+  if (!email || !/^\S+@\S+\.\S+$/.test(String(email).trim())) {
+    res.status(400);
+    throw new Error("A valid email address is required");
+  }
+
+  if (!password || password.length < 8) {
+    // Longer than the internal 6-character floor: this account reaches a
+    // customer's end-of-life data from outside the company.
+    res.status(400);
+    throw new Error("Password must be at least 8 characters");
+  }
+
+  if (confirmPassword && password !== confirmPassword) {
+    res.status(400);
+    throw new Error("Passwords do not match");
+  }
+
+  const parsedPartnerId = Number(partnerId);
+  if (!Number.isInteger(parsedPartnerId) || parsedPartnerId <= 0) {
+    res.status(400);
+    throw new Error("An EPR producer registration is required for a partner account");
+  }
+
+  const producer = await store.getComplianceProducerById(parsedPartnerId);
+  if (!producer) {
+    res.status(404);
+    throw new Error("That EPR producer registration does not exist");
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  if (await store.getUserByEmail(normalizedEmail)) {
+    res.status(409);
+    throw new Error("A user with this email already exists");
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  const newUser = await store.createUser({
+    id: `ptr-${Date.now()}`,
+    name: String(name).trim(),
+    email: normalizedEmail,
+    password: hashedPassword,
+    role: "PARTNER",
+    partnerId: parsedPartnerId,
+    createdAt: todayISO(),
+  });
+
+  res.status(201).json({
+    user: sanitizeUser(newUser),
+    partner: {
+      id: producer.id,
+      producerName: producer.producerName,
+      registrationNumber: producer.registrationNumber,
+    },
+  });
+});
+
+// PATCH /api/admin/partner-accounts/:id — re-link or deactivate
+export const updatePartnerAccount = asyncHandler(async (req, res) => {
+  const account = await store.getUserById(req.params.id);
+  if (!account || account.role !== "PARTNER") {
+    res.status(404);
+    throw new Error("Partner account not found");
+  }
+
+  const fields = {};
+
+  if (req.body?.partnerId !== undefined) {
+    const parsedPartnerId = Number(req.body.partnerId);
+    if (!Number.isInteger(parsedPartnerId) || parsedPartnerId <= 0) {
+      res.status(400);
+      throw new Error("An EPR producer registration is required for a partner account");
+    }
+    const producer = await store.getComplianceProducerById(parsedPartnerId);
+    if (!producer) {
+      res.status(404);
+      throw new Error("That EPR producer registration does not exist");
+    }
+    fields.partnerId = parsedPartnerId;
+  }
+
+  if (req.body?.password) {
+    if (req.body.password.length < 8) {
+      res.status(400);
+      throw new Error("Password must be at least 8 characters");
+    }
+    fields.password = await bcrypt.hash(req.body.password, 10);
+  }
+
+  // Deactivating is how an EPR partner loses access. Revoking their
+  // batteries' assignments is a separate, deliberate act — the operator
+  // decides whether that partner's in-flight jobs carry over.
+  if (req.body?.isActive === false) {
+    fields.role = "USER";
+    fields.partnerId = null;
+  }
+
+  if (Object.keys(fields).length === 0) {
+    res.status(400);
+    throw new Error("Nothing to update");
+  }
+
+  const updated = await store.updateUser(account.id, fields);
+  res.json({ user: sanitizeUser(updated) });
 });

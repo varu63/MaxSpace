@@ -5,6 +5,7 @@ import { useAdmin } from "../../context/AdminContext";
 import { PageHeader, Card, Pagination } from "../../components/common";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import Modal from "../../components/common/Modal";
+import AdminBatteryLifecyclePanel from "../../components/admin/battery/AdminBatteryLifecyclePanel";
 import { formatDate } from "../../components/admin/adminUtils";
 import { fetchAdminBatteriesPaginated, getErrorMessage } from "../../services/adminApi";
 
@@ -77,7 +78,7 @@ const AdminBatteriesPage = () => {
       <PageHeader
         icon={Battery}
         title="Batteries"
-        subtitle={`${total} registered batter${total === 1 ? "y" : "ies"} in the fleet — read-only registry`}
+        subtitle={`${total} registered batter${total === 1 ? "y" : "ies"} in the fleet — open a battery to record its passport lifecycle`}
       />
 
       <div className="relative max-w-md">
@@ -193,7 +194,7 @@ const AdminBatteriesPage = () => {
 
       {detail && (
         <Modal isOpen={!!detail} onClose={() => setDetail(null)} z={50}>
-          <div className="w-full max-w-2xl min-h-full flex flex-col justify-center py-10">
+          <div className="w-full max-w-3xl min-h-full flex flex-col justify-center py-10">
             <div className="relative w-full bg-[#FFFDF8] rounded-3xl shadow-2xl p-6">
               <div className="flex items-start justify-between gap-4 mb-5">
                 <div>
@@ -233,6 +234,10 @@ const AdminBatteriesPage = () => {
                   </div>
                 ))}
               </div>
+              <AdminBatteryLifecyclePanel
+                batteryId={detail.id}
+                onChanged={() => fetchPage(pagination?.page || 1)}
+              />
             </div>
           </div>
         </Modal>

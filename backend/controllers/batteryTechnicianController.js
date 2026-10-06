@@ -5,6 +5,7 @@ import { VALID_STATUSES } from "../constants/serviceStatuses.js";
 import { parsePagination, buildPagination } from "../utils/pagination.js";
 import { enrichServiceSummaries, enrichServiceDetail } from "../utils/serviceEnrichment.js";
 import { resolveServiceLocation } from "../utils/serviceLocation.js";
+import { recordServiceTransition } from "../utils/serviceLifecycle.js";
 
 /* Battery Technician status transitions — only these moves are allowed for employees */
 const EMPLOYEE_ALLOWED_TRANSITIONS = {
@@ -265,6 +266,16 @@ export const updateServiceStatus = asyncHandler(async (req, res) => {
     performedBy: "EMPLOYEE",
     performedByName: user.name,
     notes: `Status changed to ${status} by battery technician`,
+  });
+
+  /* Mirror the lifecycle-meaningful transitions into the battery passport. */
+  await recordServiceTransition({
+    store,
+    service: updated,
+    fromStatus: service.status,
+    toStatus: status,
+    actorRole: "EMPLOYEE",
+    actorName: user.name,
   });
 
   await store.logActivity(

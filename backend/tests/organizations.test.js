@@ -1,66 +1,63 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+
+/* Which facilities a role may see on the network map is policy, not data:
+   it is asserted here without a database, while the store-backed filtering
+   that consumes this matrix is covered by tests/map.test.js. */
 import {
-  ORGANIZATION_LOCATIONS,
   ORGANIZATION_TYPES,
-  filterOrganizations,
-  organizationsForRole,
-} from "../utils/organizationLocations.js";
+  ROLE_ORG_TYPES,
+  allowedTypesForRole,
+} from "../utils/organizationAccess.js";
+import { ownerScopeFor, NO_OWNER_MATCH } from "../utils/ownerScope.js";
 
-test("organization locations cover the 6 required development cities", () => {
-  const cities = ORGANIZATION_LOCATIONS.map((o) => o.city.toLowerCase());
-  for (const required of ["delhi", "noida", "gurugram", "mumbai", "pune", "bengaluru"]) {
-    assert.ok(cities.includes(required), `missing dev marker for ${required}`);
-  }
-});
-
-test("every organization marker has a valid type, coordinates and compliance status", () => {
-  for (const o of ORGANIZATION_LOCATIONS) {
-    assert.ok(ORGANIZATION_TYPES.includes(o.type), `bad type ${o.type}`);
-    assert.equal(typeof o.latitude, "number", `${o.key} latitude`);
-    assert.equal(typeof o.longitude, "number", `${o.key} longitude`);
-    assert.ok(o.name, `${o.key} name`);
-    assert.ok(o.compliance, `${o.key} compliance`);
-  }
-});
-
-test("the five example organisation types are all represented", () => {
-  const types = new Set(ORGANIZATION_LOCATIONS.map((o) => o.type));
+test("the organisation types a marker can carry are a fixed vocabulary", () => {
   for (const t of ["Manufacturer", "Service Provider", "Reseller", "Recycler", "Collection Center"]) {
-    assert.ok(types.has(t), `missing marker type ${t}`);
+    assert.ok(ORGANIZATION_TYPES.includes(t), `missing organisation type ${t}`);
   }
 });
 
-test("filterOrganizations filters by type and returns all for empty", () => {
-  assert.equal(filterOrganizations("").length, ORGANIZATION_LOCATIONS.length);
-  assert.ok(filterOrganizations("Recycler").every((o) => o.type === "Recycler"));
-  assert.equal(filterOrganizations("Recycler").length, 1);
-  assert.equal(filterOrganizations("Not A Real Type").length, 0);
+test("ADMIN is the only role allowed to see the whole organisation network", () => {
+  // null is the "everything" marker; every other role must carry a list.
+  assert.equal(ROLE_ORG_TYPES.ADMIN, null);
+  for (const [role, allowed] of Object.entries(ROLE_ORG_TYPES)) {
+    if (role === "ADMIN") continue;
+    assert.ok(Array.isArray(allowed), `${role} must not fall back to the whole network`);
+  }
 });
 
-test("ADMIN sees the whole organisation network", () => {
-  const all = organizationsForRole("ADMIN", "");
-  assert.equal(all.length, ORGANIZATION_LOCATIONS.length);
-  const withType = organizationsForRole("ADMIN", "Recycler");
-  assert.equal(withType.length, 1);
-  assert.equal(withType[0].type, "Recycler");
+test("USER and EMPLOYEE see only Service Providers, never company facilities", () => {
+  assert.deepEqual(ROLE_ORG_TYPES.USER, ["Service Provider"]);
+  assert.deepEqual(ROLE_ORG_TYPES.EMPLOYEE, ["Service Provider"]);
 });
 
-test("USER sees only Service Provider facilities, never company network data", () => {
-  const userOrgs = organizationsForRole("USER", "");
-  assert.ok(userOrgs.length > 0, "user should see relevant service locations");
-  assert.ok(userOrgs.every((o) => o.type === "Service Provider"));
-  assert.ok(userOrgs.every((o) => !["Manufacturer", "Reseller", "Recycler", "Collection Center"].includes(o.type)));
+test("an EPR partner sees no facility network at all", () => {
+  // A partner reaches a battery through its end-of-life assignment, not
+  // through the facility map. Falling back to "everything" here would hand
+  // an external company the whole MaxSpace facility network.
+  assert.deepEqual(ROLE_ORG_TYPES.PARTNER, []);
+  assert.deepEqual(allowedTypesForRole("PARTNER"), []);
 });
 
-test("EMPLOYEE (technician) sees only Service Provider facilities as their work sites", () => {
-  const techOrgs = organizationsForRole("EMPLOYEE", "");
-  assert.ok(techOrgs.every((o) => o.type === "Service Provider"));
+test("an unrecognised role fails closed instead of inheriting ADMIN's reach", () => {
+  // A role added to the users table later must start with no visibility.
+  // Being absent from the matrix is safe precisely because the lookup
+  // resolves it to an empty list rather than to "everything".
+  for (const role of ["", "SOMETHING_NEW", "partner", "technician", undefined, null]) {
+    assert.deepEqual(allowedTypesForRole(role), [], `role ${role} must see no facilities`);
+  }
+  assert.notEqual(allowedTypesForRole(undefined), null);
 });
 
-test("Users/technicians cannot enumerate company facilities via the type filter", () => {
-  assert.equal(organizationsForRole("USER", "Manufacturer").length, 0);
-  assert.equal(organizationsForRole("EMPLOYEE", "Recycler").length, 0);
-  const userServiceProviders = organizationsForRole("USER", "Service Provider");
-  assert.ok(userServiceProviders.every((o) => o.type === "Service Provider"));
+test("owner scope never widens a partner to the whole fleet", () => {
+  // null means "no owner filter" = every battery. That is right for the
+  // operator roles and for an anonymous public read, and wrong for a
+  // partner, who must match nothing here.
+  assert.equal(ownerScopeFor({ user: { role: "ADMIN" } }), null);
+  assert.equal(ownerScopeFor({ user: { role: "EMPLOYEE" } }), null);
+  assert.equal(ownerScopeFor({ user: null }), null);
+
+  assert.equal(ownerScopeFor({ user: { role: "USER", id: "u-1" } }), "u-1");
+  assert.equal(ownerScopeFor({ user: { role: "PARTNER", id: "ptr-1" } }), NO_OWNER_MATCH);
+  assert.ok(NO_OWNER_MATCH < 0, "the sentinel must not be a real owner id");
 });

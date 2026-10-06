@@ -6,6 +6,7 @@ import { upsertScheduleForService } from "../services/schedulerService.js";
 import { VALID_STATUSES, isActiveStatus, isCancelled } from "../constants/serviceStatuses.js";
 import { ownerScopeFor } from "../utils/ownerScope.js";
 import { resolveServiceLocation } from "../utils/serviceLocation.js";
+import { recordServiceTransition } from "../utils/serviceLifecycle.js";
 
 /* Fields a customer may update on their own service record via PATCH. Identity
    and operational fields (customerId, batteryId, batteryName, assignedServicePersonId,
@@ -208,6 +209,16 @@ export const updateService = asyncHandler(async (req, res) => {
       performedBy: "USER",
       performedByName: req.user?.name || "Customer",
       notes: `Status changed to ${status}`,
+    });
+
+    /* A cancelled service is a lifecycle fact the passport should show. */
+    await recordServiceTransition({
+      store,
+      service: updated,
+      fromStatus: existing.status,
+      toStatus: status,
+      actorRole: "USER",
+      actorName: req.user?.name || "Customer",
     });
   }
 

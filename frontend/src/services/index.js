@@ -35,6 +35,7 @@ export {
   logout,
   forgotPassword,
   resetPassword,
+  resendVerificationEmail,
   fetchBatteries,
   createBattery,
   updateBattery,

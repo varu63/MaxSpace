@@ -16,6 +16,7 @@ import { buildPagination } from "../../utils/pagination.js";
 import { ACTIVE_SERVICE_STATUSES } from "../../constants/serviceStatuses.js";
 import { buildMapMarker } from "../../utils/mapMarker.js";
 import { createComplianceManagementStore } from "../compliance/postgres.js";
+import { createBatteryLifecycleStore } from "./lifecycle.js";
 
 const mapUserRow = (row) =>
   row
@@ -32,10 +33,20 @@ const mapUserRow = (row) =>
         role: row.role,
         servicePersonId: row.service_person_id || null,
         companyId: row.company_id ?? null,
+        partnerId: row.partner_id ?? null,
         googleId: row.google_id || null,
         authProvider: row.auth_provider || "local",
         avatar: row.avatar || "",
         resetTokenExpiresAt: row.reset_token_expires_at || null,
+        resetTokenUsedAt: row.reset_token_used_at || null,
+        /* `email_verified` was added after the first accounts were created.
+           `?? true` keeps a row read from a database that has not had the
+           additive migration applied (or any legacy row) usable: only the
+           sign-up flow ever writes an explicit `false`. */
+        emailVerified: row.email_verified ?? true,
+        emailVerifiedAt: row.email_verified_at || null,
+        emailVerificationTokenHash: row.email_verification_token_hash || null,
+        emailVerificationExpiresAt: row.email_verification_expires_at || null,
         createdAt: row.created_at,
       }
     : null;
@@ -756,9 +767,17 @@ export const createPostgresStore = async ({
       return mapUserRow(rows[0]);
     },
 
+    /* Password-reset tokens. A new request REPLACES the previous hash and
+       clears the used marker, so only the newest link can ever work.
+       `markPasswordResetTokenUsed` stamps consumption instead of clearing
+       the hash: the SHA-256 of a spent 32-byte random token is worthless
+       to an attacker, and keeping it lets a replayed link be reported as
+       "already used" rather than a vague invalid/expired error. */
     async setPasswordResetToken(userId, tokenHash, expiresAt) {
       await pool.query(
-        `UPDATE users SET reset_token_hash = $2, reset_token_expires_at = $3 WHERE id = $1`,
+        `UPDATE users
+            SET reset_token_hash = $2, reset_token_expires_at = $3, reset_token_used_at = NULL
+          WHERE id = $1`,
         [userId, tokenHash, expiresAt]
       );
     },
@@ -771,9 +790,44 @@ export const createPostgresStore = async ({
       return mapUserRow(rows[0]);
     },
 
-    async clearPasswordResetToken(userId) {
+    async markPasswordResetTokenUsed(userId) {
       await pool.query(
-        `UPDATE users SET reset_token_hash = NULL, reset_token_expires_at = NULL WHERE id = $1`,
+        `UPDATE users
+            SET reset_token_used_at = now(), reset_token_expires_at = now()
+          WHERE id = $1`,
+        [userId]
+      );
+    },
+
+    /* ---------- E-mail verification ---------- */
+    async setEmailVerificationToken(userId, tokenHash, expiresAt) {
+      await pool.query(
+        `UPDATE users
+            SET email_verification_token_hash = $2, email_verification_expires_at = $3
+          WHERE id = $1`,
+        [userId, tokenHash, expiresAt]
+      );
+    },
+
+    async getUserByEmailVerificationToken(tokenHash) {
+      if (!tokenHash) return null;
+      const { rows } = await pool.query(
+        "SELECT * FROM users WHERE email_verification_token_hash = $1 LIMIT 1",
+        [tokenHash]
+      );
+      return mapUserRow(rows[0]);
+    },
+
+    /* Mark the address verified and immediately expire the link. The hash
+       is kept so a second click can be answered with "already verified"
+       instead of "invalid"; the link can never verify anything twice. */
+    async markEmailVerified(userId) {
+      await pool.query(
+        `UPDATE users
+            SET email_verified = true,
+                email_verified_at = COALESCE(email_verified_at, now()),
+                email_verification_expires_at = now()
+          WHERE id = $1`,
         [userId]
       );
     },
@@ -781,8 +835,8 @@ export const createPostgresStore = async ({
     async createUser(userData) {
       const passwordHash = await hashPassword(userData.password);
       const { rows } = await pool.query(
-        `INSERT INTO users (id, name, username, email, password_hash, role, service_person_id, google_id, auth_provider, avatar, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        `INSERT INTO users (id, name, username, email, password_hash, role, service_person_id, partner_id, google_id, auth_provider, avatar, email_verified, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          RETURNING *`,
         [
           userData.id,
@@ -792,9 +846,17 @@ export const createPostgresStore = async ({
           passwordHash,
           userData.role,
           userData.servicePersonId || null,
+          // Which compliance_producers row this account may act for. Only
+          // ever set for a PARTNER account; null for everyone else, which is
+          // why the app refuses a PARTNER login with no partner_id rather
+          // than treating it as a fleet-wide account.
+          userData.partnerId ?? null,
           userData.googleId || null,
           userData.authProvider || "local",
           userData.avatar || "",
+          // Defaults to true for admin-created and Google accounts. Only the
+          // local sign-up flow passes false and waits for the e-mail link.
+          userData.emailVerified ?? true,
           userData.createdAt,
         ]
       );
@@ -809,7 +871,8 @@ export const createPostgresStore = async ({
       const { rows } = await pool.query(
         `UPDATE users
          SET name = $2, username = $3, email = $4, password_hash = $5,
-             role = $6, service_person_id = $7, google_id = $8, auth_provider = $9, avatar = $10
+             role = $6, service_person_id = $7, partner_id = $8,
+             google_id = $9, auth_provider = $10, avatar = $11
          WHERE id = $1
          RETURNING *`,
         [
@@ -820,6 +883,10 @@ export const createPostgresStore = async ({
           passwordHash,
           next.role,
           next.servicePersonId || null,
+          // partner_id follows the role: a link only makes sense for a
+          // PARTNER account, and leaving a stale link on a demoted user
+          // would hand back EPR access the moment the role changed back.
+          next.role === "PARTNER" ? next.partnerId ?? null : null,
           next.googleId || null,
           next.authProvider || "local",
           next.avatar || "",
@@ -1116,12 +1183,13 @@ export const createPostgresStore = async ({
            weight_kg, dimensions_mm, manufacture_date, assembly_location,
            state_of_health, state_of_charge, cycle_count, max_rated_cycles,
            internal_resistance_mohms, operating_temp_c, carbon_footprint_kg_per_kwh,
-           recycled_content, warranty, compliance_standards, dismantling_manual, health_history
-          ) VALUES (
+recycled_content, warranty, compliance_standards, dismantling_manual, health_history,
+           registration_origin
+         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17,
             $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32,
-            $33, $34, $35
-          )
+            $33, $34, $35, $36
+         )
           RETURNING battery_id`,
         [
           batteryId,
@@ -1159,6 +1227,11 @@ export const createPostgresStore = async ({
           JSON.stringify(battery.complianceStandards || []),
           battery.dismantlingManual,
           JSON.stringify(battery.healthHistory || []),
+          /* A battery minted through this store was registered *in* the
+             digital passport. Leaving this NULL would let the legacy
+             backfill later classify it as 'legacy_import', which would be
+             a false claim about where the record came from. */
+          battery.registrationOrigin || "digital_passport",
         ]
       );
       // Re-read through the joins so `cells` is derived, not missing.
@@ -3447,6 +3520,22 @@ export const createPostgresStore = async ({
       buildPagination,
     })
   );
+
+  /* ------------------------------------------------------------
+     BATTERY PASSPORT LIFECYCLE
+     The passport's history: the append-only event ledger and its hash
+     chain, ownership transfers, per-field data provenance, derived
+     telemetry events, firmware history, end-of-life partner
+     assignments and second-life assessments.
+
+     In data/postgres/lifecycle.js for the same reason as above — the
+     lifecycle methods share one row-lock discipline and one transaction
+     shape for "append event + move the current-state row", and keeping
+     them together is what makes that discipline consistent. Attached
+     here so `appendLifecycleEvent` can be called from the battery,
+     service, telemetry and compliance paths without a circular import.
+  ------------------------------------------------------------ */
+  Object.assign(store, createBatteryLifecycleStore({ pool, batteryKey }));
 
   return store;
 };

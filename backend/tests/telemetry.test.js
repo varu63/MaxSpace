@@ -14,7 +14,7 @@ import {
   BatteryTelemetryService,
   setTelemetryStore,
 } from "../services/batteryTelemetryService.js";
-import { withTestDatabase } from "./helpers/testDatabase.js";
+import { withOptionalTestDatabase } from "./helpers/testDatabase.js";
 
 /* A tiny fake store that mirrors the interface the service expects,
    so tests never depend on the seeded dataset. */
@@ -236,8 +236,13 @@ describe("BatteryTelemetryService", () => {
 /* The telemetry surface must work end-to-end against the real
    PostgreSQL repository. This runs in a throwaway database created
    from schema.sql, so it never touches dev or maxvolt_prod. */
-describe("postgres telemetry integration", async () => {
-  const { store, teardown } = await withTestDatabase(import.meta.url);
+const db = await withOptionalTestDatabase(import.meta.url);
+
+describe(
+  "postgres telemetry integration",
+  { skip: db ? false : "no PostgreSQL database available" },
+  async () => {
+  const { store, teardown } = db;
   const { testPool } = await import("./helpers/testDatabase.js");
   const pool = await testPool();
 
@@ -293,4 +298,5 @@ describe("postgres telemetry integration", async () => {
     await pool.end().catch(() => {});
     await teardown();
   });
-});
+  }
+);

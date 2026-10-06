@@ -10,13 +10,30 @@ import {
   getBatteryPayloadIdentifier,
 } from "../utils/batteryIdentifier.js";
 import { ownerScopeFor } from "../utils/ownerScope.js";
+import { MANUFACTURER_LOCKED_FIELDS } from "../utils/lifecycleLedger.js";
+import {
+  recordBatteryRegistration,
+  recordBatteryClaim,
+} from "../utils/batteryLifecycleBridge.js";
+import { planProvenanceAssertions } from "./batteryLifecycleController.js";
 
 const barcodePrefix = "BATT-GEN";
 
 /* Whether the caller may see full ownership / detailed records for a battery:
-   fleet operators (ADMIN/EMPLOYEE) or the battery's linked owner. */
+   fleet operators (ADMIN/EMPLOYEE) or the battery's linked owner.
+
+   This is an ALLOW-list, deliberately not `role !== "USER"`. A PARTNER
+   account is external: it may see the batteries it was assigned through
+   /api/partner, and must not learn who owns a battery it happens to have
+   an identifier for. Listing the roles that qualify means a role added to
+   the `users` table later starts with no owner visibility. */
 const canViewOwnerDetails = (req, battery) =>
-  req.user && (req.user.role !== "USER" || req.user.id === battery.ownerId);
+  Boolean(
+    req.user &&
+      (req.user.role === "ADMIN" ||
+        req.user.role === "EMPLOYEE" ||
+        (req.user.role === "USER" && req.user.id === battery.ownerId))
+  );
 
 /* Public-facing subset of a battery's service history for non-owners. EU DPP
    passports are publicly scannable, but customer identity, contact details and
@@ -51,11 +68,16 @@ const publicServiceView = (services) =>
 /* Fields end users may edit on their own battery passport. Identity, ownership,
    QR-linked and audit fields (id, ownerId, barcode, serialNumber, qrCode,
    modalId, hangStatus, overallStatus, serviceCount, createdAt) and the
-   health-history ledger are intentionally excluded. */
+   health-history ledger are intentionally excluded.
+
+   manufacturer-authoritative fields (manufactureDate / modelName / model) are
+   NOT editable here at all — they live in MANUFACTURER_LOCKED_FIELDS. They
+   are also guarded by the `batteries_identity_immutable` database trigger, so
+   allowing them through this list would turn a bad request into a 500 from
+   PostgreSQL instead of a clear 400. Changing one is a deliberate, reasoned
+   act that goes through PATCH /:id/manufacturer-correction. */
 const EDITABLE_BATTERY_FIELDS = [
   "name",
-  "modelName",
-  "model",
   "type",
   "manufacturer",
   "chemistry",
@@ -65,7 +87,6 @@ const EDITABLE_BATTERY_FIELDS = [
   "voltage",
   "weightKg",
   "dimensionsMm",
-  "manufactureDate",
   "assemblyLocation",
   "location",
   "cells",
@@ -206,9 +227,41 @@ export const getBatteryPassport = asyncHandler(async (req, res) => {
     fullBattery.ownership = null;
   }
 
+  /* Lifecycle history. A public barcode scan gets the summary only — the
+     stage, how much history exists and whether the chain verifies. Event
+     rows carry actor names, notes and metadata, and ownership history
+     carries previous owners' names and e-mail addresses, none of which a
+     passer-by scanning a label is entitled to. Same reasoning as the
+     public service view above.
+
+     The end-of-life assessment is reduced rather than dropped: "grade B,
+     second life" is exactly the kind of fact a DPP exists to publish, but
+     WHO assessed it, their notes, which partner they work for and the
+     internal document id are not. */
+  const lifecycle = await store.getPassportLifecycle(battery.id);
+  const publicLifecycle = {
+    // ownerOrganizationId is omitted for the same reason `ownership` is
+    // nulled above: which company holds the battery is owner data.
+    summary: lifecycle.summary
+      ? (({ ownerOrganizationId, ...publicSummary }) => publicSummary)(lifecycle.summary)
+      : lifecycle.summary,
+    latestAssessment: lifecycle.latestAssessment
+      ? {
+          assessedAt: lifecycle.latestAssessment.assessedAt,
+          grade: lifecycle.latestAssessment.grade,
+          decision: lifecycle.latestAssessment.decision,
+          healthPercent: lifecycle.latestAssessment.healthPercent,
+          capacityPercent: lifecycle.latestAssessment.capacityPercent,
+          safetyPassed: lifecycle.latestAssessment.safetyPassed,
+          source: lifecycle.latestAssessment.source,
+        }
+      : null,
+  };
+
   res.json({
     battery: fullBattery,
     serviceHistory: ownerView ? serviceHistory : publicServiceView(serviceHistory),
+    lifecycle: ownerView ? lifecycle : publicLifecycle,
     generatedAt: new Date().toISOString(),
     qrUrl: battery.qrCode || `https://passport.battery-eu.org/passports/${battery.modalId || battery.barcode}`,
   });
@@ -336,6 +389,16 @@ export const createBattery = asyncHandler(async (req, res) => {
     "passport"
   );
 
+  /* Open the passport ledger. This is the one event we can state as fact at
+     registration: the battery has a recorded owner from now on. We do not
+     invent a manufacturing or commissioning history here — those belong to
+     the manufacturer or the backfill script. */
+  await recordBatteryRegistration({
+    store,
+    battery: createdBattery,
+    actorName: req.user?.name || req.user?.email || "Owner",
+  });
+
   res.status(201).json(createdBattery);
 });
 
@@ -391,6 +454,20 @@ export const claimBattery = asyncHandler(async (req, res) => {
 
   const claimedNow = battery.ownerId !== userId;
 
+  /* Claiming an unowned battery is the moment it gains a first recorded
+     owner. Claiming a battery that already carries a passport history is a
+     transfer, not a first registration — the ledger decides which, so we do
+     not have to guess from the batteries table alone. */
+  if (claimedNow) {
+    await recordBatteryClaim({
+      store,
+      battery: updated,
+      previousOwnerId: battery.ownerId || null,
+      newOwnerId: userId,
+      actorName: req.user?.name || req.user?.email || "Owner",
+    });
+  }
+
   await store.logActivity(
     userId,
     claimedNow ? "Battery Added to Profile" : "Battery Already in Profile",
@@ -420,11 +497,70 @@ export const updateBattery = asyncHandler(async (req, res) => {
 
   // Only curated, non-identity fields are accepted; anything else in the body
   // (id, ownerId, barcode, serialNumber, healthHistory, ...) is ignored.
-  const updated = await store.updateBattery(
-    req.params.id,
-    pickEditableBatteryFields(req.body)
+  const updates = pickEditableBatteryFields(req.body);
+
+  // Grade the change against what already asserts these fields BEFORE the row
+  // is written, so a refused downgrade never half-applies. An owner replacing
+  // a value MaxVolt measured is told why; they are not silently overridden.
+  const assertions = await planProvenanceAssertions(existing.batteryId || existing.id, existing, updates, {
+    role: req.user?.role || "USER",
+  });
+
+  const updated = await store.updateBattery(req.params.id, updates);
+
+  for (const assertion of assertions) {
+    await store.assertProvenance({
+      batteryId: existing.batteryId || existing.id,
+      fieldName: assertion.field,
+      classification: assertion.classification,
+      source: assertion.source,
+      recordedBy: req.user.id,
+    });
+  }
+
+  // Tell the client which of its submitted fields were refused, rather than
+  // returning a success that quietly dropped them.
+  const refused = [...MANUFACTURER_LOCKED_FIELDS.filter((field) => field in (req.body || {}))];
+  res.json({
+    ...updated,
+    ...(refused.length > 0
+      ? {
+          lockedFieldsIgnored: refused,
+          message: `These fields are recorded by MaxVolt and cannot be changed here: ${refused.join(", ")}.`,
+        }
+      : {}),
+  });
+});
+
+// PATCH /api/batteries/:id/manufacturer-correction
+// The only path that changes manufacturer-authoritative fields. Admin only,
+// and a reason is mandatory: the correction is written to the lifecycle
+// ledger with the previous value, the new value and the stated reason.
+export const correctBatteryManufacturerFields = asyncHandler(async (req, res) => {
+  const existing = await store.getBatteryById(req.params.id);
+  if (!existing) {
+    res.status(404);
+    throw new Error("Battery not found");
+  }
+
+  const body = req.body || {};
+  const result = await store.correctManufacturerFields({
+    batteryId: existing.batteryId || existing.id,
+    modelId: body.modelId || null,
+    modelName: body.modelName ?? null,
+    manufactureDate: body.manufactureDate || null,
+    reason: body.reason,
+    actor: { id: req.user.id, name: req.user.name, role: req.user.role },
+  });
+
+  await store.logActivity(
+    req.user.id,
+    "Battery Manufacturer Correction",
+    `Corrected ${result.batteryId}: ${result.changes.map((c) => c.field).join(", ")} — ${result.reason}`,
+    "general"
   );
-  res.json(updated);
+
+  res.json({ ...result, battery: await store.getBatteryById(req.params.id) });
 });
 
 // DELETE /api/batteries/:id

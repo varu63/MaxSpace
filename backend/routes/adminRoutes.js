@@ -22,6 +22,8 @@ import {
   getUsers,
   getAdminBatteries,
   getAdminAnalytics,
+  createPartnerAccount,
+  updatePartnerAccount,
 } from "../controllers/adminController.js";
 import {
   getSchedules,
@@ -130,6 +132,12 @@ router.get("/technicians/:id", protect, requireAdmin, getTechnician);
 router.post("/technicians", protect, requireAdmin, createTechnician);
 router.patch("/technicians/:id", protect, requireAdmin, updateTechnician);
 router.patch("/technicians/:id/reset-password", protect, requireAdmin, resetTechnicianPassword);
+
+// External EPR partner logins. Created against an existing
+// compliance_producers registration, which is what bounds what the
+// account can reach (see utils/partnerAccess.js).
+router.post("/partner-accounts", protect, requireAdmin, createPartnerAccount);
+router.patch("/partner-accounts/:id", protect, requireAdmin, updatePartnerAccount);
 
 router.get("/customers", protect, requireAdmin, getCustomers);
 router.get("/users", protect, requireAdmin, getUsers);

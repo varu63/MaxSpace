@@ -142,6 +142,32 @@ export const withTestDatabase = async (label) => {
   return { store, dbName: name, databaseUrl: url.toString(), teardown };
 };
 
+/* Optional variant of withTestDatabase.
+
+   A database that simply is not reachable right now (Postgres stopped, Docker
+   not started, DATABASE_URL unset) is an *environment* problem, not a broken
+   assertion. Returning null lets the caller mark the suite as skipped so
+   `npm test` reports "skipped" instead of a confusing failure that looks like
+   a code defect.
+
+   A schema that *does* apply badly is a real bug and is re-thrown, never
+   swallowed: that means sql/schema.sql disagrees with the code under test. */
+export const withOptionalTestDatabase = async (label) => {
+  if (!process.env.DATABASE_URL) loadEnv();
+  try {
+    return await withTestDatabase(label);
+  } catch (error) {
+    const unavailable =
+      /DATABASE_URL is not set/.test(error.message) ||
+      /could not create /.test(error.message);
+    if (!unavailable) throw error;
+    console.error(
+      `[test-db] skipping database-backed suite for ${path.basename(label)}: ${error.message}`
+    );
+    return null;
+  }
+};
+
 /* Convenience for tests that need raw SQL against the same throwaway
    database the store is using. */
 export const testPool = async () => {

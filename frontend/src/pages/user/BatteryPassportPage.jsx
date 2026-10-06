@@ -25,6 +25,7 @@ import {
 import { useBattery } from "../../context/BatteryContext";
 import { DetailRow, InfoBlock, LoadingSpinner } from "../../components/common";
 import BatteryComplianceSection from "../../components/user/battery/BatteryComplianceSection";
+import BatteryLifecycleSection from "../../components/user/battery/BatteryLifecycleSection";
 import {
   fetchBatteryPassport,
   fetchBatteryTelemetryLatest,
@@ -422,6 +423,8 @@ export default function BatteryPassportPage() {
             ))
           )}
         </InfoBlock>
+
+        <BatteryLifecycleSection lifecycle={passport.lifecycle} />
 
         <BatteryComplianceSection batteryId={id} />
 

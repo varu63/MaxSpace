@@ -26,6 +26,7 @@ const BatteryPassportPage = lazy(() => import("./pages/user/BatteryPassportPage"
 const SignInPage = lazy(() => import("./pages/user/SignInPage"));
 const SignUpPage = lazy(() => import("./pages/user/SignUpPage"));
 const ResetPasswordPage = lazy(() => import("./pages/user/ResetPasswordPage"));
+const VerifyEmailPage = lazy(() => import("./pages/user/VerifyEmailPage"));
 const GlobalMapPage = lazy(() => import("./pages/user/GlobalMapPage"));
 
 const AdminLoginPage = lazy(() => import("./pages/admin/AdminLoginPage"));
@@ -344,6 +345,11 @@ const App = () => {
                 path="/auth/reset-password"
                 element={<Navigate to="/reset-password" replace />}
               />
+
+              {/* E-mail verification outcome. Left outside PublicOnlyRoute on
+                  purpose: a signed-in user opening an old link must still see
+                  "already verified" instead of being bounced to /home. */}
+              <Route path="/verify-email" element={<VerifyEmailPage />} />
 
               {/* ============ ADMIN PANEL ============ */}
               <Route

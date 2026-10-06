@@ -27,6 +27,17 @@ import { parsePagination } from "./pagination.js";
 const cleanText = (value, max = 200) =>
   value === undefined || value === null ? "" : String(value).trim().slice(0, max);
 
+/* Every rejection raised by this module is bad caller input, not a server
+   fault. The controllers call these parsers before they set a status on the
+   response, so an error with no explicit statusCode falls through to the
+   error middleware's 500 default (see middleware/errorMiddleware.js) and an
+   invalid dropdown or a bad bounding box is reported as a server error.
+   Tagging them here is what makes them surface as the 400 they are — the
+   same convention used by utils/serviceValidation.js and
+   utils/complianceRecordValidation.js. */
+const invalid = (message) =>
+  Object.assign(new Error(message), { code: "validation", statusCode: 400 });
+
 const cleanOptionalText = (value, max = 200) => {
   const s = cleanText(value, max);
   return s || null;
@@ -38,7 +49,7 @@ const filterValues = (filters) => filters.map((f) => f.value);
 const assertFilter = (value, list, field) => {
   if (value === undefined || value === null || value === "") return "";
   if (!list.includes(value)) {
-    throw new Error(
+    throw invalid(
       `${field} "${value}" is not valid. Expected one of: ${list.join(", ")}.`
     );
   }
@@ -87,13 +98,13 @@ export const parseMapFilters = (query = {}) => {
     const maxLat = Number(raw.maxLat);
     const maxLng = Number(raw.maxLng);
     if (![minLat, minLng, maxLat, maxLng].every(Number.isFinite)) {
-      throw new Error("bbox requires numeric minLat, minLng, maxLat, maxLng");
+      throw invalid("bbox requires numeric minLat, minLng, maxLat, maxLng");
     }
     if (minLat < -90 || maxLat > 90 || minLat > maxLat) {
-      throw new Error("bbox latitudes must be between -90 and 90 with minLat <= maxLat");
+      throw invalid("bbox latitudes must be between -90 and 90 with minLat <= maxLat");
     }
     if (minLng < -180 || maxLng > 180 || minLng > maxLng) {
-      throw new Error("bbox longitudes must be between -180 and 180 with minLng <= maxLng");
+      throw invalid("bbox longitudes must be between -180 and 180 with minLng <= maxLng");
     }
     bbox = { minLat, minLng, maxLat, maxLng };
   }
@@ -121,12 +132,12 @@ export const parseMapFilters = (query = {}) => {
 const cleanCoordinate = (value, field) => {
   if (value === undefined || value === null || value === "") return null;
   const n = Number(value);
-  if (!Number.isFinite(n)) throw new Error(`${field} must be a number`);
+  if (!Number.isFinite(n)) throw invalid(`${field} must be a number`);
   if (field === "latitude" && (n < -90 || n > 90)) {
-    throw new Error("latitude must be between -90 and 90");
+    throw invalid("latitude must be between -90 and 90");
   }
   if (field === "longitude" && (n < -180 || n > 180)) {
-    throw new Error("longitude must be between -180 and 180");
+    throw invalid("longitude must be between -180 and 180");
   }
   return n;
 };
@@ -138,17 +149,17 @@ export const parseLocationPayload = (body = {}) => {
   const latitude = cleanCoordinate(body.latitude, "latitude");
   const longitude = cleanCoordinate(body.longitude, "longitude");
   if ((latitude === null) !== (longitude === null)) {
-    throw new Error(
+    throw invalid(
       "latitude and longitude must be provided together (or both omitted for an address-only location)"
     );
   }
   const address = cleanOptionalText(body.address, 400);
   if (!latitude && !address) {
-    throw new Error("provide coordinates and/or an address to record a location");
+    throw invalid("provide coordinates and/or an address to record a location");
   }
   const locationType = cleanOptionalText(body.locationType, 100) || "Other";
   if (!LOCATION_TYPES.includes(locationType)) {
-    throw new Error(
+    throw invalid(
       `locationType "${locationType}" is not valid. Expected one of: ${LOCATION_TYPES.join(", ")}.`
     );
   }

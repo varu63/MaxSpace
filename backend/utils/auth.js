@@ -12,7 +12,16 @@ export const signToken = (id, role) =>
 
 export const sanitizeUser = (user) => {
   if (!user) return user;
-  const { password, googleId, resetTokenHash, resetTokenExpiresAt, ...rest } = user;
+  const {
+    password,
+    googleId,
+    resetTokenHash,
+    resetTokenExpiresAt,
+    resetTokenUsedAt,
+    emailVerificationTokenHash,
+    emailVerificationExpiresAt,
+    ...rest
+  } = user;
   return rest;
 };
 

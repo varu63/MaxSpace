@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Mail,
+  MailCheck,
   Lock,
   Eye,
   EyeOff,
@@ -13,7 +14,7 @@ import {
 } from "lucide-react";
 
 import { useBattery } from "../../context/BatteryContext";
-import { forgotPassword } from "../../services/api";
+import { forgotPassword, resendVerificationEmail } from "../../services/api";
 import GoogleSignInButton from "../../components/common/GoogleSignInButton";
 
 const SignInPage = () => {
@@ -31,6 +32,14 @@ const SignInPage = () => {
   const [forgotError, setForgotError] = useState("");
   const [forgotSubmitting, setForgotSubmitting] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
+
+  /* Unverified account: the backend answers 403 EMAIL_NOT_VERIFIED and we
+     offer a resend right here instead of failing the sign-in silently. */
+  const [isVerifyOpen, setIsVerifyOpen] = useState(false);
+  const [verifyEmail, setVerifyEmail] = useState("");
+  const [verifyError, setVerifyError] = useState("");
+  const [verifySubmitting, setVerifySubmitting] = useState(false);
+  const [verifySent, setVerifySent] = useState("");
 
   const validate = () => {
     const nextErrors = {};
@@ -63,7 +72,16 @@ const SignInPage = () => {
       await signIn({ email: email.trim(), password });
       navigate("/home");
     } catch (error) {
-      addToast("Sign In Failed", error?.message || "Invalid email or password.", "error");
+      if (error?.code === "EMAIL_NOT_VERIFIED") {
+        // Correct credentials, unverified address: offer the resend here
+        // rather than a dead-end error toast.
+        setVerifyEmail(email.trim());
+        setVerifyError("");
+        setVerifySent("");
+        setIsVerifyOpen(true);
+      } else {
+        addToast("Sign In Failed", error?.message || "Invalid email or password.", "error");
+      }
       setSubmitting(false);
     }
   };
@@ -126,6 +144,44 @@ const SignInPage = () => {
       setForgotError(error?.message || "Something went wrong. Please try again.");
     } finally {
       setForgotSubmitting(false);
+    }
+  };
+
+  const closeVerify = () => {
+    setIsVerifyOpen(false);
+    setVerifyError("");
+    setVerifySent("");
+  };
+
+  const handleVerifySubmit = async (e) => {
+    e.preventDefault();
+
+    const value = verifyEmail.trim();
+    if (!value) {
+      setVerifyError("Email is required.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      setVerifyError("Please enter a valid email address.");
+      return;
+    }
+
+    setVerifySubmitting(true);
+    setVerifyError("");
+    try {
+      const data = await resendVerificationEmail(value);
+      setVerifySent(
+        data?.message ||
+          "If an unverified account exists for this email, a new verification link has been sent.",
+      );
+    } catch (error) {
+      setVerifyError(
+        error?.status === 429
+          ? "Too many email requests. Please wait a few minutes and try again."
+          : error?.message || "Something went wrong. Please try again.",
+      );
+    } finally {
+      setVerifySubmitting(false);
     }
   };
 
@@ -414,6 +470,106 @@ const SignInPage = () => {
                   ) : (
                     "Send Reset Link"
                   )}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Unverified-account modal (403 EMAIL_NOT_VERIFIED) */}
+      {isVerifyOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-[#16263A]/60 backdrop-blur-sm"
+            onClick={closeVerify}
+          />
+          <div className="relative w-full max-w-sm bg-[#FFFDF8] rounded-2xl shadow-xl border border-[#EEE9DA] p-6">
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={closeVerify}
+              className="absolute right-4 top-4 text-[#8A9096] hover:text-[#16263A]"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[#F5F1E7] text-[#B48611] mb-3">
+                <MailCheck className="w-5 h-5" />
+              </div>
+              <h3 className="text-lg font-bold text-[#16263A]">
+                Verify your email
+              </h3>
+              <p className="text-sm text-[#747B83] mt-1">
+                Your account hasn't been verified yet. Enter your address below
+                and we'll send you a fresh verification link.
+              </p>
+            </div>
+
+            {verifySent ? (
+              <div className="space-y-4">
+                <p className="text-xs text-[#1B5E3C] bg-[#EAF4EE] border border-[#CFE6D9] rounded-xl p-3">
+                  {verifySent}
+                </p>
+                <button
+                  type="button"
+                  onClick={closeVerify}
+                  className="w-full py-2.5 rounded-xl bg-[#173B5C] text-white font-bold text-sm hover:bg-[#102F4A] transition-colors"
+                >
+                  Back to Sign In
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleVerifySubmit} className="space-y-3">
+                <div>
+                  <label
+                    htmlFor="verify-email-input"
+                    className="block text-xs font-bold text-[#16263A] mb-1.5"
+                  >
+                    Email Address
+                  </label>
+                  <div className="flex items-center gap-2.5 px-3.5 rounded-xl bg-[#F5F1E7] border border-[#E7E1D3] focus-within:border-[#173B5C] transition-colors">
+                    <Mail className="w-4 h-4 text-[#8A9096] shrink-0" />
+                    <input
+                      id="verify-email-input"
+                      type="email"
+                      value={verifyEmail}
+                      onChange={(e) => {
+                        setVerifyEmail(e.target.value);
+                        if (verifyError) setVerifyError("");
+                      }}
+                      placeholder="you@company.com"
+                      autoComplete="email"
+                      className="w-full py-2.5 bg-transparent text-sm text-[#16263A] placeholder:text-[#8A9096] focus:outline-none"
+                    />
+                  </div>
+                  {verifyError && (
+                    <p className="mt-1 text-xs text-red-600">{verifyError}</p>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={verifySubmitting}
+                  className="w-full py-2.5 rounded-xl bg-[#173B5C] text-white font-bold text-sm hover:bg-[#102F4A] active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {verifySubmitting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      Sending…
+                    </span>
+                  ) : (
+                    "Send Verification Link"
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={closeVerify}
+                  className="w-full py-2.5 rounded-xl text-[#173B5C] font-bold text-sm hover:bg-[#F5F1E7] transition-colors"
+                >
+                  Back to Sign In
                 </button>
               </form>
             )}

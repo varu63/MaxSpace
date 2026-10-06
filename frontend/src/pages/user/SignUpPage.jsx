@@ -87,14 +87,30 @@ const SignUpPage = () => {
     setSubmitting(true);
 
     try {
-      // Register with the backend; navigate only on success
-      await signUp({
+      // Register with the backend. The account is created UNVERIFIED and
+      // no session is issued: the verification e-mail has to be clicked
+      // before sign-in is allowed.
+      const data = await signUp({
         name: form.name.trim(),
         email: form.email.trim(),
         password: form.password,
         confirmPassword: form.confirmPassword,
       });
-      navigate("/home");
+
+      const emailSent = data?.emailSent !== false;
+      addToast(
+        "Account created",
+        emailSent
+          ? "Please check your email to verify your account."
+          : "We could not send the verification email — you can resend it from the next screen.",
+        emailSent ? "success" : "warning",
+      );
+
+      navigate(
+        `/verify-email?status=sent&sent=${emailSent ? 1 : 0}&email=${encodeURIComponent(
+          form.email.trim(),
+        )}`,
+      );
     } catch (error) {
       addToast(
         "Sign Up Failed",

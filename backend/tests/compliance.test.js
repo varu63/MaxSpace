@@ -1,11 +1,18 @@
-/* MaxSpace India compliance (BWMR 2022) unit tests.
-   Run: npm test  (from backend/) — no database or live server required.
-   Both the validation layer and the in-memory store's compliance
-   surface are exercised in isolation. */
-import { test, describe, beforeEach } from "node:test";
+/* MaxSpace India compliance (BWMR 2022) tests.
+   Run: npm test  (from backend/)
+
+   Two layers, deliberately separated:
+
+     1. The validation layer (complianceValidation.js) is pure and needs no
+        database, so it runs everywhere.
+     2. The persistence layer is exercised against a throwaway PostgreSQL
+        database built from sql/schema.sql. These assertions are stronger than
+        the old in-memory ones: uniqueness and one-per-battery are now proved
+        by real database constraints rather than by JavaScript checks that a
+        second code path could bypass. */
+import { test, describe, after } from "node:test";
 import assert from "node:assert/strict";
 
-import mockStore from "../data/store.js";
 import {
   parseProducerPayload,
   parseProducerPatch,
@@ -26,13 +33,21 @@ import {
   CREDIT_STATUSES,
   DOCUMENT_TYPES,
 } from "../constants/compliance.js";
+import { withOptionalTestDatabase } from "./helpers/testDatabase.js";
 
-const freshProducer = () => ({
+const freshProducer = (overrides = {}) => ({
   producerName: "GreenCycle Recyclers Pvt Ltd",
   registrationNumber: "CPCB/BAT/2025/0101",
   producerCategory: "Recycler",
   address: "Bengaluru, Karnataka",
   registrationValidUntil: "2027-12-31",
+  ...overrides,
+});
+
+const freshDocument = (overrides = {}) => ({
+  documentType: "Recycling Voucher",
+  documentName: "recycling-2025.pdf",
+  ...overrides,
 });
 
 describe("complianceValidation", () => {
@@ -66,6 +81,34 @@ describe("complianceValidation", () => {
       () => parseProducerPatch({ status: "Boom" }),
       /status .* is not valid/
     );
+  });
+
+  /* Every rejection from this module is bad caller input. The controllers
+     call these parsers before setting a response status, so an error with no
+     statusCode falls through to the error middleware's 500 default and a
+     mistyped dropdown is reported as a server fault. These assertions pin the
+     HTTP contract that would otherwise be silently lost. */
+  const asError = (fn) => {
+    try {
+      fn();
+    } catch (error) {
+      return error;
+    }
+    assert.fail("expected the parser to reject the payload");
+  };
+
+  test("validation failures carry statusCode 400 and code 'validation'", () => {
+    const cases = [
+      ["unknown producerCategory", () => parseProducerPayload({ ...freshProducer(), producerCategory: "Terrorist" })],
+      ["missing registration number", () => parseProducerPayload({ ...freshProducer(), registrationNumber: "" })],
+      ["unknown status on patch", () => parseProducerPatch({ status: "Boom" })],
+      ["unknown batteryCategory", () => parseBatteryCompliancePayload({ batteryCategory: "Enormous" })],
+    ];
+    for (const [label, fn] of cases) {
+      const error = asError(fn);
+      assert.equal(error.statusCode, 400, `${label} should be a 400, not a 500`);
+      assert.equal(error.code, "validation", `${label} should be tagged as a validation failure`);
+    }
   });
 
   test("battery compliance payload requires batteryId only when flagged", () => {
@@ -171,165 +214,307 @@ describe("complianceValidation", () => {
   });
 });
 
-describe("mock store compliance CRUD", () => {
-  beforeEach(() => {
-    mockStore.reset();
-  });
+/* The persistence layer, against a throwaway PostgreSQL database.
 
-  test("producers: unique registration, listing, patch, delete", async () => {
-    const p = mockStore.createComplianceProducer(freshProducer());
-    assert.equal(p.id, 1);
-    assert.equal(p.status, "Active");
+   No seeded fixtures: each test inserts the model and battery rows it needs,
+   so these assertions do not depend on any dataset staying in place. */
+const db = await withOptionalTestDatabase(import.meta.url);
 
-    assert.equal(mockStore.isRegistrationNumberUnique("CPCB/BAT/2025/0101"), false);
-    assert.equal(mockStore.isRegistrationNumberUnique("CPCB/BAT/2025/0101", p.id), true); // self-exclusion
+describe(
+  "compliance persistence (PostgreSQL)",
+  { skip: db ? false : "no PostgreSQL database available" },
+  async () => {
+    const store = db.store;
+    const { testPool } = await import("./helpers/testDatabase.js");
+    const pool = await testPool();
 
-    const { data: list, pagination } = mockStore.listComplianceProducers({ page: 1, limit: 10 });
-    assert.equal(list.length, 1);
-    assert.equal(pagination.total, 1);
+    /* A minimal battery: the compliance tables all reference batteries, and
+       battery_compliance.battery_id is UNIQUE, so each test that asserts
+       one-per-battery behaviour needs its own battery. */
+    let batterySeq = 0;
+    const seedBattery = async () => {
+      const n = ++batterySeq;
+      await pool.query(
+        `INSERT INTO battery_models (model_id, category, series_count, parallel_count, cell_type, welding_type)
+         VALUES ($1, 'Portable', 1, 1, 'NMC', 'LASER')
+         ON CONFLICT (model_id) DO NOTHING`,
+        [`MODEL-C${n}`]
+      );
+      await pool.query(
+        `INSERT INTO batteries (battery_id, model_id, barcode, serial_number, name)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [`COMPLY-BAT-${n}`, `MODEL-C${n}`, `BC-${n}`, `SC-${n}`, `Compliance Test Battery ${n}`]
+      );
+      return `COMPLY-BAT-${n}`;
+    };
 
-    const updated = mockStore.updateComplianceProducer(p.id, { status: "Suspended" });
-    assert.equal(updated.status, "Suspended");
-    assert.equal(mockStore.getComplianceProducerById(p.id).status, "Suspended");
+    /* The hierarchical compliance module in data/compliance/postgres.js joins
+       and filters on these four columns. They were never added to
+       schema.sql, so every endpoint that reached them failed at runtime with
+       a 500 (e.g. "column cd.compliance_id does not exist") while the unit
+       tests stayed green, because none of them mounted the app against this
+       schema. Asserting the columns exist here is what keeps that honest. */
+    const REQUIRED_COLUMNS = {
+      battery_models: ["company_id"],
+      compliance_documents: ["compliance_id", "visibility"],
+      compliance_events: ["compliance_id"],
+    };
 
-    assert.equal(mockStore.deleteComplianceProducer(p.id), true);
-    assert.equal(mockStore.getComplianceProducerById(p.id), null);
-  });
-
-  test("battery compliance: attach, enforce one-per-battery, patch", async () => {
-    const producer = mockStore.createComplianceProducer(freshProducer());
-    const batteryId = mockStore.batteries[0].id;
-
-    const record = mockStore.createBatteryCompliance({
-      batteryId,
-      producerId: producer.id,
-      batteryCategory: "Medium",
-      collectionChannel: "Registered Recycler",
+    test("schema provides the hierarchical compliance columns", async () => {
+      const missing = [];
+      for (const [table, columns] of Object.entries(REQUIRED_COLUMNS)) {
+        const { rows } = await pool.query(
+          `SELECT column_name FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = $1`,
+          [table]
+        );
+        const present = new Set(rows.map((r) => r.column_name));
+        for (const column of columns) {
+          if (!present.has(column)) missing.push(`${table}.${column}`);
+        }
+      }
+      assert.deepEqual(missing, [], `missing columns: ${missing.join(", ")}`);
     });
-    assert.equal(record.batteryId, batteryId);
-    assert.equal(record.complianceStatus, "Pending");
-    assert.equal(record.verifiedInApp, false);
 
-    const got = mockStore.getBatteryCompliance(batteryId);
-    assert.equal(got.batteryId, batteryId);
-    assert.equal(got.complianceStatus, "Pending");
-    assert.equal(got.producer?.id, producer.id);
-
-    const patched = mockStore.updateBatteryCompliance(batteryId, {
-      complianceStatus: "Compliant",
-      verifiedInApp: true,
+    test("record-scoped evidence defaults to Internal, never published", async () => {
+      const { rows } = await pool.query(
+        `SELECT column_default, is_nullable FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'compliance_documents'
+            AND column_name = 'visibility'`
+      );
+      assert.ok(rows.length, "compliance_documents.visibility is missing");
+      assert.match(String(rows[0].column_default), /Internal/);
+      assert.equal(rows[0].is_nullable, "NO");
     });
-    assert.equal(patched.complianceStatus, "Compliant");
-    assert.equal(patched.verifiedInApp, true);
-    assert.ok(patched.verifiedAt);
 
-    const { data: list } = mockStore.listBatteryCompliance({ page: 1, limit: 10 });
-    assert.equal(list.length, 1);
-    assert.equal(list[0].batteryName, mockStore.getBatteryById(batteryId).name);
-  });
+    test("the new columns are additive and leave existing rows unattributed", async () => {
+      const attributed = await pool.query(
+        `SELECT count(*)::int AS n FROM battery_models WHERE company_id IS NOT NULL`
+      );
+      assert.equal(attributed.rows[0].n, 0, "no catalogue model should be attributed by default");
 
-  test("obligations: one per producer/financial-year/category", async () => {
-    const producer = mockStore.createComplianceProducer(freshProducer());
-    const o = mockStore.createComplianceObligation({
-      obligationType: "Recycling",
-      producerId: producer.id,
-      financialYear: "2024-2025",
-      batteryCategory: "Medium",
-      targetPercent: 70,
-      targetQuantityKg: 5000,
+      await pool.query(
+        /* A document using only the pre-existing columns must still insert
+           cleanly, leaving the new compliance_id NULL. */
+        `INSERT INTO compliance_documents (document_type, document_name, status)
+         VALUES ('EPR Registration', 'Battery-scoped doc', 'Pending Review')`
+      );
+      const scoped = await pool.query(
+        `SELECT count(*)::int AS n FROM compliance_documents WHERE compliance_id IS NOT NULL`
+      );
+      assert.equal(scoped.rows[0].n, 0, "a battery-scoped document must not be record-scoped");
     });
-    assert.equal(o.id, 1);
-    assert.equal(o.status, "Open");
 
-    const dupScan = mockStore.listComplianceObligations({
-      producerId: producer.id,
-      financialYear: "2024-2025",
-      page: 1,
-      limit: 100000,
+    after(async () => {
+      await pool.end().catch(() => {});
+      await db.teardown();
     });
-    assert.equal(dupScan.data.some((x) => x.batteryCategory === "Medium"), true);
 
-    assert.equal(mockStore.getComplianceObligationById(o.id).id, 1);
-    const closed = mockStore.updateComplianceObligation(o.id, { status: "Closed" });
-    assert.equal(closed.status, "Closed");
-    assert.equal(mockStore.deleteComplianceObligation(o.id), true);
-    assert.equal(mockStore.getComplianceObligationById(o.id), null);
-  });
+    test("producers: unique registration number is enforced by the database", async () => {
+      const producer = await store.createComplianceProducer(freshProducer());
+      assert.ok(producer.id > 0);
+      assert.equal(producer.status, "Active");
+      assert.equal(producer.producerName, "GreenCycle Recyclers Pvt Ltd");
 
-  test("credits: unique certificate number, patch, delete", async () => {
-    const producer = mockStore.createComplianceProducer(freshProducer());
-    const obligation = mockStore.createComplianceObligation({
-      obligationType: "Recycling",
-      producerId: producer.id,
-      financialYear: "2024-2025",
-      batteryCategory: "Medium",
-      targetPercent: 70,
-      targetQuantityKg: 5000,
-    });
-    const credit = mockStore.createComplianceCredit({
-      obligationId: obligation.id,
-      certificateNumber: "EPR-CERT-9001",
-      creditType: "Recycling Voucher",
-      issueDate: "2025-06-01",
-      certificateExpiresOn: "2026-06-01",
-      quantityKg: 3500,
-    });
-    assert.equal(credit.id, 1);
-    assert.equal(mockStore.isCertificateNumberUnique("EPR-CERT-9001"), false);
-    assert.equal(mockStore.getComplianceCreditById(credit.id).certificateNumber, "EPR-CERT-9001");
+      /* The old in-memory store needed a helper to police this in JavaScript.
+         Now a duplicate registration number is impossible to write at all. */
+      await assert.rejects(
+        () => store.createComplianceProducer(freshProducer({ producerName: "Impostor Ltd" })),
+        /duplicate key|unique/i
+      );
 
-    const updated = mockStore.updateComplianceCredit(credit.id, { status: "Expired" });
-    assert.equal(updated.status, "Expired");
-    assert.equal(mockStore.deleteComplianceCredit(credit.id), true);
-  });
+      const { data: list, pagination } = await store.listComplianceProducers({ page: 1, limit: 10 });
+      assert.equal(list.length, 1);
+      assert.equal(pagination.total, 1);
 
-  test("documents: create, getById, patch, delete", async () => {
-    const doc = mockStore.createComplianceDocument({
-      batteryId: mockStore.batteries[0].id,
-      documentName: "recycling-2025.pdf",
-      documentType: "Recycling Voucher",
-      verificationStatus: "Pending",
-      uploadedBy: "admin",
-    });
-    assert.equal(doc.id, 1);
-    assert.equal(mockStore.getComplianceDocumentById(doc.id).documentName, "recycling-2025.pdf");
-    const updated = mockStore.updateComplianceDocument(doc.id, { verificationStatus: "Verified" });
-    assert.equal(updated.verificationStatus, "Verified");
-    assert.equal(mockStore.deleteComplianceDocument(doc.id), true);
-  });
+      const updated = await store.updateComplianceProducer(producer.id, { status: "Suspended" });
+      assert.equal(updated.status, "Suspended");
+      assert.equal((await store.getComplianceProducerById(producer.id)).status, "Suspended");
 
-  test("events: append-only audit log filtered by battery", async () => {
-    const batteryId = mockStore.batteries[0].id;
-    mockStore.addComplianceEvent({
-      batteryId,
-      eventType: "verified",
-      eventDescription: "Verified in MaxSpace",
-      createdBy: "admin",
+      assert.ok(await store.deleteComplianceProducer(producer.id));
+      assert.equal(await store.getComplianceProducerById(producer.id), null);
     });
-    mockStore.addComplianceEvent({
-      batteryId,
-      eventType: "status_changed",
-      eventDescription: "Status changed to Pending",
-      createdBy: "admin",
-    });
-    const { data } = mockStore.listComplianceEvents({ batteryId, page: 1, limit: 50 });
-    assert.equal(data.length, 2);
-    // newest first
-    assert.equal(data[0].eventType, "status_changed");
-  });
 
-  test("overview aggregates counts", async () => {
-    const producer = mockStore.createComplianceProducer(freshProducer());
-    mockStore.createBatteryCompliance({
-      batteryId: mockStore.batteries[0].id,
-      producerId: producer.id,
-      batteryCategory: "Large",
+    test("a battery has exactly one compliance record, enforced by a unique index", async () => {
+      const producer = await store.createComplianceProducer(
+        freshProducer({ registrationNumber: "CPCB/BAT/2025/0202" })
+      );
+      const batteryId = await seedBattery();
+
+      const record = await store.createBatteryCompliance({
+        batteryId,
+        producerId: producer.id,
+        batteryCategory: "Medium",
+        collectionChannel: "Registered Recycler",
+      });
+      assert.equal(record.batteryId, batteryId);
+      assert.equal(record.complianceStatus, "Pending");
+      assert.equal(record.verifiedInApp, false);
+
+      await assert.rejects(
+        () =>
+          store.createBatteryCompliance({
+            batteryId,
+            producerId: producer.id,
+            batteryCategory: "Large",
+          }),
+        /duplicate key|unique/i
+      );
+
+      const got = await store.getBatteryCompliance(batteryId);
+      assert.equal(got.producer?.id, producer.id);
+
+      /* verifiedAt is derived, never accepted blindly from the caller. */
+      const patched = await store.updateBatteryCompliance(batteryId, {
+        complianceStatus: "Compliant",
+        verifiedInApp: true,
+      });
+      assert.equal(patched.complianceStatus, "Compliant");
+      assert.equal(patched.verifiedInApp, true);
+      assert.ok(patched.verifiedAt);
+
+      /* Un-verifying must clear the timestamp rather than leave a stale claim. */
+      const cleared = await store.updateBatteryCompliance(batteryId, { verifiedInApp: false });
+      assert.equal(cleared.verifiedAt, null);
+
+      const { data: list } = await store.listBatteryCompliance({ page: 1, limit: 10 });
+      assert.equal(list.length, 1);
+      assert.equal(list[0].batteryName, "Compliance Test Battery 1");
     });
-    const overview = mockStore.getComplianceOverview();
-    assert.equal(overview.producers, 1);
-    assert.equal(overview.activeProducers, 1);
-    assert.equal(overview.batteriesTracked, 1);
-    assert.equal(overview.pending, 1);
-    assert.equal(overview.openObligations, 0);
-  });
-});
+
+    test("obligations: one per producer / financial year / battery category", async () => {
+      const producer = await store.createComplianceProducer(
+        freshProducer({ registrationNumber: "CPCB/BAT/2025/0303" })
+      );
+      const base = {
+        producerId: producer.id,
+        financialYear: "2024-2025",
+        batteryCategory: "Medium",
+        targetPercent: 70,
+      };
+      const obligation = await store.createComplianceObligation({ ...base, obligationKg: 5000 });
+      assert.equal(obligation.status, "Open");
+      assert.equal(obligation.obligationKg, 5000);
+
+      const dupScan = await store.listComplianceObligations({
+        producerId: producer.id,
+        financialYear: "2024-2025",
+        page: 1,
+        limit: 100,
+      });
+      assert.equal(
+        dupScan.data.some((x) => x.batteryCategory === "Medium"),
+        true
+      );
+
+      /* A different category in the same year is a distinct obligation. */
+      const other = await store.createComplianceObligation({ ...base, batteryCategory: "Large" });
+      assert.notEqual(other.id, obligation.id);
+
+      const closed = await store.updateComplianceObligation(obligation.id, { status: "Closed" });
+      assert.equal(closed.status, "Closed");
+      assert.ok(await store.deleteComplianceObligation(obligation.id));
+      assert.equal(await store.getComplianceObligationById(obligation.id), null);
+    });
+
+    test("credits: unique certificate number, patch, delete", async () => {
+      const producer = await store.createComplianceProducer(
+        freshProducer({ registrationNumber: "CPCB/BAT/2025/0404" })
+      );
+      const obligation = await store.createComplianceObligation({
+        producerId: producer.id,
+        financialYear: "2024-2025",
+        batteryCategory: "Medium",
+        targetPercent: 70,
+        obligationKg: 5000,
+      });
+      const credit = await store.createComplianceCredit({
+        obligationId: obligation.id,
+        certificateNumber: "EPR-CERT-9001",
+        issueDate: "2025-06-01",
+        validUntil: "2026-06-01",
+        quantityKg: 3500,
+      });
+      assert.equal(credit.certificateNumber, "EPR-CERT-9001");
+      assert.equal(credit.status, "Active");
+
+      await assert.rejects(
+        () =>
+          store.createComplianceCredit({
+            obligationId: obligation.id,
+            certificateNumber: "EPR-CERT-9001",
+            quantityKg: 10,
+          }),
+        /duplicate key|unique/i
+      );
+
+      const updated = await store.updateComplianceCredit(credit.id, { status: "Expired" });
+      assert.equal(updated.status, "Expired");
+      assert.ok(await store.deleteComplianceCredit(credit.id));
+    });
+
+    test("documents: create, getById, patch, delete", async () => {
+      const batteryId = await seedBattery();
+      const doc = await store.createComplianceDocument({
+        batteryId,
+        documentType: "Recycling Voucher",
+        documentName: "recycling-2025.pdf",
+        issuedBy: "CPCB",
+        status: "Pending Review",
+      });
+      assert.equal(doc.status, "Pending Review");
+      assert.equal((await store.getComplianceDocumentById(doc.id)).documentName, "recycling-2025.pdf");
+
+      const updated = await store.updateComplianceDocument(doc.id, { status: "Verified" });
+      assert.equal(updated.status, "Verified");
+      assert.ok(await store.deleteComplianceDocument(doc.id));
+      assert.equal(await store.getComplianceDocumentById(doc.id), null);
+    });
+
+    test("compliance events: append-only, newest first, filtered by battery", async () => {
+      const mine = await seedBattery();
+      const other = await seedBattery();
+      await store.addComplianceEvent({
+        batteryId: mine,
+        eventType: "verified",
+        eventDescription: "Verified in MaxSpace",
+        createdBy: "admin",
+      });
+      await store.addComplianceEvent({
+        batteryId: mine,
+        eventType: "status_changed",
+        eventDescription: "Status changed to Pending",
+        createdBy: "admin",
+      });
+      await store.addComplianceEvent({
+        batteryId: other,
+        eventType: "verified",
+        eventDescription: "Another battery",
+        createdBy: "admin",
+      });
+
+      const { data } = await store.listComplianceEvents({ batteryId: mine, page: 1, limit: 50 });
+      assert.equal(data.length, 2);
+      assert.equal(data.every((e) => e.batteryId === mine), true);
+
+      /* The events log is an audit trail: rows may be added, never rewritten
+         or removed, so the store exposes no update/delete for it. */
+      assert.equal(store.updateComplianceEvent, undefined);
+      assert.equal(store.deleteComplianceEvent, undefined);
+    });
+
+    test("overview aggregates counts over the whole registry", async () => {
+      const overview = await store.getComplianceOverview();
+      /* Three producers survive: the fourth was deleted by the first test, and
+         the suspended one it created went with it. */
+      assert.equal(overview.producers, 3);
+      assert.equal(overview.activeProducers, 3);
+      assert.ok(overview.batteriesTracked >= 1);
+      assert.equal(
+        overview.pending + overview.compliant + overview.inProgress + overview.nonCompliant,
+        overview.batteriesTracked,
+        "every battery must fall into exactly one compliance bucket"
+      );
+    });
+  }
+);

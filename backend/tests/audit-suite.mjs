@@ -73,12 +73,21 @@ r = await req("/auth/signin", { method: "POST", body: { email: "alex.rivera@maxs
 check(r.status === 401, name("user signin wrong password -> 401"), r.status);
 
 r = await req("/auth/signup", { method: "POST", body: { name: "Audit Tester", email: tempEmail, password: "secret123", confirmPassword: "secret123" } });
-check(r.status === 201 && r.data?.token, name("user signup"), `created ${tempEmail}`);
-const tempUserToken = r.data?.token;
+check(r.status === 201 && r.data?.requiresVerification === true, name("user signup (201, verification required)"), `created ${tempEmail}`);
+check(!r.data?.token, name("signup issues no session until verified"), r.data?.token ? "token returned" : "no token");
 check(r.data?.user?.password === undefined, name("signup user sanitized"));
+check(r.data?.user?.emailVerified === false, name("signup account starts unverified"));
 
-r = await req("/auth/signup", { method: "POST", body: { name: "Dup", email: tempEmail, password: "secret123" } });
+r = await req("/auth/signup", { method: "POST", body: { name: "Dup", email: tempEmail, password: "secret123", confirmPassword: "secret123" } });
 check(r.status === 400 || r.status === 409, name("duplicate signup rejected"), r.status);
+
+// Correct credentials must still be refused until the address is verified.
+r = await req("/auth/signin", { method: "POST", body: { email: tempEmail, password: "secret123" } });
+check(r.status === 403 && r.data?.code === "EMAIL_NOT_VERIFIED", name("unverified signin -> 403 EMAIL_NOT_VERIFIED"), `${r.status} ${r.data?.code || ""}`);
+
+// Resend is deliberately non-enumerating: unknown address, same body.
+r = await req("/auth/resend-verification", { method: "POST", body: { email: `nobody.${uid}@example.com` } });
+check(r.status === 200 && typeof r.data?.message === "string", name("resend-verification generic response"), r.status);
 
 // Google sign-in errors must surface as structured envelopes (not HTML / 500s)
 r = await req("/auth/google", { method: "POST" });
@@ -90,24 +99,78 @@ check(r.status === 503, name("google signin unconfigured -> 503"), r.status);
 check(r.data?.success === false && r.data?.status === 503 && typeof r.data?.message === "string", name("google 503 body is structured"), JSON.stringify(r.data));
 
 r = await req("/auth/forgot-password", { method: "POST", body: { email: tempEmail } });
-check(r.status === 200, name("forgot-password enqueue-safe response"), r.status);
+check(r.status === 200 && typeof r.data?.message === "string", name("forgot-password enqueue-safe response"), r.status);
 
-let resetToken = null;
-const logPath = process.env.TEMP ? `${process.env.TEMP}\\maxspace-reset-links.log` : "/tmp/maxspace-reset-links.log";
+/* ---- e-mail verification -------------------------------------------
+   In development (no RESEND_API_KEY) the service appends the link it
+   *would* have mailed to %TEMP%/maxspace-auth-links.log, so the whole
+   verification round-trip can be driven from here. */
 const fs = await import("node:fs");
-const lines = fs.existsSync(logPath) ? fs.readFileSync(logPath, "utf8").trim().split(/\r?\n/) : [];
-const linkLine = lines.filter((l) => l.includes(tempEmail)).pop();
-resetToken = linkLine ? linkLine.split("token=")[1] : null;
-check(Boolean(resetToken), name("reset token logged for dev flow"), resetToken ? "token captured" : "no token");
+const authLogPath = process.env.TEMP
+  ? `${process.env.TEMP}\\maxspace-auth-links.log`
+  : "/tmp/maxspace-auth-links.log";
+const readAuthLog = () =>
+  fs.existsSync(authLogPath)
+    ? fs.readFileSync(authLogPath, "utf8").trim().split(/\r?\n/)
+    : [];
+const tokenFromLine = (line) =>
+  line && line.includes("token=") ? line.split("token=")[1].trim() : null;
+
+// Resend for the real account: this replaces the token issued at sign-up,
+// so the link read below must be the *newest* one.
+r = await req("/auth/resend-verification", { method: "POST", body: { email: tempEmail } });
+check(r.status === 200, name("resend-verification for unverified account"), r.status);
+
+const verifyToken = tokenFromLine(
+  readAuthLog().filter((l) => l.includes(tempEmail) && l.includes("verify-email")).pop()
+);
+check(Boolean(verifyToken), name("verification link logged for dev flow"), verifyToken ? "token captured" : "no token");
+
+// The link is a GET the backend answers with a redirect to the screen
+// that renders the outcome, so `redirect: "manual"` is what we assert on.
+const followVerification = async (token) => {
+  const res = await fetch(`${BASE}/auth/verify-email?token=${encodeURIComponent(token)}`, {
+    redirect: "manual",
+  });
+  return { status: res.status, location: res.headers.get("location") || "" };
+};
+
+let tempUserToken = null;
+if (verifyToken) {
+  const v = await followVerification(verifyToken);
+  check(v.status === 302 && v.location.includes("/verify-email?status=verified"), name("verify-email link -> 302 'verified'"), `${v.status} ${v.location}`);
+
+  const replay = await followVerification(verifyToken);
+  check(replay.status === 302 && replay.location.includes("status=already-verified"), name("verify-email replay -> 'already-verified'"), replay.location);
+
+  const bogus = await followVerification("bogus-token");
+  check(bogus.status === 302 && bogus.location.includes("status=invalid"), name("verify-email bogus token -> 'invalid'"), bogus.location);
+
+  r = await req("/auth/signin", { method: "POST", body: { email: tempEmail, password: "secret123" } });
+  check(r.status === 200 && r.data?.token, name("signin after verification"), r.status);
+  tempUserToken = r.data?.token || null;
+}
 
 r = await req("/auth/reset-password", { method: "POST", body: { token: "bogus", newPassword: "newpass123" } });
-check(r.status === 400, name("reset-password bogus token -> 400"), r.status);
+check(r.status === 400 && r.data?.code === "RESET_TOKEN_INVALID", name("reset-password bogus token -> 400 RESET_TOKEN_INVALID"), `${r.status} ${r.data?.code || ""}`);
+
+let resetToken = null;
+resetToken = tokenFromLine(
+  readAuthLog().filter((l) => l.includes(tempEmail) && l.includes("reset-password")).pop()
+);
+check(Boolean(resetToken), name("reset token logged for dev flow"), resetToken ? "token captured" : "no token");
 
 if (resetToken) {
-  r = await req("/auth/reset-password", { method: "POST", body: { token: resetToken, newPassword: "newsecret456" } });
-  check(r.status === 200, name("reset-password success"), r.status);
+  r = await req("/auth/reset-password", { method: "POST", body: { token: resetToken, password: "newsecret456", confirmPassword: "newsecret456" } });
+  check(r.status === 200 && r.data?.success === true, name("reset-password success"), r.status);
+
+  // The same link may not be replayed with a third password.
+  r = await req("/auth/reset-password", { method: "POST", body: { token: resetToken, password: "another789", confirmPassword: "another789" } });
+  check(r.status === 400 && r.data?.code === "RESET_TOKEN_USED", name("reset token replay -> RESET_TOKEN_USED"), `${r.status} ${r.data?.code || ""}`);
+
   r = await req("/auth/signin", { method: "POST", body: { email: tempEmail, password: "newsecret456" } });
   check(r.status === 200 && r.data?.token, name("signin with new password"), r.status);
+  tempUserToken = r.data?.token || tempUserToken;
 }
 
 r = await req("/auth/me", { token: userToken });

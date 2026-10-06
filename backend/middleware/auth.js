@@ -19,12 +19,17 @@ const attachUser = async (req, user) => {
   // (compliance). null/undefined = MaxSpace platform operator, which
   // may act for any company. Taken from the stored user, never from the
   // token body, so a forged claim cannot widen an account's scope.
+  // partnerId does the same for external EPR partners: it is the
+  // `compliance_producers` row the account may act for, and a PARTNER
+  // account without one is refused rather than defaulted to fleet-wide
+  // access (see utils/partnerAccess.js).
   req.user = {
     id: user.id,
     role: user.role,
     name: user.name,
     email: user.email,
     companyId: user.companyId ?? null,
+    partnerId: user.partnerId ?? null,
   };
   return true;
 };
@@ -88,6 +93,30 @@ export const requireAdmin = (req, res, next) => {
 export const requireEmployee = (req, res, next) => {
   if (!req.user || req.user.role !== "EMPLOYEE") {
     return res.status(403).json({ success: false, status: 403, message: "Access denied. Employee privileges required." });
+  }
+  next();
+};
+
+/* Fleet operators: ADMIN and EMPLOYEE together.
+   Used by the passport lifecycle writes, which an admin performs and a
+   technician performs on their assigned work — but which a customer and
+   an external partner must never perform. `requireEmployee` stays for
+   the technician-only surfaces that already use it. */
+export const requireOperator = (req, res, next) => {
+  if (!req.user || (req.user.role !== "ADMIN" && req.user.role !== "EMPLOYEE")) {
+    return res.status(403).json({ success: false, status: 403, message: "Access denied. Admin or employee privileges required." });
+  }
+  next();
+};
+
+/* External EPR partners (collection centres, recyclers, refurbishers,
+   auditors) only. The linked producer itself is verified by
+   `assertPartnerAccount` in the service layer, because "is this account
+   linked to a registration" is a business rule and not something a role
+   string can answer. */
+export const requirePartner = (req, res, next) => {
+  if (!req.user || req.user.role !== "PARTNER") {
+    return res.status(403).json({ success: false, status: 403, message: "Access denied. Partner privileges required." });
   }
   next();
 };
