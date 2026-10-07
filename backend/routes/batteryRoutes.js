@@ -41,6 +41,12 @@ import {
 import { getBatteryCompliance } from "../controllers/complianceController.js";
 import { getBatteryCompliancePassport } from "../controllers/complianceManagementController.js";
 import {
+  acceptOwnershipTransferRequest,
+  cancelOwnershipTransferRequest,
+  createOwnershipTransferRequest,
+  getOwnershipTransferRequest,
+} from "../controllers/batteryOwnershipTransferController.js";
+import {
   protect,
   optionalProtect,
   iotDeviceOrAdmin,
@@ -65,6 +71,16 @@ router.get("/lookup", optionalProtect, lookupBattery);
 router.get("/:id/passport", optionalProtect, getBatteryPassport);
 router.get("/:id/health-history", optionalProtect, getBatteryHealthHistory);
 router.post("/:id/claim", protect, claimBattery);
+
+// One-time QR ownership transfer. The fixed `transfers` segment keeps
+// these out of the way of `/:id/...` (`:id` never sees them, and the
+// 43-character token can never equal a literal segment like "passport").
+// All four require an account: minting and accepting are owner acts,
+// never anonymous ones.
+router.post("/:id/transfers", protect, createOwnershipTransferRequest);
+router.get("/transfers/:token", protect, getOwnershipTransferRequest);
+router.post("/transfers/:token/accept", protect, acceptOwnershipTransferRequest);
+router.post("/transfers/:token/cancel", protect, cancelOwnershipTransferRequest);
 
 // Battery telemetry / IoT-BMS (see services/batteryTelemetryService.js)
 router.get("/:id/telemetry/latest", optionalProtect, getLatestTelemetry);

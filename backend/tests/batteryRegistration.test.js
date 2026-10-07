@@ -117,8 +117,8 @@ describe(
         actorName: "Owner Three",
       });
       /* A manufacturing record is not a prior owner, so this is still the
-         first owner — and "Manufactured -> OwnershipTransferred" is not even
-         a legal stage move. */
+         first owner — claiming it would otherwise record a transfer for
+         a unit nobody had ever owned. */
       assert.equal(result.eventCode, "first_owner_registered");
       assert.equal(result.recorded, true);
       assert.equal(result.event.metadata.hadPriorOwner, false);

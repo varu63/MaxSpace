@@ -36,6 +36,8 @@
      a missing fact stays missing.
    ============================================================ */
 
+import crypto from "node:crypto";
+
 import {
   GENESIS_HASH,
   LIFECYCLE_EVENTS,
@@ -61,6 +63,12 @@ const notFoundError = (message) =>
 
 const forbiddenError = (message) =>
   Object.assign(new Error(message), { code: "forbidden", statusCode: 403 });
+
+const conflictError = (message, code = "conflict") =>
+  Object.assign(new Error(message), { code, statusCode: 409 });
+
+const goneError = (message, code = "gone") =>
+  Object.assign(new Error(message), { code, statusCode: 410 });
 
 /* ---------- row mappers ---------- */
 
@@ -632,6 +640,345 @@ export const createBatteryLifecycleStore = ({ pool, batteryKey = "battery_id" })
 
       await client.query("COMMIT");
       return { ownership: mapOwnershipRow(inserted.rows[0]), event };
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /* ============================================================
+     ONE-TIME QR OWNERSHIP TRANSFER
+     ============================================================
+
+     Three phases, all resolved by the SHA-256 of the token — the
+     plaintext token exists only in the QR the current owner shows:
+
+       1. the current owner mints a short-lived pending transfer
+       2. the new owner reads it (GET) before deciding
+       3. the new owner accepts it (POST), which swaps custody
+
+     Only the hash is stored, exactly like the auth flow's e-mail
+     tokens: a leaked database dump cannot be replayed as a working QR.
+
+     Lock order is transfer rows BEFORE the batteries row in every
+     path. Mint closes stale pendings (locking those rows) and only
+     then locks the battery; accept locks the transfer row and only
+     then the battery. A mint and an accept on the same battery can
+     therefore wait on each other without ever forming a cycle.
+
+     The partial unique index (one pending row per battery) is what
+     makes "one live QR per battery" a database guarantee; mint
+     restores it by closing the previous pendings under the battery
+     lock before inserting.
+     ============================================================ */
+
+  const TRANSFER_TTL_MS = 10 * 60 * 1000;
+
+  const hashTransferToken = (token) =>
+    crypto.createHash("sha256").update(String(token)).digest("hex");
+
+  const TRANSFER_SELECT = `
+    SELECT t.*, b.model_name AS battery_model, b.barcode AS battery_barcode
+      FROM battery_ownership_transfers t
+      JOIN batteries b ON b.${batteryKey} = t.battery_id`;
+
+  /* A pending row past its expiry reads as expired without a write;
+     the mint / read paths persist the flip so the audit row agrees. */
+  const transferStatusOf = (row) =>
+    row.status === "pending" && new Date(row.expires_at) <= new Date()
+      ? "expired"
+      : row.status;
+
+  const mapTransferRow = (row) => ({
+    id: String(row.id),
+    batteryId: row.battery_id,
+    batteryModel: row.battery_model || null,
+    batteryBarcode: row.battery_barcode || null,
+    previousOwnerId: row.previous_owner_id,
+    newOwnerId: row.new_owner_id || null,
+    status: transferStatusOf(row),
+    expiresAt: toIso(row.expires_at),
+    createdAt: toIso(row.created_at),
+    acceptedAt: toIso(row.accepted_at),
+    acceptedBy: row.accepted_by || null,
+    cancelledAt: toIso(row.cancelled_at),
+  });
+
+  /* Resolve a token and take its row lock. Joins batteries only to
+     carry the display fields back; the batteries row itself is
+     locked separately, after the transfer row, by the accept path. */
+  const loadTransferForUpdate = async (client, token) => {
+    const { rows } = await client.query(
+      `${TRANSFER_SELECT} WHERE t.token_hash = $1 FOR UPDATE OF t`,
+      [hashTransferToken(token)]
+    );
+    return rows[0] || null;
+  };
+
+  /* Phase 1 — mint a pending transfer. Returns the plaintext token
+     once; it is never recoverable afterwards. Minting a second QR for
+     the same battery supersedes the first, which is why re-clicking
+     the button on the frontend is safe. */
+  async function createOwnershipTransfer({
+    batteryId,
+    previousOwnerId,
+    ttlMs = TRANSFER_TTL_MS,
+  }) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      /* Transfer rows first (lock order), battery second. */
+      const expired = await client.query(
+        `UPDATE battery_ownership_transfers
+            SET status = 'expired'
+          WHERE battery_id = $1 AND status = 'pending' AND expires_at <= now()
+          RETURNING id`,
+        [batteryId]
+      );
+      const superseded = await client.query(
+        `UPDATE battery_ownership_transfers
+            SET status = 'cancelled', cancelled_at = now()
+          WHERE battery_id = $1 AND status = 'pending'
+          RETURNING id`,
+        [batteryId]
+      );
+
+      const batteryResult = await client.query(
+        `SELECT ${batteryKey}, owner_id FROM batteries WHERE ${batteryKey} = $1 FOR UPDATE`,
+        [batteryId]
+      );
+      const battery = batteryResult.rows[0];
+      if (!battery) throw notFoundError("Battery not found");
+      if (!battery.owner_id)
+        throw validationError("This battery has no owner, so there is nothing to transfer.");
+      if (battery.owner_id !== previousOwnerId)
+        throw forbiddenError("Only the current owner of this battery can start a transfer.");
+
+      const token = crypto.randomBytes(32).toString("base64url");
+      const expiresAt = new Date(Date.now() + ttlMs);
+      const inserted = await client.query(
+        `INSERT INTO battery_ownership_transfers
+           (battery_id, previous_owner_id, token_hash, status, expires_at)
+         VALUES ($1, $2, $3, 'pending', $4)
+         RETURNING *`,
+        [batteryId, previousOwnerId, hashTransferToken(token), expiresAt]
+      );
+
+      await client.query("COMMIT");
+      return {
+        token,
+        transfer: mapTransferRow({
+          ...inserted.rows[0],
+          battery_model: null,
+          battery_barcode: null,
+        }),
+        supersededCount: superseded.rowCount,
+        expiredCount: expired.rowCount,
+      };
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /* Phase 2 — read a pending transfer by its token. Does not consume
+     it: the receiver may look before deciding, and the scanner route
+     uses this to render the confirmation screen. */
+  async function getOwnershipTransferByToken(token) {
+    const { rows } = await pool.query(`${TRANSFER_SELECT} WHERE t.token_hash = $1`, [
+      hashTransferToken(token),
+    ]);
+    const row = rows[0];
+    if (!row) throw notFoundError("This transfer code is not valid.");
+
+    if (row.status === "pending" && new Date(row.expires_at) <= new Date()) {
+      await pool.query(
+        `UPDATE battery_ownership_transfers SET status = 'expired'
+          WHERE id = $1 AND status = 'pending'`,
+        [row.id]
+      );
+      row.status = "expired";
+    }
+    return mapTransferRow(row);
+  }
+
+  /* Revoke a pending transfer. Only the owner who started it, and
+     never an accepted one — the swap already happened. */
+  async function cancelOwnershipTransfer({ token, userId }) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const row = await loadTransferForUpdate(client, token);
+      if (!row) throw notFoundError("This transfer code is not valid.");
+      if (row.previous_owner_id !== userId)
+        throw forbiddenError("Only the owner who started this transfer can cancel it.");
+      if (row.status === "accepted")
+        throw conflictError("This transfer has already been accepted.", "transfer_already_used");
+      if (row.status === "cancelled")
+        throw conflictError("This transfer has already been cancelled.", "transfer_cancelled");
+      if (row.status === "expired" || new Date(row.expires_at) <= new Date())
+        throw goneError("This transfer request has expired.", "transfer_expired");
+
+      const updated = await client.query(
+        `UPDATE battery_ownership_transfers
+            SET status = 'cancelled', cancelled_at = now()
+          WHERE id = $1
+          RETURNING *`,
+        [row.id]
+      );
+      await client.query("COMMIT");
+      return mapTransferRow({
+        ...updated.rows[0],
+        battery_model: row.battery_model,
+        battery_barcode: row.battery_barcode,
+      });
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /* Phase 3 — accept, and swap custody in the same transaction as the
+     audit writes: close the open custody period, open the new one,
+     move the batteries row, mark the transfer spent, append the
+     ledger event. Either all of it happens or none of it does.
+
+     Everything that can race is decided under a lock: the transfer row
+     serialises concurrent accepts (the loser sees 'accepted'), and the
+     batteries row proves the battery is still with the account that
+     minted the QR before a single custody row is written. */
+  async function acceptOwnershipTransfer({ token, newOwnerId }) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const row = await loadTransferForUpdate(client, token);
+      if (!row) throw notFoundError("This transfer code is not valid.");
+
+      /* Spent before expired: a QR already used must report that it
+         was used, whatever its clock says. */
+      if (row.status === "accepted")
+        throw conflictError("This transfer QR has already been used.", "transfer_already_used");
+      if (row.status === "cancelled")
+        throw conflictError("This transfer was cancelled by the current owner.", "transfer_cancelled");
+      if (row.status === "expired" || new Date(row.expires_at) <= new Date())
+        throw goneError(
+          "This transfer request has expired. Ask the current owner to start a new one.",
+          "transfer_expired"
+        );
+      if (row.previous_owner_id === newOwnerId)
+        throw Object.assign(new Error("You cannot accept a transfer to your own account."), {
+          code: "own_transfer",
+          statusCode: 403,
+        });
+
+      const ownerResult = await client.query(
+        `SELECT id, name, email, company_id FROM users WHERE id = $1`,
+        [newOwnerId]
+      );
+      const newOwner = ownerResult.rows[0];
+      if (!newOwner) throw notFoundError("The receiving account could not be found.");
+
+      const batteryResult = await client.query(
+        `SELECT ${batteryKey}, owner_id, owner_organization_id, model_name
+           FROM batteries WHERE ${batteryKey} = $1 FOR UPDATE`,
+        [row.battery_id]
+      );
+      const battery = batteryResult.rows[0];
+      if (!battery) throw notFoundError("Battery not found");
+      if (battery.owner_id !== row.previous_owner_id)
+        throw conflictError(
+          "This battery is no longer owned by the account that started the transfer.",
+          "ownership_conflict"
+        );
+
+      const acceptedAt = new Date();
+
+      const openResult = await client.query(
+        `SELECT id FROM battery_ownership_history
+          WHERE ${batteryKey} = $1 AND released_at IS NULL
+          FOR UPDATE`,
+        [row.battery_id]
+      );
+      const open = openResult.rows[0];
+      if (open) {
+        await client.query(`UPDATE battery_ownership_history SET released_at = $2 WHERE id = $1`, [
+          open.id,
+          acceptedAt,
+        ]);
+      }
+
+      const inserted = await client.query(
+        `INSERT INTO battery_ownership_history
+           (${batteryKey}, owner_id, owner_organization_id, owner_name, owner_email,
+            ownership_type, acquired_at, transfer_reference, notes, source, recorded_by)
+         VALUES ($1,$2,$3,$4,$5,'transfer',$6,$7,$8,'user',$9)
+         RETURNING *`,
+        [
+          row.battery_id,
+          newOwnerId,
+          newOwner.company_id ?? null,
+          newOwner.name,
+          newOwner.email,
+          acceptedAt,
+          `qr-transfer-${row.id}`,
+          `Accepted the one-time QR transfer started by ${row.previous_owner_id}`,
+          newOwnerId,
+        ]
+      );
+
+      await client.query(
+        `UPDATE batteries SET owner_id = $2, owner_organization_id = $3 WHERE ${batteryKey} = $1`,
+        [row.battery_id, newOwnerId, newOwner.company_id ?? null]
+      );
+
+      const updated = await client.query(
+        `UPDATE battery_ownership_transfers
+            SET status = 'accepted', new_owner_id = $2, accepted_by = $2, accepted_at = $3
+          WHERE id = $1
+          RETURNING *`,
+        [row.id, newOwnerId, acceptedAt]
+      );
+
+      const event = await appendLifecycleEvent(
+        {
+          batteryId: row.battery_id,
+          eventCode: "ownership_transferred",
+          source: "user",
+          actor: { id: newOwnerId, name: newOwner.name, role: null },
+          occurredAt: acceptedAt,
+          previousValue: row.previous_owner_id,
+          newValue: newOwner.name || newOwnerId,
+          notes: "Ownership transferred through a one-time QR transfer accepted by the new owner.",
+          metadata: {
+            transferId: String(row.id),
+            previousOwnerId: row.previous_owner_id,
+            newOwnerId,
+            channel: "qr_transfer",
+          },
+        },
+        client
+      );
+
+      await client.query("COMMIT");
+
+      return {
+        transfer: mapTransferRow({
+          ...updated.rows[0],
+          battery_model: row.battery_model,
+          battery_barcode: row.battery_barcode,
+        }),
+        ownership: mapOwnershipRow(inserted.rows[0]),
+        event,
+        previousOwnerId: row.previous_owner_id,
+        battery: { id: row.battery_id, modelName: battery.model_name || row.battery_model },
+      };
     } catch (error) {
       await client.query("ROLLBACK").catch(() => {});
       throw error;
@@ -1656,6 +2003,11 @@ export const createBatteryLifecycleStore = ({ pool, batteryKey = "battery_id" })
     transferOwnership,
     listOwnershipHistory,
     getCurrentOwnership,
+    // one-time QR ownership transfer
+    createOwnershipTransfer,
+    getOwnershipTransferByToken,
+    cancelOwnershipTransfer,
+    acceptOwnershipTransfer,
     // provenance
     assertProvenance,
     assertProvenanceWritable,

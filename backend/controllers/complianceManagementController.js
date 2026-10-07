@@ -34,6 +34,7 @@ import { IMPORT_COLUMNS } from "../utils/complianceRecordValidation.js";
 import { createComplianceManagementService } from "../services/complianceManagementService.js";
 import { resolveBatteryByIdentifier } from "../utils/batteryIdentifier.js";
 import { ownerScopeFor } from "../utils/ownerScope.js";
+import { assertBatteryAccess } from "../utils/batteryAccess.js";
 
 const service = createComplianceManagementService({ store });
 
@@ -370,10 +371,14 @@ export const getComplianceImportTemplate = asyncHandler(async (req, res) => {
 
 // GET /api/batteries/:id/compliance-passport
 export const getBatteryCompliancePassport = asyncHandler(async (req, res) => {
-  const battery = await resolveBatteryByIdentifier(store, req.params.id, ownerScopeFor(req));
+  let battery = await resolveBatteryByIdentifier(store, req.params.id, ownerScopeFor(req));
   if (!battery) {
-    res.status(404);
-    throw new Error("Battery not found");
+    battery = await resolveBatteryByIdentifier(store, req.params.id);
+    if (!battery) {
+      res.status(404);
+      throw new Error("Battery not found");
+    }
+    assertBatteryAccess(req, battery);
   }
   const passport = await service.batteryPassport(battery.id ?? battery.batteryId);
   /* `available: false` lets the UI render an honest "not yet tracked"

@@ -1797,6 +1797,54 @@ CREATE INDEX IF NOT EXISTS idx_users_email_verification_token
   ON users (email_verification_token_hash) WHERE email_verification_token_hash IS NOT NULL;
 
 
+-- ------------------------------------------------------------------
+-- 7.12 QR OWNERSHIP TRANSFERS (owner-to-owner, self service)
+-- ------------------------------------------------------------------
+-- The current owner hands a battery to a second MaxSpace account by
+-- showing a short-lived QR code. The QR carries ONLY a random token;
+-- this table carries the parties, so no user data, battery data or
+-- database id ever travels inside the code and the frontend can never
+-- assert who owns what.
+--
+-- `token_hash` is the SHA-256 of the token (same convention as the
+-- e-mail verification / reset tokens in `users`): a leaked database
+-- dump cannot be replayed as a working QR. Only the hash is stored.
+--
+-- The partial unique index is what makes "one live QR per battery" a
+-- database guarantee instead of an application convention, and it is
+-- also what serialises concurrent accepts: two users racing on the
+-- same token queue on the row lock taken in the accept transaction.
+CREATE TABLE IF NOT EXISTS battery_ownership_transfers (
+  id                 BIGSERIAL PRIMARY KEY,
+  battery_id         TEXT NOT NULL REFERENCES batteries(battery_id) ON DELETE CASCADE,
+  -- RESTRICT, not CASCADE: this row IS the audit record of who gave
+  -- the battery away, and deleting that account must not erase it.
+  previous_owner_id  TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  new_owner_id       TEXT REFERENCES users(id) ON DELETE SET NULL,
+  token_hash         TEXT NOT NULL UNIQUE,
+  status             TEXT NOT NULL DEFAULT 'pending',
+  expires_at         TIMESTAMPTZ NOT NULL,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  accepted_at        TIMESTAMPTZ,
+  accepted_by        TEXT REFERENCES users(id) ON DELETE SET NULL,
+  cancelled_at       TIMESTAMPTZ,
+  CONSTRAINT battery_ownership_transfers_status_check
+    CHECK (status IN ('pending', 'accepted', 'cancelled', 'expired')),
+  CONSTRAINT battery_ownership_transfers_accepted_after_created
+    CHECK (accepted_at IS NULL OR accepted_at >= created_at)
+);
+
+-- At most one live transfer per battery: creating a second QR first
+-- closes the first one (see store.createOwnershipTransfer).
+CREATE UNIQUE INDEX IF NOT EXISTS uq_battery_ownership_transfers_pending
+  ON battery_ownership_transfers (battery_id) WHERE status = 'pending';
+-- Every validate / accept / cancel request resolves its token by hash.
+CREATE INDEX IF NOT EXISTS idx_battery_ownership_transfers_previous_owner
+  ON battery_ownership_transfers (previous_owner_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_battery_ownership_transfers_battery
+  ON battery_ownership_transfers (battery_id, created_at DESC);
+
+
 -- ==============================================================
 -- 8. SCHEMA VERSION
 -- ==============================================================

@@ -25,6 +25,7 @@ import store from "../data/index.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { normalizeBatteryIdentifier, resolveBatteryByIdentifier } from "../utils/batteryIdentifier.js";
 import { ownerScopeFor } from "../utils/ownerScope.js";
+import { assertBatteryAccess } from "../utils/batteryAccess.js";
 import {
   LIFECYCLE_EVENTS,
   LIFECYCLE_STAGES,
@@ -34,8 +35,11 @@ import {
 } from "../utils/lifecycleLedger.js";
 
 /* Resolve the battery named in the path, applying the caller's owner
-   scope. Throws 404 rather than 403 so a lookup cannot be used to probe
-   for the existence of another owner's battery. */
+   scope. The scope and the shared ownership rules are asked in turn:
+   an anonymous caller is the public passport flow and passes, an
+   operator passes, and anyone else is told 403 + "you no longer own
+   this battery" rather than being left to guess why a battery they
+   held before the transfer went missing. */
 const resolveScopedBattery = async (req) => {
   const identifier = normalizeBatteryIdentifier(req.params.id);
   if (!identifier) {
@@ -49,7 +53,7 @@ const resolveScopedBattery = async (req) => {
 
   const scopeOwnerId = ownerScopeFor(req);
   if (scopeOwnerId && battery.ownerId !== scopeOwnerId) {
-    throw Object.assign(new Error("Battery not found"), { code: "not_found", statusCode: 404 });
+    assertBatteryAccess(req, battery);
   }
 
   return battery;

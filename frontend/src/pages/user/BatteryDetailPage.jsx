@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useBattery } from "../../context/BatteryContext";
 import { DetailRow, InfoBlock } from "../../components/common";
+import OwnershipTransferSection from "../../components/user/battery/OwnershipTransferSection";
 import { fetchBatteryTelemetryLatest } from "../../services";
 
 export default function BatteryDetailPage() {
@@ -285,6 +286,9 @@ export default function BatteryDetailPage() {
           </div>
         </InfoBlock>
       )}
+
+      {/* Owner-only: hands the battery to a second account via a one-time QR. */}
+      <OwnershipTransferSection battery={battery} />
     </div>
   );
 }

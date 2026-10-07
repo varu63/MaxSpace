@@ -26,6 +26,7 @@ import { useBattery } from "../../context/BatteryContext";
 import { DetailRow, InfoBlock, LoadingSpinner } from "../../components/common";
 import BatteryComplianceSection from "../../components/user/battery/BatteryComplianceSection";
 import BatteryLifecycleSection from "../../components/user/battery/BatteryLifecycleSection";
+import OwnershipTransferSection from "../../components/user/battery/OwnershipTransferSection";
 import {
   fetchBatteryPassport,
   fetchBatteryTelemetryLatest,
@@ -427,6 +428,9 @@ export default function BatteryPassportPage() {
         <BatteryLifecycleSection lifecycle={passport.lifecycle} />
 
         <BatteryComplianceSection batteryId={id} />
+
+        {/* Owner-only: hands the battery to a second account via a one-time QR. */}
+        <OwnershipTransferSection battery={battery} />
 
         <InfoBlock title="Lifecycle, Compliance & Carbon Footprint" icon={Leaf} variant="passport">
           <DetailRow icon={Leaf} label="Total Carbon Footprint" value={battery.carbonFootprintKgPerKwh != null ? `${battery.carbonFootprintKgPerKwh} kgCO₂e/kWh` : "—"} variant="passport" />

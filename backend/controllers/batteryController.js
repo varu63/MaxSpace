@@ -10,6 +10,10 @@ import {
   getBatteryPayloadIdentifier,
 } from "../utils/batteryIdentifier.js";
 import { ownerScopeFor } from "../utils/ownerScope.js";
+import {
+  assertBatteryAccess,
+  assertBatteryWriteAccess,
+} from "../utils/batteryAccess.js";
 import { MANUFACTURER_LOCKED_FIELDS } from "../utils/lifecycleLedger.js";
 import {
   recordBatteryRegistration,
@@ -149,6 +153,7 @@ export const getBattery = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error("Battery not found");
   }
+  assertBatteryAccess(req, battery);
 
   const details =
     typeof store.getBatteryRelatedDetails === "function"
@@ -274,6 +279,7 @@ export const getBatteryHealthHistory = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error("Battery not found");
   }
+  assertBatteryAccess(req, battery);
   res.json(battery.healthHistory || []);
 });
 
@@ -489,10 +495,17 @@ export const claimBattery = asyncHandler(async (req, res) => {
 
 // PUT /api/batteries/:id
 export const updateBattery = asyncHandler(async (req, res) => {
-  const existing = await store.getBatteryById(req.params.id, ownerScopeFor(req));
+  let existing = await store.getBatteryById(req.params.id, ownerScopeFor(req));
   if (!existing) {
-    res.status(404);
-    throw new Error("Battery not found");
+    // Scoped out or absent: re-resolve without the scope so an owner
+    // check can tell "not yours" (403) from "not there" (404). Writes
+    // are stricter than reads — an unclaimed battery belongs to nobody.
+    existing = await store.getBatteryById(req.params.id);
+    if (!existing) {
+      res.status(404);
+      throw new Error("Battery not found");
+    }
+    assertBatteryWriteAccess(req, existing);
   }
 
   // Only curated, non-identity fields are accepted; anything else in the body
@@ -565,10 +578,14 @@ export const correctBatteryManufacturerFields = asyncHandler(async (req, res) =>
 
 // DELETE /api/batteries/:id
 export const deleteBattery = asyncHandler(async (req, res) => {
-  const existing = await store.getBatteryById(req.params.id, ownerScopeFor(req));
+  let existing = await store.getBatteryById(req.params.id, ownerScopeFor(req));
   if (!existing) {
-    res.status(404);
-    throw new Error("Battery not found");
+    existing = await store.getBatteryById(req.params.id);
+    if (!existing) {
+      res.status(404);
+      throw new Error("Battery not found");
+    }
+    assertBatteryWriteAccess(req, existing);
   }
 
   const removed = await store.deleteBattery(req.params.id);

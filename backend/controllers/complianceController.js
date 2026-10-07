@@ -14,19 +14,26 @@ import store from "../data/index.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { resolveBatteryByIdentifier } from "../utils/batteryIdentifier.js";
 import { ownerScopeFor } from "../utils/ownerScope.js";
+import { assertBatteryAccess } from "../utils/batteryAccess.js";
 
 const EVENT_WINDOW = { page: 1, limit: 50 };
 
 // GET /api/batteries/:id/compliance
 export const getBatteryCompliance = asyncHandler(async (req, res) => {
-  const battery = await resolveBatteryByIdentifier(
+  let battery = await resolveBatteryByIdentifier(
     store,
     req.params.id,
     ownerScopeFor(req)
   );
   if (!battery) {
-    res.status(404);
-    throw new Error("Battery not found");
+    // The row may exist but sit outside this caller's scope; say 403
+    // rather than 404 when the ownership rules deny it.
+    battery = await resolveBatteryByIdentifier(store, req.params.id);
+    if (!battery) {
+      res.status(404);
+      throw new Error("Battery not found");
+    }
+    assertBatteryAccess(req, battery);
   }
 
   const record = await store.getBatteryCompliance(battery.id);

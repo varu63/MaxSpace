@@ -4,6 +4,7 @@ import telemetryService, {
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { resolveBatteryByIdentifier } from "../utils/batteryIdentifier.js";
 import { ownerScopeFor } from "../utils/ownerScope.js";
+import { assertBatteryAccess } from "../utils/batteryAccess.js";
 
 const maxLimit = 500;
 const defaultLimit = 100;
@@ -24,15 +25,22 @@ const readHistoryWindow = (query = {}) => {
 };
 
 /* Resolve a battery identifier to a record, returning null when not found.
-   Reads observe the same ownership isolation as the rest of the fleet APIs. */
+   Reads observe the same ownership isolation as the rest of the fleet
+   APIs: when the owner scope excludes a battery that does exist, the
+   shared ownership rules decide between a 403 (not yours) and an open
+   read (unclaimed), instead of reporting it as missing. */
 const resolveBattery = async (req) => {
-  const battery = await resolveBatteryByIdentifier(
+  const scoped = await resolveBatteryByIdentifier(
     telemetryService._store(),
     req.params.id,
     ownerScopeFor(req)
   );
-  if (!battery) return null;
-  return battery;
+  if (scoped) return scoped;
+
+  const any = await resolveBatteryByIdentifier(telemetryService._store(), req.params.id);
+  if (!any) return null;
+  assertBatteryAccess(req, any);
+  return any;
 };
 
 // GET /api/batteries/:id/telemetry/latest

@@ -93,6 +93,24 @@ export const fetchBatteryCompliance = (identifier) =>
   client(`/batteries/${encodeURIComponent(identifier)}/compliance`);
 
 /* ============================================================
+   OWNERSHIP TRANSFER (one-time QR)
+   The token is a bearer secret: it exists only in the QR the current
+   owner shows, is never listed, and is spent by the first acceptance.
+   ============================================================ */
+
+export const createOwnershipTransfer = (batteryId) =>
+  client(`/batteries/${encodeURIComponent(batteryId)}/transfers`, { method: "POST" });
+
+export const fetchOwnershipTransfer = (token) =>
+  client(`/batteries/transfers/${encodeURIComponent(token)}`);
+
+export const acceptOwnershipTransfer = (token) =>
+  client(`/batteries/transfers/${encodeURIComponent(token)}/accept`, { method: "POST" });
+
+export const cancelOwnershipTransfer = (token) =>
+  client(`/batteries/transfers/${encodeURIComponent(token)}/cancel`, { method: "POST" });
+
+/* ============================================================
    SERVICES
 ============================================================ */
 

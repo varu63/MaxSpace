@@ -128,6 +128,14 @@ export const withTestDatabase = async (label) => {
   /* Set before the store module is imported: the store reads
      DATABASE_URL once, at import time. */
   process.env.DATABASE_URL = url.toString();
+  /* config/app.js may already have been evaluated before this harness ran
+     (a static import of utils/auth.js is enough to pull it in), which
+     freezes the original DATABASE_URL into config.db.databaseUrl. The data
+     layer reads that field, not the env var, so sync it too — otherwise the
+     store silently connects to dev while the harness operates on the
+     throwaway database. */
+  const { default: config } = await import("../../config/app.js");
+  config.db.databaseUrl = url.toString();
   const { default: store } = await import("../../data/index.js");
 
   const teardown = async () => {

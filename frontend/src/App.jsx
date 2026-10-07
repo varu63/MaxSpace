@@ -27,6 +27,9 @@ const SignInPage = lazy(() => import("./pages/user/SignInPage"));
 const SignUpPage = lazy(() => import("./pages/user/SignUpPage"));
 const ResetPasswordPage = lazy(() => import("./pages/user/ResetPasswordPage"));
 const VerifyEmailPage = lazy(() => import("./pages/user/VerifyEmailPage"));
+const BatteryOwnershipTransferPage = lazy(() =>
+  import("./pages/user/BatteryOwnershipTransferPage")
+);
 const GlobalMapPage = lazy(() => import("./pages/user/GlobalMapPage"));
 
 const AdminLoginPage = lazy(() => import("./pages/admin/AdminLoginPage"));
@@ -248,6 +251,17 @@ const MainLayout = () => {
               element={
                 <ProtectedRoute>
                   <BatteryPassportPage />
+                </ProtectedRoute>
+              }
+            />
+            {/* One-time QR ownership transfer: the scanner routes here with
+                maxspace-transfer:<token>; the server owns every decision
+                about whether that token can still be accepted. */}
+            <Route
+              path="/transfer/:token"
+              element={
+                <ProtectedRoute>
+                  <BatteryOwnershipTransferPage />
                 </ProtectedRoute>
               }
             />

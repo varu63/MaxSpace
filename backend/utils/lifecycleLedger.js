@@ -115,17 +115,21 @@ export const LIFECYCLE_EVENTS = {
    the actor is allowed to make the move at all. */
 
 const STAGE_TRANSITIONS = {
-  Unknown: ["Manufactured", "Commissioned", "InService", "Retired"],
-  Manufactured: ["Commissioned", "InService", "Retired"],
+  // OwnershipTransferred is reachable from every stage except the
+  // material end-of-life terminals: custody can change hands whenever
+  // somebody buys or takes over a pack, whatever state it is in, but
+  // a recycled or EPR-evidenced unit has nothing left to transfer.
+  Unknown: ["Manufactured", "Commissioned", "InService", "Retired", "OwnershipTransferred"],
+  Manufactured: ["Commissioned", "InService", "Retired", "OwnershipTransferred"],
   Commissioned: ["InService", "OwnershipTransferred", "Retired"],
   InService: ["Serviced", "OwnershipTransferred", "Retired", "InService"],
   OwnershipTransferred: ["Serviced", "Retired", "InService"],
-  Serviced: ["Serviced", "InService", "Retired"],
-  Retired: ["Collected", "UnderAssessment", "Recycled"],
-  Collected: ["UnderAssessment", "Recycled", "Refurbished"],
-  UnderAssessment: ["Refurbished", "SecondLife", "Recycled"],
-  Refurbished: ["SecondLife", "Recycled", "InService"],
-  SecondLife: ["Serviced", "Retired", "InService"],
+  Serviced: ["Serviced", "InService", "Retired", "OwnershipTransferred"],
+  Retired: ["Collected", "UnderAssessment", "Recycled", "OwnershipTransferred"],
+  Collected: ["UnderAssessment", "Recycled", "Refurbished", "OwnershipTransferred"],
+  UnderAssessment: ["Refurbished", "SecondLife", "Recycled", "OwnershipTransferred"],
+  Refurbished: ["SecondLife", "Recycled", "InService", "OwnershipTransferred"],
+  SecondLife: ["Serviced", "Retired", "InService", "OwnershipTransferred"],
   Recycled: ["FinalEvidenceRecorded"],
   FinalEvidenceRecorded: [],
 };

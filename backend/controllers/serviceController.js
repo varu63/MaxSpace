@@ -5,6 +5,7 @@ import { parsePagination } from "../utils/pagination.js";
 import { upsertScheduleForService } from "../services/schedulerService.js";
 import { VALID_STATUSES, isActiveStatus, isCancelled } from "../constants/serviceStatuses.js";
 import { ownerScopeFor } from "../utils/ownerScope.js";
+import { assertBatteryAccess, assertBatteryWriteAccess } from "../utils/batteryAccess.js";
 import { resolveServiceLocation } from "../utils/serviceLocation.js";
 import { recordServiceTransition } from "../utils/serviceLifecycle.js";
 
@@ -72,10 +73,14 @@ export const getService = asyncHandler(async (req, res) => {
 
 // GET /api/services/battery/:batteryId/status  (derived per-battery status)
 export const getBatteryServiceStatus = asyncHandler(async (req, res) => {
-  const battery = await store.getBatteryById(req.params.batteryId, ownerScopeFor(req));
+  let battery = await store.getBatteryById(req.params.batteryId, ownerScopeFor(req));
   if (!battery) {
-    res.status(404);
-    throw new Error("Battery not found");
+    battery = await store.getBatteryById(req.params.batteryId);
+    if (!battery) {
+      res.status(404);
+      throw new Error("Battery not found");
+    }
+    assertBatteryAccess(req, battery);
   }
 
   const records = (
@@ -99,11 +104,13 @@ export const createService = asyncHandler(async (req, res) => {
     throw new Error("batteryId is required to create a service");
   }
 
-  const battery = await store.getBatteryById(data.batteryId, ownerScopeFor(req));
+  const battery = await store.getBatteryById(data.batteryId, ownerScopeFor(req))
+    || (await store.getBatteryById(data.batteryId));
   if (!battery) {
     res.status(400);
     throw new Error("Battery not found for the provided batteryId");
   }
+  assertBatteryWriteAccess(req, battery);
 
   const year = new Date().getFullYear();
 

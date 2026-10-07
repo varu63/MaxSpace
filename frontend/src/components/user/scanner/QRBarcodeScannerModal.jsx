@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import jsQR from 'jsqr';
 import { useBattery } from '../../../context/BatteryContext';
+import { extractTransferToken } from '../../../utils/transferQr';
 import { Modal } from '../../common/Modal';
 import { 
   X, 
@@ -193,6 +194,17 @@ export const QRBarcodeScannerModal = () => {
       // Clear any previous scan result so a new QR never shows stale data.
       setRecentScanResult(null);
 
+      // One-time ownership transfer QR (maxspace-transfer:<token>). It is
+      // not a battery identifier, so it must be handled before the
+      // plausibility check below; the transfer screen decides everything
+      // else (expiry, reuse, cancellation) against the server.
+      const transferToken = extractTransferToken(code);
+      if (transferToken) {
+        closeScanner();
+        navigate(`/transfer/${transferToken}`);
+        return;
+      }
+
       if (!isPlausibleBatteryCode(code)) {
         setRecentScanResult({
           status: 'error',
@@ -281,7 +293,7 @@ export const QRBarcodeScannerModal = () => {
         setLookingUp(false);
       }
     },
-    [findBatteryByBarcode, claimBattery, addToast]
+    [findBatteryByBarcode, claimBattery, addToast, closeScanner, navigate]
   );
 
   /* Decode a video frame using jsQR. Runs in a rAF loop while the camera
