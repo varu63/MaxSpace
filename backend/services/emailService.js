@@ -32,6 +32,45 @@ export class EmailDeliveryError extends Error {
 
 const isProduction = config.nodeEnv === "production";
 
+/* ---------- Sender resolution (environment-aware) ----------
+   Resend only accepts senders on domains verified for the account, so
+   exactly one sanctioned sender per environment:
+     * development/local -> onboarding@resend.dev (Resend's built-in
+       development address; needs no domain verification);
+     * production        -> no-reply@maxvoltreearth.com (the project's
+       verified domain).
+   A placeholder such as no-reply@your-domain.com — copied from an
+   example — or any empty/malformed value is treated as "not
+   configured": it is replaced by this environment's sender and the
+   substitution is logged, never sent as-is. If no valid sender can be
+   produced at all, sending stops with an explicit configuration error
+   instead of silently picking an address. */
+const DEV_SENDER = "onboarding@resend.dev";
+const PROD_SENDER = "no-reply@maxvoltreearth.com";
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const isUsableSender = (value) =>
+  Boolean(value) &&
+  EMAIL_PATTERN.test(value) &&
+  !/your-domain\.com$/i.test(value);
+
+/* Resolved once per process (config is static) so the substitution is
+   logged a single time, not on every message. */
+let resolvedSender = null;
+const resolveFromEmail = () => {
+  if (resolvedSender) return resolvedSender;
+  const configured = config.email.fromEmail;
+  if (isUsableSender(configured)) {
+    resolvedSender = configured;
+  } else {
+    resolvedSender = isProduction ? PROD_SENDER : DEV_SENDER;
+    console.warn(
+      `[email] RESEND_FROM_EMAIL is ${configured ? `"${configured}" (missing or invalid)` : "not set"} — using the ${isProduction ? "production" : "development"} sender ${resolvedSender}.`
+    );
+  }
+  return resolvedSender;
+};
+
 let resendClient = null;
 
 const getClient = () => {
@@ -41,11 +80,11 @@ const getClient = () => {
 };
 
 export const isEmailServiceConfigured = () =>
-  Boolean(config.email.resendApiKey && config.email.fromEmail);
+  Boolean(config.email.resendApiKey && isUsableSender(resolveFromEmail()));
 
 const fromHeader = () => {
-  const { fromName, fromEmail } = config.email;
-  if (!fromEmail) return "";
+  const fromEmail = resolveFromEmail();
+  const { fromName } = config.email;
   return fromName ? `${fromName} <${fromEmail}>` : fromEmail;
 };
 
@@ -78,8 +117,18 @@ const logDevLink = (kind, email, link) => {
    the message; otherwise throws EmailDeliveryError. */
 const send = async ({ to, subject, text, html, kind, link }) => {
   const client = getClient();
+  const fromEmail = resolveFromEmail();
 
-  if (!client || !config.email.fromEmail) {
+  if (!isUsableSender(fromEmail)) {
+    // Defensive: both the configured value and the environment defaults
+    // are validated, so reaching this means nothing usable exists.
+    console.error(
+      `[email] Configuration error: no valid sender address. Set RESEND_FROM_EMAIL to a verified address (development: ${DEV_SENDER}, production: ${PROD_SENDER}).`
+    );
+    throw new EmailDeliveryError("Email sender address is not configured.");
+  }
+
+  if (!client) {
     if (isProduction) {
       console.error(
         "[email] Refusing to send: RESEND_API_KEY / RESEND_FROM_EMAIL is not configured."

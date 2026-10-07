@@ -51,7 +51,7 @@ There is no seeded demo account any more — accounts exist in the database only
 | `IOT_DEVICE_KEY`   | — (empty)                | Enables device-key telemetry ingest. **Empty = ingest is ADMIN‑JWT only** |
 | `GOOGLE_CLIENT_ID` | —                        | Google Sign‑In client ID (optional; enables "Continue with Google")    |
 | `RESEND_API_KEY`   | — (empty)                | Resend API key for auth e‑mail. **Backend only — never `VITE_`‑prefixed.** Empty in dev = links are written to `%TEMP%/maxspace-auth-links.log` instead of sent; empty in production = sending is refused |
-| `RESEND_FROM_EMAIL`| — (empty)                | Verified sender address, e.g. `no-reply@your-domain.com`               |
+| `RESEND_FROM_EMAIL`| onboarding@resend.dev (dev) | Sender address. Dev/local defaults to `onboarding@resend.dev` (no domain verification needed); production uses `no-reply@maxvoltreearth.com`. Empty/placeholder values are never sent — the environment's sender is substituted with a logged warning |
 | `RESEND_FROM_NAME` | MaxSpace                 | Display name on outgoing mail                                          |
 | `APP_BASE_URL`     | http://localhost:5000    | Public base URL of **this API**, used to build the e‑mail verification link |
 
@@ -61,8 +61,10 @@ Account verification and password‑reset mail is sent through
 [Resend](https://resend.com) from the backend only. To enable real delivery:
 
 1. Create an API key at <https://resend.com/api-keys> and set `RESEND_API_KEY`.
-2. Verify your sending domain in Resend (add its DNS records) and put the
-   address in `RESEND_FROM_EMAIL`.
+2. Set `RESEND_FROM_EMAIL` for the environment: `onboarding@resend.dev` for
+   development/local (built into Resend, works without DNS setup), or a
+   verified-domain address such as `no-reply@maxvoltreearth.com` for
+   production.
 3. Set `APP_BASE_URL` to the public URL of this API (not the React app); the
    verification link points at `GET /api/auth/verify-email?token=…`.
 
