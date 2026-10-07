@@ -89,6 +89,16 @@ const ServiceSection = ({ icon: Icon, title, children }) => (
   </div>
 );
 
+/* Customer service-location helpers: coordinates are stored on the
+   service only when a suggestion/GPS lookup was used; "View Location"
+   opens them in a free OpenStreetMap page (no paid map API). */
+const hasServiceCoordinates = (service) =>
+  Number.isFinite(Number(service?.latitude)) &&
+  Number.isFinite(Number(service?.longitude));
+
+const openStreetMapUrl = (service) =>
+  `https://www.openstreetmap.org/?mlat=${service.latitude}&mlon=${service.longitude}#map=16/${service.latitude}/${service.longitude}`;
+
 /* ============================================================
    Service Progress Timeline (compact, responsive)
    Vertical list derived from the shared SERVICE_STATUS_FLOW with
@@ -779,13 +789,27 @@ const ServiceRequestCard = ({
                 />
               </ServiceSection>
 
-              {/* Service Location */}
+              {/* Service Location — the customer's address where the
+                  technician goes, stored on the service at booking time */}
               <ServiceSection icon={MapPin} title="Service Location">
-                <SectionRow label="Service Location" value={service.center} />
+                <SectionRow label="Customer Address" value={service.address} />
                 <SectionRow
-                  label="Address / City, Country"
-                  value={battery.location || battery.assemblyLocation}
+                  label="City / State"
+                  value={[service.city, service.state].filter(Boolean).join(", ")}
                 />
+                <SectionRow label="PIN Code" value={service.pincode} />
+                <SectionRow label="Service Center" value={service.center} />
+                {hasServiceCoordinates(service) && (
+                  <a
+                    href={openStreetMapUrl(service)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-between gap-2 rounded-xl bg-[#173B5C] px-3.5 py-2.5 text-xs font-bold text-white hover:bg-[#102F4A] transition-colors"
+                  >
+                    <span>View Location</span>
+                    <MapPin className="w-3.5 h-3.5" />
+                  </a>
+                )}
               </ServiceSection>
 
               {/* Technician Information */}

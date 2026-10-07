@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Modal, ModalHeader } from "../../common/Modal";
 import { Battery, CalendarDays, Check, Clock3, MapPin } from "lucide-react";
 import ServiceLocationMap from "../../common/map/ServiceLocationMap";
+import ServiceLocationPicker from "./ServiceLocationPicker";
 import { fetchServiceCenters } from "../../../services/api";
 
 const CENTERS = [
@@ -17,6 +18,7 @@ const BookServiceModal = ({
   battery,
   form,
   onChange,
+  onLocationChange,
   onSubmit,
   onClose,
   getBatteryId,
@@ -66,8 +68,27 @@ const BookServiceModal = ({
             </div>
           </div>
 
+          {/* Required customer service location: where the technician
+              actually goes. Address search runs through the backend's
+              free OpenStreetMap proxy; GPS is optional. */}
           <div className="mb-5">
-            <label className="block text-sm font-semibold mb-2" htmlFor="center">Service Location — Service Center</label>
+            <label className="block text-sm font-semibold mb-2" htmlFor="serviceAddress">
+              Service Location{" "}
+              <span className="text-[#A77A08]">(required)</span>
+            </label>
+            <ServiceLocationPicker
+              id="serviceAddress"
+              value={form.location}
+              onChange={onLocationChange}
+            />
+            <p className="text-[11px] text-[#8A9096] mt-1 flex items-center gap-1">
+              <MapPin className="w-3 h-3 shrink-0" />
+              Type an address or use your current location — suggestions are powered by OpenStreetMap
+            </p>
+          </div>
+
+          <div className="mb-5">
+            <label className="block text-sm font-semibold mb-2" htmlFor="center">Service Center</label>
             <select id="center" name="center" value={form.center || CENTERS[0]} onChange={onChange} className="w-full h-12 px-4 rounded-xl bg-[#FFFDF8] border border-[#E7E1D3] outline-none focus:border-[#173B5C]">
               {CENTERS.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>

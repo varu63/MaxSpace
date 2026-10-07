@@ -35,6 +35,16 @@ import {
   formatDate,
 } from "../../components/admin/adminUtils";
 
+/* Customer service-location helpers: coordinates exist on the service
+   only when the user picked a suggestion or used GPS at booking time.
+   "View Location" opens them in a free OpenStreetMap page. */
+const hasServiceCoordinates = (service) =>
+  Number.isFinite(Number(service?.latitude)) &&
+  Number.isFinite(Number(service?.longitude));
+
+const openStreetMapUrl = (service) =>
+  `https://www.openstreetmap.org/?mlat=${service.latitude}&mlon=${service.longitude}#map=16/${service.latitude}/${service.longitude}`;
+
 const AdminServiceDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -80,6 +90,19 @@ const AdminServiceDetailsPage = () => {
       }
       return { step, state };
     });
+  }, [service]);
+
+  const customerLocation = useMemo(() => {
+    if (!service?.address) return null;
+    return {
+      name: "Customer Service Location",
+      address: service.address,
+      city: service.city || "",
+      state: service.state || "",
+      pincode: service.pincode || "",
+      latitude: service.latitude,
+      longitude: service.longitude,
+    };
   }, [service]);
 
   const handleAccept = async () => {
@@ -341,19 +364,49 @@ const AdminServiceDetailsPage = () => {
         <Card padded={false} className="overflow-hidden">
           <div className="p-6 border-b border-[#EEE9DA]">
             <h2 className="font-bold text-lg text-[#16263A] flex items-center gap-2.5"><MapPin className="w-5 h-5 text-[#B48611]"/>Service Location</h2>
-            <p className="text-xs text-[#747B83] mt-0.5">Same location visible to User & Battery Technician — source: existing service center data</p>
+            <p className="text-xs text-[#747B83] mt-0.5">Customer's service location stored at booking, plus the assigned service center</p>
           </div>
-          <div className="p-6 space-y-3">
-            {service.serviceLocation ? (
+          <div className="p-6 space-y-4">
+            {service.address ? (
               <>
-                <div className="grid sm:grid-cols-2 gap-3 text-sm">
+                <div className="rounded-xl bg-[#F5F1E7] border border-[#E7E1D3] p-4 space-y-1.5">
+                  <p className="text-[10px] font-bold uppercase text-[#8A9096]">Customer Service Location</p>
+                  <p className="text-sm font-semibold text-[#16263A] break-words">{service.address}</p>
+                  <p className="text-xs text-[#747B83]">
+                    {[service.city, service.state, service.pincode].filter(Boolean).join(", ") || "—"}
+                  </p>
+                  {hasServiceCoordinates(service) && (
+                    <a
+                      href={openStreetMapUrl(service)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 mt-1 rounded-xl bg-[#173B5C] px-3 py-2 text-xs font-bold text-white hover:bg-[#102F4A] transition-colors"
+                    >
+                      <MapPin className="w-3.5 h-3.5" /> View Location
+                    </a>
+                  )}
+                </div>
+                {hasServiceCoordinates(service) ? (
+                  <ServiceLocationMap serviceLocation={customerLocation} height={300} />
+                ) : (
+                  <p className="text-xs text-[#8A9096]">No coordinates stored for this booking — address only.</p>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-[#8A9096]">No customer service location on this booking</p>
+            )}
+
+            {service.serviceLocation ? (
+              <div className="rounded-2xl border border-[#E7E1D3] p-4">
+                <p className="text-[10px] font-bold uppercase text-[#8A9096] mb-3">Assigned Service Center</p>
+                <div className="grid sm:grid-cols-2 gap-3 text-sm mb-3">
                   <div className="rounded-xl bg-[#F5F1E7] p-3"><p className="text-[10px] font-bold uppercase text-[#8A9096]">Center</p><p className="font-semibold">{service.serviceLocation.name}</p></div>
                   <div className="rounded-xl bg-[#F5F1E7] p-3"><p className="text-[10px] font-bold uppercase text-[#8A9096]">Address</p><p className="font-semibold">{[service.serviceLocation.address, service.serviceLocation.city, service.serviceLocation.state, service.serviceLocation.pincode].filter(Boolean).join(", ")}</p></div>
                 </div>
-                <ServiceLocationMap serviceLocation={service.serviceLocation} height={360} />
-              </>
+                <ServiceLocationMap serviceLocation={service.serviceLocation} height={280} />
+              </div>
             ) : (
-              <p className="text-sm text-[#8A9096]">No service location available</p>
+              <p className="text-sm text-[#8A9096]">No service center location available</p>
             )}
           </div>
         </Card>

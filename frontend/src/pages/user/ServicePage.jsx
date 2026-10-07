@@ -13,6 +13,7 @@ import ServiceMobileCards from "../../components/user/services/ServiceMobileCard
 import ServiceInfoCards from "../../components/user/services/ServiceInfoCards";
 import BatteryServiceModal from "../../components/user/services/BatteryServiceModal";
 import BookServiceModal from "../../components/user/services/BookServiceModal";
+import { EMPTY_SERVICE_LOCATION } from "../../data/serviceLocation";
 import { fetchBatteriesPaginated } from "../../services/api";
 
 const ServicePage = () => {
@@ -41,6 +42,7 @@ const ServicePage = () => {
     time: "",
     mobileNumber: "",
     notes: "",
+    location: { ...EMPTY_SERVICE_LOCATION },
   });
 
   const bookings = useMemo(() => bookingsFromServices(services), [services]);
@@ -157,6 +159,7 @@ const ServicePage = () => {
       time: "",
       mobileNumber: "",
       notes: "",
+      location: { ...EMPTY_SERVICE_LOCATION },
     });
 
     setShowBookingModal(true);
@@ -167,10 +170,23 @@ const ServicePage = () => {
     setBookingForm((prev) => ({ ...prev, [name]: value }));
   }, []);
 
+  /* The location picker manages its own state and hands back the full
+     structured location (address + optional coordinates/city/state/pin). */
+  const handleBookingLocationChange = useCallback((location) => {
+    setBookingForm((prev) => ({ ...prev, location }));
+  }, []);
+
   const handleBookService = useCallback(
     (e) => {
       e.preventDefault();
       if (!selectedBattery || !bookingForm.date || !bookingForm.time) return;
+
+      // Service Location is required. The field's `required` attribute
+      // already blocks an empty submit; this guard is the safety net for
+      // programmatic calls. GPS being unavailable never matters here —
+      // a manually typed address satisfies it.
+      const serviceAddress = (bookingForm.location?.address || "").trim();
+      if (!serviceAddress) return;
 
       if (isBatteryBooked(selectedBattery)) {
         setShowBookingModal(false);
@@ -185,6 +201,7 @@ const ServicePage = () => {
         scheduledTime: bookingForm.time,
         mobileNumber: bookingForm.mobileNumber,
         notes: bookingForm.notes,
+        location: { ...bookingForm.location, address: serviceAddress },
       });
 
       setShowBookingModal(false);
@@ -278,6 +295,7 @@ const ServicePage = () => {
           battery={selectedBattery}
           form={bookingForm}
           onChange={handleBookingChange}
+          onLocationChange={handleBookingLocationChange}
           onSubmit={handleBookService}
           onClose={() => setShowBookingModal(false)}
           getBatteryId={getBatteryId}

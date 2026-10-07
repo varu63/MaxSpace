@@ -41,8 +41,10 @@ dotenv.config({ path: envPath });
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_FILE = path.resolve(__dirname, "../sql/schema.sql");
 
-/* Kept in step with the `version` written by migrate_legacy_to_v2.sql. */
-const SCHEMA_VERSION = 2;
+/* Kept in step with the `version` written by migrate_legacy_to_v2.sql.
+   v3: services gained the customer service-location columns
+   (address, city, state, pincode, latitude, longitude). */
+const SCHEMA_VERSION = 3;
 
 const readIntegration = async () => {
   try {

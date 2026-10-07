@@ -7,6 +7,7 @@ import { VALID_STATUSES, isActiveStatus, isCancelled } from "../constants/servic
 import { ownerScopeFor } from "../utils/ownerScope.js";
 import { assertBatteryAccess, assertBatteryWriteAccess } from "../utils/batteryAccess.js";
 import { resolveServiceLocation } from "../utils/serviceLocation.js";
+import { parseBookingLocation } from "../utils/serviceBookingLocation.js";
 import { recordServiceTransition } from "../utils/serviceLifecycle.js";
 
 /* Fields a customer may update on their own service record via PATCH. Identity
@@ -112,6 +113,12 @@ export const createService = asyncHandler(async (req, res) => {
   }
   assertBatteryWriteAccess(req, battery);
 
+  // Customer service location: sanitised + range-validated here, never
+  // trusted raw from the client. Throws 400 on malformed coordinates,
+  // returns all-null when no location was supplied (GPS/geocoding
+  // failure must never block a booking).
+  const location = parseBookingLocation(data);
+
   const year = new Date().getFullYear();
 
   const newService = {
@@ -122,6 +129,12 @@ export const createService = asyncHandler(async (req, res) => {
     batteryName: battery?.modelName || data.batteryName || "Unknown Battery",
     serviceType: data.serviceType || "Battery Inspection",
     center: data.center || "MaxSpace Service Center",
+    address: location.address,
+    city: location.city,
+    state: location.state,
+    pincode: location.pincode,
+    latitude: location.latitude,
+    longitude: location.longitude,
     scheduledDate: data.scheduledDate,
     scheduledTime: data.scheduledTime,
     mobileNumber: data.mobileNumber || "",

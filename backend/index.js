@@ -13,6 +13,7 @@ import profileRoutes from "./routes/profileRoutes.js";
 import analyticsRoutes from "./routes/analyticsRoutes.js";
 import batteryTechnicianRoutes from "./routes/batteryTechnicianRoutes.js";
 import mapRoutes from "./routes/mapRoutes.js";
+import geoRoutes from "./routes/geoRoutes.js";
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
 import { isDatabaseConnected } from "./data/index.js";
 
@@ -75,6 +76,7 @@ app.get("/", async (req, res, next) => {
         analytics: "/api/analytics",
         batteryTechnician: "/api/battery-technician",
         map: "/api/map",
+        geo: "/api/geo",
       },
     });
   } catch (error) {
@@ -102,6 +104,9 @@ app.use("/api/service-man", batteryTechnicianRoutes);
 
 // Global Battery & Compliance Map (role-scoped markers + admin location registry)
 app.use("/api/map", mapRoutes);
+
+// Free OpenStreetMap/Nominatim geocoding proxy (rate-limited, keyless)
+app.use("/api/geo", geoRoutes);
 
 // 404 + error handling
 app.use(notFound);

@@ -568,6 +568,18 @@ CREATE TABLE IF NOT EXISTS services (
   assigned_service_person_id  TEXT REFERENCES service_persons(id) ON DELETE SET NULL,
   service_type                TEXT,
   center                      TEXT,
+  -- Customer's service location: where the technician actually goes.
+  -- Stored as separate columns (same shape as service_centers /
+  -- organization_locations) rather than stuffed into the free-text
+  -- `center`, so address, coordinates, city, state and PIN code can be
+  -- displayed and mapped individually. All nullable: a booking made
+  -- before geocoding (or without GPS) still succeeds with address only.
+  address                     TEXT,
+  city                        TEXT,
+  state                       TEXT,
+  pincode                     TEXT,
+  latitude                    NUMERIC(9,6),
+  longitude                   NUMERIC(9,6),
   scheduled_date              DATE,
   scheduled_time              TIME,
   estimated_arrival           TEXT,
@@ -591,8 +603,34 @@ CREATE TABLE IF NOT EXISTS services (
     'Confirmed', 'Accepted', 'Assigned', 'On The Way', 'In Progress',
     'Waiting for Admin Approval', 'Completed', 'Cancelled')),
   CONSTRAINT services_priority_check CHECK (priority IN ('Low', 'Normal', 'High', 'Urgent')),
-  CONSTRAINT services_cost_check CHECK (cost IS NULL OR cost >= 0)
+  CONSTRAINT services_cost_check CHECK (cost IS NULL OR cost >= 0),
+  CONSTRAINT services_latitude_check  CHECK (latitude  IS NULL OR latitude  BETWEEN  -90 AND  90),
+  CONSTRAINT services_longitude_check CHECK (longitude IS NULL OR longitude BETWEEN -180 AND 180)
 );
+-- CREATE TABLE IF NOT EXISTS never alters an existing table, so an
+-- already-deployed database gets the location columns here instead.
+ALTER TABLE services ADD COLUMN IF NOT EXISTS address  TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS city     TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS state    TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS pincode  TEXT;
+ALTER TABLE services ADD COLUMN IF NOT EXISTS latitude  NUMERIC(9,6);
+ALTER TABLE services ADD COLUMN IF NOT EXISTS longitude NUMERIC(9,6);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'services_latitude_check'
+  ) THEN
+    ALTER TABLE services ADD CONSTRAINT services_latitude_check
+      CHECK (latitude IS NULL OR latitude BETWEEN -90 AND 90);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'services_longitude_check'
+  ) THEN
+    ALTER TABLE services ADD CONSTRAINT services_longitude_check
+      CHECK (longitude IS NULL OR longitude BETWEEN -180 AND 180);
+  END IF;
+END
+$$;
 -- Serves the customer "my services" list.
 CREATE INDEX IF NOT EXISTS idx_services_customer ON services (customer_id);
 -- Serves the battery service timeline.

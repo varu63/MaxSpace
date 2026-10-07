@@ -306,6 +306,14 @@ const mapServiceRow = (row) =>
         batteryName: row.__battery_name ?? null,
         serviceType: row.service_type,
         center: row.center,
+        // Customer service location (where the technician goes), stored
+        // as separate columns on `services` — see schema.sql.
+        address: row.address ?? null,
+        city: row.city ?? null,
+        state: row.state ?? null,
+        pincode: row.pincode ?? null,
+        latitude: row.latitude === null || row.latitude === undefined ? null : Number(row.latitude),
+        longitude: row.longitude === null || row.longitude === undefined ? null : Number(row.longitude),
         scheduledDate: toDateString(row.scheduled_date),
         scheduledTime: toTimeString(row.scheduled_time),
         mobileNumber: row.mobile_number || "",
@@ -1353,13 +1361,14 @@ recycled_content, warranty, compliance_standards, dismantling_manual, health_his
       const { rows } = await pool.query(
         `INSERT INTO services (
            id, ticket_number, battery_id, service_type, center,
+           address, city, state, pincode, latitude, longitude,
            scheduled_date, scheduled_time, mobile_number, status, priority,
            estimated_arrival, customer_id, assigned_service_person_id,
            admin_approved_at, approved_by, notes,
            cost, cost_currency, cost_note, history, created_at
          ) VALUES (
            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-           $17, $18, $19, $20, $21
+           $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27
          )
          RETURNING *`,
         [
@@ -1368,6 +1377,12 @@ recycled_content, warranty, compliance_standards, dismantling_manual, health_his
           service.batteryId,
           service.serviceType,
           service.center,
+          service.address || null,
+          service.city || null,
+          service.state || null,
+          service.pincode || null,
+          service.latitude ?? null,
+          service.longitude ?? null,
           service.scheduledDate,
           service.scheduledTime,
           service.mobileNumber || "",
@@ -1398,11 +1413,13 @@ recycled_content, warranty, compliance_standards, dismantling_manual, health_his
       const { rows } = await pool.query(
         `UPDATE services SET
            ticket_number = $2, battery_id = $3, service_type = $4,
-           center = $5, scheduled_date = $6, scheduled_time = $7, mobile_number = $8,
-           status = $9, priority = $10, estimated_arrival = $11,
-           customer_id = $12, assigned_service_person_id = $13,
-           admin_approved_at = $14, approved_by = $15, notes = $16,
-           cost = $17, cost_currency = $18, cost_note = $19, history = $20
+           center = $5, address = $6, city = $7, state = $8, pincode = $9,
+           latitude = $10, longitude = $11,
+           scheduled_date = $12, scheduled_time = $13, mobile_number = $14,
+           status = $15, priority = $16, estimated_arrival = $17,
+           customer_id = $18, assigned_service_person_id = $19,
+           admin_approved_at = $20, approved_by = $21, notes = $22,
+           cost = $23, cost_currency = $24, cost_note = $25, history = $26
          WHERE id = $1
          RETURNING *`,
         [
@@ -1411,6 +1428,12 @@ recycled_content, warranty, compliance_standards, dismantling_manual, health_his
           next.batteryId,
           next.serviceType,
           next.center,
+          next.address || null,
+          next.city || null,
+          next.state || null,
+          next.pincode || null,
+          next.latitude ?? null,
+          next.longitude ?? null,
           next.scheduledDate,
           next.scheduledTime,
           next.mobileNumber || "",
@@ -1903,7 +1926,8 @@ recycled_content, warranty, compliance_standards, dismantling_manual, health_his
         where.push(
           `(s.id ILIKE $${i} OR s.ticket_number ILIKE $${i} OR s.battery_id ILIKE $${i} OR
             b_search.name ILIKE $${i} OR s.service_type ILIKE $${i} OR
-            s.center ILIKE $${i} OR s.status ILIKE $${i})`
+            s.center ILIKE $${i} OR s.address ILIKE $${i} OR s.city ILIKE $${i} OR
+            s.pincode ILIKE $${i} OR s.status ILIKE $${i})`
         );
       }
       const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";

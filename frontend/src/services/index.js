@@ -130,3 +130,6 @@ export {
   deleteMapLocation,
   fetchMapLocationHistory,
 } from "./mapApi";
+
+/* Geocoding (free OpenStreetMap/Nominatim via backend proxy) */
+export { searchLocations, reverseLookup } from "./geoApi";

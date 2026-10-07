@@ -30,6 +30,17 @@ const config = {
     // and lives entirely in `public`.
     databaseUrl: process.env.DATABASE_URL || null,
   },
+  /* Free OpenStreetMap geocoding (Nominatim). No API key is required
+     and none is ever configured: the backend proxies every request so
+     the upstream is never called from the browser, and NOMINATIM_BASE_URL
+     lets a self-hosted instance replace the public one. */
+  geo: {
+    baseUrl: (process.env.NOMINATIM_BASE_URL || "https://nominatim.openstreetmap.org").replace(/\/+$/, ""),
+    // Nominatim's usage policy requires a descriptive User-Agent with a
+    // contact URL/e-mail; override in .env for real deployments.
+    userAgent: (process.env.NOMINATIM_USER_AGENT || "MaxSpace/1.0 (booking location search)").trim(),
+    timeoutMs: Number(process.env.NOMINATIM_TIMEOUT_MS) || 6000,
+  },
   iot: {
     // Optional shared secret for future IoT/BMS device ingest. When set, a
     // device may push telemetry by sending `X-IoT-Device-Key: <secret>` on
