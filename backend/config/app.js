@@ -14,6 +14,14 @@ const config = {
   })(),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",
   clientUrl: process.env.FRONTEND_URL || process.env.CLIENT_URL || "http://localhost:5173",
+  /* E-mail verification gate. When disabled (the default) an account is
+     usable immediately after sign-up and no verification e-mail is sent.
+     The verification code paths are kept intact — set
+     EMAIL_VERIFICATION_ENABLED=true to restore the requirement. */
+  auth: {
+    emailVerificationEnabled:
+      String(process.env.EMAIL_VERIFICATION_ENABLED || "false").toLowerCase() === "true",
+  },
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID || "",
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",

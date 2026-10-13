@@ -2,6 +2,9 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 
 import config from "./config/app.js";
 import authRoutes from "./routes/authRoutes.js";
@@ -19,8 +22,16 @@ import { isDatabaseConnected } from "./data/index.js";
 
 const app = express();
 
-// Security headers
-app.use(helmet());
+// Security headers. CSP is disabled because this service can also serve the
+// built SPA, which loads Google Identity Services and OpenStreetMap tiles.
+// COOP allows popups so Google Sign-In's popup/One Tap flow can postMessage
+// back to the opener window.
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+  })
+);
 
 // CORS — restrict to the configured frontend origin(s) so the API is not
 // callable cross-site with credentials. FRONTEND_URL/CLIENT_URL may hold a
@@ -107,6 +118,22 @@ app.use("/api/map", mapRoutes);
 
 // Free OpenStreetMap/Nominatim geocoding proxy (rate-limited, keyless)
 app.use("/api/geo", geoRoutes);
+
+// Serve the built frontend (single-service deploy). The Vite build lives in
+// frontend/dist; when it is absent (API-only dev) this block is skipped.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const frontendDist = path.resolve(__dirname, "../frontend/dist");
+
+if (fs.existsSync(frontendDist)) {
+  app.use(express.static(frontendDist));
+
+  // SPA fallback: any non-API GET returns index.html so client-side routes
+  // (React Router) resolve on a hard refresh. /api is left untouched.
+  app.use((req, res, next) => {
+    if (req.method !== "GET" || req.path.startsWith("/api")) return next();
+    res.sendFile(path.join(frontendDist, "index.html"));
+  });
+}
 
 // 404 + error handling
 app.use(notFound);

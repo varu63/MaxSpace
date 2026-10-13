@@ -87,15 +87,26 @@ const SignUpPage = () => {
     setSubmitting(true);
 
     try {
-      // Register with the backend. The account is created UNVERIFIED and
-      // no session is issued: the verification e-mail has to be clicked
-      // before sign-in is allowed.
+      // Register with the backend. When e-mail verification is enabled the
+      // account is created UNVERIFIED with no session, so the verification
+      // e-mail has to be clicked before sign-in. When it is disabled the
+      // backend signs the user in directly and returns a token.
       const data = await signUp({
         name: form.name.trim(),
         email: form.email.trim(),
         password: form.password,
         confirmPassword: form.confirmPassword,
       });
+
+      if (data?.token) {
+        addToast(
+          "Account created",
+          "Welcome to MaxSpace!",
+          "success",
+        );
+        navigate("/home");
+        return;
+      }
 
       const emailSent = data?.emailSent !== false;
       addToast(

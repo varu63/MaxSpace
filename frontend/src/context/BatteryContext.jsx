@@ -65,11 +65,19 @@ export const BatteryProvider = ({ children }) => {
   }, []);
 
   const signUp = useCallback(async (credentials = {}) => {
-    // Sign-up does NOT sign the user in: the backend creates the account
-    // unverified and returns { requiresVerification, emailSent, message }.
-    // The caller routes to the verification screen instead of storing a
-    // token that would not work yet.
-    return api.signUp(credentials);
+    // Sign-up does NOT sign the user in while e-mail verification is
+    // enabled: the backend creates the account unverified and returns
+    // { requiresVerification, emailSent, message }, so the caller routes
+    // to the verification screen instead of storing a token that would
+    // not work yet. When verification is disabled the backend returns a
+    // token and we store it so the app is authenticated right away.
+    const data = await api.signUp(credentials);
+    if (data?.token) {
+      api.setToken(data.token);
+      setUserProfile(data.user || {});
+      setIsAuthenticated(true);
+    }
+    return data;
   }, []);
 
   const signInWithGoogle = useCallback(async (credential) => {

@@ -95,7 +95,9 @@ export const signIn = asyncHandler(async (req, res) => {
   // to learn which addresses are registered. Only the local sign-up flow
   // creates unverified accounts; every pre-existing, admin-created and
   // Google-linked account has emailVerified=true and is unaffected.
-  if (user.emailVerified === false) {
+  // The gate is disabled while config.auth.emailVerificationEnabled is
+  // false (the current default), so unverified accounts can sign in.
+  if (config.auth.emailVerificationEnabled && user.emailVerified === false) {
     throw httpError(
       403,
       "Your email address has not been verified. Please check your inbox for the verification link, or resend it.",
@@ -235,11 +237,26 @@ export const signUp = asyncHandler(async (req, res) => {
     email,
     password: hashedPassword,
     role: "USER",
-    emailVerified: false,
+    // When verification is disabled the account is immediately usable.
+    emailVerified: config.auth.emailVerificationEnabled ? false : true,
     createdAt: todayISO(),
   });
 
   await createDefaultProfile(newUser.id, { name, email });
+
+  // Verification disabled: no e-mail is sent and no gate applies, so the
+  // user is signed in straight away. The verification flow below is kept
+  // intact for when EMAIL_VERIFICATION_ENABLED is turned back on.
+  if (!config.auth.emailVerificationEnabled) {
+    const authToken = signToken(newUser.id, newUser.role);
+    return res.status(201).json({
+      success: true,
+      requiresVerification: false,
+      token: authToken,
+      message: "Account created successfully.",
+      user: sanitizeUser(newUser),
+    });
+  }
 
   const token = newToken();
   await store.setEmailVerificationToken(
