@@ -176,6 +176,69 @@ export const withOptionalTestDatabase = async (label) => {
   }
 };
 
+/* Create a throwaway database with NO schema applied yet.
+
+   Unlike withTestDatabase, nothing is applied here. This exists so a suite
+   can prove that the STORE provisions the schema itself at startup — the
+   fix for the production 500s, where a brand-new managed database had no
+   `users` table. The caller gets the empty database URL and is responsible
+   for dropping it via `drop()`. */
+export const withEmptyDatabase = async (label) => {
+  loadEnv();
+  const { default: pg } = await readIntegration();
+
+  const adminUrl = process.env.DATABASE_URL;
+  const url = new URL(adminUrl);
+  const name = dbNameFor(label);
+  url.pathname = `/${name}`;
+
+  const admin = new pg.Pool({ connectionString: adminUrl, max: 1 });
+  try {
+    await admin.query(`CREATE DATABASE ${name}`);
+  } catch (error) {
+    await admin.end().catch(() => {});
+    throw new Error(`[test-db] could not create ${name}: ${error.message}`);
+  }
+  await admin.end().catch(() => {});
+  console.error(`[test-db] created EMPTY ${name} (no schema applied)`);
+
+  const drop = async () => {
+    const cleaner = new pg.Pool({ connectionString: adminUrl, max: 1 });
+    try {
+      await cleaner.query(
+        `SELECT pg_terminate_backend(pid) FROM pg_stat_activity
+          WHERE datname = $1 AND pid <> pg_backend_pid()`,
+        [name]
+      );
+      await cleaner.query(`DROP DATABASE IF EXISTS ${name}`);
+      console.error(`[test-db] dropped ${name}`);
+    } catch (error) {
+      console.error(`[test-db] WARNING: could not drop ${name}: ${error.message}`);
+    } finally {
+      await cleaner.end().catch(() => {});
+    }
+  };
+
+  return { dbName: name, databaseUrl: url.toString(), drop };
+};
+
+/* Optional variant: returns null (so the caller can skip) when no database
+   is reachable, but re-throws anything that looks like a real defect. */
+export const withOptionalEmptyDatabase = async (label) => {
+  try {
+    return await withEmptyDatabase(label);
+  } catch (error) {
+    const unavailable =
+      /DATABASE_URL is not set/.test(error.message) ||
+      /could not create /.test(error.message);
+    if (!unavailable) throw error;
+    console.error(
+      `[test-db] skipping empty-database suite for ${path.basename(label)}: ${error.message}`
+    );
+    return null;
+  }
+};
+
 /* Convenience for tests that need raw SQL against the same throwaway
    database the store is using. */
 export const testPool = async () => {
