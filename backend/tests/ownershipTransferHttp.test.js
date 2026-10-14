@@ -39,7 +39,15 @@ const startServer = async () => {
   const port = await freePort();
   const child = spawn(process.execPath, ["index.js"], {
     cwd: backendRoot,
-    env: { ...process.env, PORT: String(port), NODE_ENV: "test" },
+    env: {
+      ...process.env,
+      PORT: String(port),
+      NODE_ENV: "test",
+      // assertStartupEnv() requires GOOGLE_CLIENT_ID before the server will
+      // listen. The parent suite signs JWTs with config.jwtSecret (already in
+      // process.env/.env); this value is never used to verify a real token.
+      GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "test-google-client-id",
+    },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let output = "";
