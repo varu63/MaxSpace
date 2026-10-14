@@ -9,7 +9,7 @@
    describing the coordinates as "temporary development/test"
    placeholders and the names as "example organisations from the map
    specification". It is now read from the organization_locations
-   table (see backend/sql/schema.sql), joined to service_centers so
+   table (see backend/data/postgres/schema.sql), joined to service_centers so
    organizations hosted at a service center share its coordinates.
    Nothing is hardcoded in any React component; the frontend renders
    whatever this API returns.

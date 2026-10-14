@@ -1,7 +1,7 @@
 /* ============================================================
    SERVICE VALIDATION HELPERS
    Mirrors the CHECK constraints applied in the database
-   (see backend/sql/schema.sql + backend/sql/migrations/001_*).
+   (see backend/data/postgres/schema.sql + backend/sql/migrations/001_*).
    Both stores enforce these invariants so mock mode behaves
    identically to postgres mode.
 ============================================================ */

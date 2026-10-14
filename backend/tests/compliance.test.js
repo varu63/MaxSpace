@@ -6,7 +6,7 @@
      1. The validation layer (complianceValidation.js) is pure and needs no
         database, so it runs everywhere.
      2. The persistence layer is exercised against a throwaway PostgreSQL
-        database built from sql/schema.sql. These assertions are stronger than
+        database built from data/postgres/schema.sql. These assertions are stronger than
         the old in-memory ones: uniqueness and one-per-battery are now proved
         by real database constraints rather than by JavaScript checks that a
         second code path could bypass. */

@@ -47,6 +47,33 @@ const newToken = () => crypto.randomBytes(32).toString("hex");
 const httpError = (status, message, code) =>
   Object.assign(new Error(message), { statusCode: status, code, userFacing: true });
 
+/* Map a raw driver error onto a safe HTTP error.
+   Postgres 23505 = unique_violation (a concurrent duplicate e-mail insert,
+   e.g. two sign-ups racing past the pre-check) → 409 Conflict, not a 500. */
+const mapDbError = (error) => {
+  if (error?.code === "23505") {
+    return httpError(409, "An account with this email already exists", "EMAIL_EXISTS");
+  }
+  return error;
+};
+
+/* Log a genuine server fault (5xx) server-side with its message, driver
+   code and stack, then hand the SAME error back for the shared error
+   middleware to render. Expected 4xx errors are not logged here as server
+   faults. Mirrors errorMiddleware's status resolution because these
+   handlers set 4xx status via `res.status(n)` before throwing (so the error
+   itself carries no statusCode). Deliberately logs nothing else: no request
+   body, no password, no token, and no connection string ever reaches the log. */
+const logServerFault = (scope, error, res) => {
+  const status =
+    error?.statusCode || (res && res.statusCode !== 200 ? res.statusCode : 500);
+  if (status < 500) return error;
+  console.error(`[auth] ${scope} failed: ${error?.message || error}`);
+  if (error?.code) console.error(`[auth] ${scope} pg code: ${error.code}`);
+  if (error?.stack) console.error(error.stack);
+  return error;
+};
+
 /* Frontend origin for post-verification redirects. clientUrl may hold a
    comma-separated list (CORS allows several); the first one is the app. */
 const frontendOrigin = () => String(config.clientUrl || "").split(",")[0].trim();
@@ -119,6 +146,16 @@ export const signIn = asyncHandler(async (req, res) => {
 // with the same verified email is linked to Google (never duplicated) so
 // their profile, batteries, service records, and role are preserved.
 export const googleSignIn = asyncHandler(async (req, res) => {
+  try {
+    await performGoogleSignIn(req, res);
+  } catch (error) {
+    // A duplicate e-mail surfaced by the DB (23505) becomes a 409; anything
+    // else 5xx is logged once here with its driver code and stack.
+    throw logServerFault("googleSignIn", mapDbError(error), res);
+  }
+});
+
+const performGoogleSignIn = async (req, res) => {
   const { credential } = req.body || {};
 
   if (!credential) {
@@ -196,12 +233,20 @@ export const googleSignIn = asyncHandler(async (req, res) => {
     user: sanitizeUser(user),
     isNewUser,
   });
-});
+};
 
 // POST /api/auth/signup
 // Creates the account in an UNVERIFIED state and e-mails a one-time link.
 // No JWT is issued here: the address has to be confirmed before sign-in.
 export const signUp = asyncHandler(async (req, res) => {
+  try {
+    await performSignUp(req, res);
+  } catch (error) {
+    throw logServerFault("signUp", mapDbError(error), res);
+  }
+});
+
+const performSignUp = async (req, res) => {
   const { name, email, password, confirmPassword } = req.body;
 
   if (!name || !email || !password) {
@@ -287,7 +332,7 @@ export const signUp = asyncHandler(async (req, res) => {
       : "Account created, but the verification email could not be sent. Please resend it from the verification page.",
     user: sanitizeUser(newUser),
   });
-});
+};
 
 // POST /api/auth/forgot-password
 export const forgotPassword = asyncHandler(async (req, res) => {

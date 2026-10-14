@@ -6,7 +6,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 
-import config from "./config/app.js";
+import config, { assertStartupEnv } from "./config/app.js";
 import authRoutes from "./routes/authRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import batteryRoutes from "./routes/batteryRoutes.js";
@@ -18,7 +18,13 @@ import batteryTechnicianRoutes from "./routes/batteryTechnicianRoutes.js";
 import mapRoutes from "./routes/mapRoutes.js";
 import geoRoutes from "./routes/geoRoutes.js";
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
-import { isDatabaseConnected } from "./data/index.js";
+import store, { isDatabaseConnected } from "./data/index.js";
+
+/* Fail fast, with one clear message, before the HTTP server is built:
+   DATABASE_URL, JWT_SECRET and GOOGLE_CLIENT_ID must all be set. (The data
+   layer additionally refuses to start if the database is unreachable, and
+   applies the schema once the ping succeeds.) */
+assertStartupEnv();
 
 const app = express();
 
@@ -68,7 +74,7 @@ const authLimiter = rateLimit({
   message: { message: "Too many requests from this IP, please try again later." },
 });
 
-// Health check
+// Health check — liveness of the API itself, plus DB reachability.
 app.get("/", async (req, res, next) => {
   try {
     const databaseConnected = await isDatabaseConnected();
@@ -88,10 +94,25 @@ app.get("/", async (req, res, next) => {
         batteryTechnician: "/api/battery-technician",
         map: "/api/map",
         geo: "/api/geo",
+        health: "/api/health",
       },
     });
   } catch (error) {
     next(error);
+  }
+});
+
+// GET /api/health — runs SELECT 1 against PostgreSQL. Returns { ok: true }
+// when the database answers, 503 otherwise. This is the endpoint to point
+// Render's health check / uptime monitor at.
+app.get("/api/health", async (req, res) => {
+  try {
+    await store.healthCheck();
+    res.json({ ok: true });
+  } catch (error) {
+    // Log the real cause server-side; return a safe body to the caller.
+    console.error(`[health] database check failed: ${error.message}${error.code ? ` (code ${error.code})` : ""}`);
+    res.status(503).json({ ok: false });
   }
 });
 

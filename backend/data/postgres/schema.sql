@@ -5,7 +5,13 @@
    This is the single source of truth for the MaxSpace data model.
    A fresh installation is created by running this ONE file:
 
-       psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f backend/sql/schema.sql
+       psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f backend/data/postgres/schema.sql
+
+   The backend ALSO applies this file automatically at startup (after the
+   database ping succeeds and before the HTTP server listens), so a fresh
+   or empty database — e.g. a new Supabase project — is provisioned
+   without any manual step. See backend/data/index.js (loadPostgresStore)
+   and backend/data/postgres/index.js (applySchema).
 
    The historical incremental migrations under
    backend/sql/migrations/ have been folded into this file and
@@ -38,6 +44,9 @@
 BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
+-- pgcrypto provides gen_random_uuid() and digest() for future columns /
+-- migrations that want database-side UUIDs or hashes. Idempotent.
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- ------------------------------------------------------------------
 -- Enumerated domains
@@ -120,8 +129,22 @@ CREATE TABLE IF NOT EXISTS users (
   CONSTRAINT users_role_check
     CHECK (role IS NULL OR role IN ('USER', 'ADMIN', 'EMPLOYEE')),
   CONSTRAINT users_auth_provider_check
-    CHECK (auth_provider IS NULL OR auth_provider IN ('local', 'google'))
+    CHECK (auth_provider IS NULL OR auth_provider IN ('local', 'google')),
+  -- A unique constraint on the raw e-mail column (NULLs never collide) in
+  -- addition to the case-insensitive unique index below. This is what the
+  -- sign-up handler relies on: a concurrent duplicate INSERT raises
+  -- Postgres error 23505, which the controller maps to HTTP 409.
+  CONSTRAINT users_email_key UNIQUE (email)
 );
+-- For databases created before the constraint existed, add it here.
+-- CREATE TABLE IF NOT EXISTS never alters an existing table, so a re-run
+-- on a live database would otherwise skip it.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_email_key') THEN
+    ALTER TABLE users ADD CONSTRAINT users_email_key UNIQUE (email);
+  END IF;
+END $$;
 -- Supports: sign-in by e-mail (LOWER(email) = …) and by username.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (LOWER(email)) WHERE email IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS ix_users_username ON users (username) WHERE username IS NOT NULL;

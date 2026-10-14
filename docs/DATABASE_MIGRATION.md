@@ -70,7 +70,7 @@ Additional env (`backend/.env`):
    ```
 3. The `pg` driver is already a backend dependency — no install needed.
 4. **`maxvolt_prod` is legacy and adapted in place — NEVER apply
-   `backend/sql/schema.sql` to it.** Instead run the idempotent migrations
+   `backend/data/postgres/schema.sql` to it.** Instead run the idempotent migrations
    (safe to re-run):
    ```bash
    cd backend
@@ -225,7 +225,7 @@ The single source of truth for shape:
 
 `seedData.js` explicitly mirrors `dummyData.js` so the app behaves identically
 whether data comes from the API or from local state. Keep both in sync whenever
-an entity's shape changes. The PostgreSQL schema (`backend/sql/schema.sql`) is
+an entity's shape changes. The PostgreSQL schema (`backend/data/postgres/schema.sql`) is
 generated from the same fields, so the three layers stay consistent.
 
 Service status values are shared as constants on both sides

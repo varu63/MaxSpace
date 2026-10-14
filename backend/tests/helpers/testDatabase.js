@@ -30,7 +30,7 @@ const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const backendRoot = path.resolve(__dirname, "../../");
-const SCHEMA_FILE = path.join(backendRoot, "sql/schema.sql");
+const SCHEMA_FILE = path.join(backendRoot, "data/postgres/schema.sql");
 
 /* Reuse the configured admin connection (host/port/user/password) but
    always target a fresh database. */
@@ -159,7 +159,7 @@ export const withTestDatabase = async (label) => {
    a code defect.
 
    A schema that *does* apply badly is a real bug and is re-thrown, never
-   swallowed: that means sql/schema.sql disagrees with the code under test. */
+    swallowed: that means data/postgres/schema.sql disagrees with the code under test. */
 export const withOptionalTestDatabase = async (label) => {
   if (!process.env.DATABASE_URL) loadEnv();
   try {

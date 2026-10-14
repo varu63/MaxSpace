@@ -60,6 +60,9 @@ jobs:
       DATABASE_URL: postgresql://maxspace_user:maxspace_password@localhost:5432/maxspace_db
       DATA_SOURCE: postgres
       JWT_SECRET: ci-only-secret-for-audit-suite
+      # Required at startup (assertStartupEnv); a placeholder is fine here
+      # because the audit suite never performs a real Google verification.
+      GOOGLE_CLIENT_ID: ci-only-google-client-id
       # The audit suite is destructive (TRUNCATE + seed); the ephemeral
       # postgres service container above is disposable, so allow the reset.
       ALLOW_DB_RESET: "true"
@@ -75,14 +78,15 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
 
-      # Full DDL (schema.sql) then idempotent migrations (001/002).
+      # Single authoritative schema (backend/data/postgres/schema.sql), then
+      # the idempotent migrate runner re-applies it and records the version.
       - name: Apply schema
         run: |
           docker run --rm --network host \
-            -v "${{ github.workspace }}/backend/sql:/sql:ro" \
+            -v "${{ github.workspace }}/backend/data/postgres:/schema:ro" \
             -e PGPASSWORD=maxspace_password \
             postgres:17 \
-            psql -h localhost -U maxspace_user -d maxspace_db -f /sql/schema.sql
+            psql -h localhost -U maxspace_user -d maxspace_db -f /schema/schema.sql
       - name: Apply migrations
         run: npm run db:migrate
 

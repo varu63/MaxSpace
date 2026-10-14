@@ -263,6 +263,6 @@ Quick workflow when adding a screen:
 | Symptom | Cause |
 | ------- | ----- |
 | "Cannot reach the server" on every request | Backend is not running, or `VITE_API_URL` points elsewhere |
-| The passport page errors out with a 500 | The backend database has not had `sql/schema.sql` applied — the passport reads lifecycle tables. Run `npm run db:migrate` in `backend/` |
+| The passport page errors out with a 500 | The backend database has not had `data/postgres/schema.sql` applied — the passport reads lifecycle tables. Run `npm run db:migrate` in `backend/` (or restart the API, which auto-applies it to an empty database) |
 | A panel bounces you to its login page | Token missing or expired; the client clears it on 401 and you must sign in again |
 | The lifecycle section shows only a stage and counts | You are looking at a public/anonymous passport view — that is the reduced payload working as designed, not a bug |

@@ -31,7 +31,7 @@ import crypto from "node:crypto";
 export const GENESIS_HASH = "0".repeat(64);
 
 /* ---------- stage vocabulary ----------
-   Kept in sync with `batteries_lifecycle_stage_check` in sql/schema.sql;
+   Kept in sync with `batteries_lifecycle_stage_check` in data/postgres/schema.sql;
    the service layer validates against this list so an unknown stage is
    rejected before it can reach the CHECK constraint. */
 

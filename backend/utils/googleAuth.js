@@ -31,10 +31,17 @@ export const verifyGoogleIdToken = async (credential) => {
 
   const client = getVerifier();
   if (!client) {
+    // Fail loudly server-side: this means GOOGLE_CLIENT_ID was not provided
+    // in the deployment environment (assertStartupEnv normally prevents the
+    // server from starting at all in that case).
+    console.error(
+      "[googleAuth] GOOGLE_CLIENT_ID is not set — Google sign-in is unavailable. Set it in the deployment environment."
+    );
     const error = new Error(
       "Google sign-in is not configured on this server. Please contact support."
     );
     error.statusCode = 503;
+    error.userFacing = true;
     throw error;
   }
 

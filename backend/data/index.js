@@ -68,6 +68,22 @@ const loadPostgresStore = async () => {
       databaseUrl: config.db.databaseUrl,
     });
     await pingWithTimeout(store);
+
+    /* Provision the schema before this module resolves. The server cannot
+       start listening until the store is ready, so an empty database (the
+       production failure: no `users` table) is created here and the auth
+       handlers never run against missing tables. */
+    try {
+      const result = await store.applySchema();
+      if (result?.applied) {
+        console.log(`[data] Schema applied (${result.reason}) from backend/data/postgres/schema.sql.`);
+      } else {
+        console.log(`[data] Schema check: ${result?.reason || "already applied"} — skipping.`);
+      }
+    } catch (schemaError) {
+      console.error(`[data] Schema application failed: ${schemaError.message}`);
+      throw schemaError;
+    }
   } catch (error) {
     /* `error.message` alone is not enough: a refused dual-stack connect is
        an AggregateError with an empty message, which is what produced the

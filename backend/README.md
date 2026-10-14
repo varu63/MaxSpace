@@ -107,13 +107,13 @@ backend/
 │   ├── index.js             # Loads the PostgreSQL store; refuses to start if it is down
 │   ├── dbDiagnostics.js     # Connection diagnostics for /api/health
 │   ├── postgres/index.js    # PostgreSQL repository (users, batteries, services, compliance…)
+│   ├── postgres/schema.sql  # THE authoritative schema (re-runnable; auto-applied at boot)
 │   ├── postgres/lifecycle.js# Passport lifecycle: ledger, ownership, provenance, EOL
 │   └── compliance/postgres.js # Compliance management (producers, obligations, credits)
 ├── scripts/
-│   ├── migrate.js           # Applies sql/schema.sql — `up | --status | --check`
+│   ├── migrate.js           # Applies data/postgres/schema.sql — `up | --status | --check`
 │   ├── backfillPassport.js  # One-time legacy passport/provenance classification
 │   └── audit.js             # Security/consistency audit (disposable DB only!)
-├── sql/schema.sql           # THE authoritative schema (re-runnable, additive)
 ├── services/                # Domain logic (telemetry validation, scheduling, …)
 ├── utils/
 │   ├── lifecycleLedger.js   # Lifecycle stages/events/transitions, hashing, provenance rules
@@ -777,9 +777,11 @@ stays truthful even though the current location row is updated in place.
 
 ## 7. Database
 
-`sql/schema.sql` is the **single authoritative schema**. It is re-runnable and
-additive — there is no separate `migrations/` folder and no ordered upgrade
-scripts to keep in sync. Apply it with:
+`backend/data/postgres/schema.sql` is the **single authoritative schema**. It is
+re-runnable and additive — there is no separate `migrations/` folder and no
+ordered upgrade scripts to keep in sync. The backend also applies it
+automatically at startup when the database is empty (before the HTTP server
+listens), so a fresh database needs no manual step. Apply/refresh it with:
 
 ```bash
 npm run db:migrate -- --status   # what the database looks like now

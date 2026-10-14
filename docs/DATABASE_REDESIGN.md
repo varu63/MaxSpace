@@ -150,7 +150,7 @@ Target: 67 → ~55 indexes, and the ones that remain are actually used.
 ### 3.7 Migration mechanism
 
 The 9 sequential `migrations/00N_*.sql` files are replaced by **one authoritative
-`backend/sql/schema.sql`** describing the final architecture, plus a single
+`backend/data/postgres/schema.sql`** describing the final architecture, plus a single
 `schema_migrations` row recording the schema version. A fresh install runs one file, not
 nine. This removes P22 and makes the database reproducible.
 

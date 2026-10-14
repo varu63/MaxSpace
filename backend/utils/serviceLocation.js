@@ -8,7 +8,7 @@
    deterministic hash fallback: any unrecognised center string was
    hashed into one of those six points, so a service could silently be
    given coordinates it does not have. Coordinates now live in the
-   database (see backend/sql/schema.sql) and an unmatched center
+   database (see backend/data/postgres/schema.sql) and an unmatched center
    resolves to null — callers decide what an unlocated service means.
    ============================================================ */
 import store from "../data/index.js";

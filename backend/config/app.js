@@ -5,13 +5,7 @@ dotenv.config();
 const config = {
   nodeEnv: process.env.NODE_ENV || "development",
   port: Number(process.env.PORT) || 5000,
-  jwtSecret: (() => {
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      throw new Error("JWT_SECRET environment variable is required");
-    }
-    return secret;
-  })(),
+  jwtSecret: process.env.JWT_SECRET || "",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",
   clientUrl: process.env.FRONTEND_URL || process.env.CLIENT_URL || "http://localhost:5173",
   /* E-mail verification gate. When disabled (the default) an account is
@@ -70,4 +64,64 @@ const config = {
   },
 };
 
+/* ------------------------------------------------------------------
+   Startup environment contract.
+
+   REQUIRED: the server refuses to start without these. Call
+   assertStartupEnv() from the process entrypoint (backend/index.js)
+   BEFORE app.listen — it is intentionally NOT run at module load so that
+   unit tests can import config without a full deployment environment.
+   ------------------------------------------------------------------ */
+const REQUIRED_ENV_VARS = ["DATABASE_URL", "JWT_SECRET", "GOOGLE_CLIENT_ID"];
+
+/* Every OTHER variable this codebase reads. All are optional — each has a
+   documented default or degrades gracefully when absent. Listed here so an
+   operator can see the full surface in one place. */
+const OPTIONAL_ENV_VARS = [
+  // runtime
+  "NODE_ENV",
+  "PORT",
+  "JWT_EXPIRES_IN",
+  // front-end / e-mail deep links
+  "FRONTEND_URL",
+  "CLIENT_URL",
+  "APP_BASE_URL",
+  // Google Sign-In (only the client id is required; the rest are reserved)
+  "GOOGLE_CLIENT_SECRET",
+  "GOOGLE_CALLBACK_URL",
+  // transactional e-mail (account verification + password reset)
+  "RESEND_API_KEY",
+  "RESEND_FROM_EMAIL",
+  "RESEND_FROM_NAME",
+  "EMAIL_VERIFICATION_ENABLED",
+  // OpenStreetMap / Nominatim geocoding proxy
+  "NOMINATIM_BASE_URL",
+  "NOMINATIM_USER_AGENT",
+  "NOMINATIM_TIMEOUT_MS",
+  // IoT device ingest (optional shared secret)
+  "IOT_DEVICE_KEY",
+  // PostgreSQL pool tuning
+  "PG_CONNECT_TIMEOUT_MS",
+  "PG_IDLE_TIMEOUT_MS",
+  "PG_POOL_MAX",
+  "APPLY_SCHEMA_ALWAYS",
+];
+
+/* Fail fast with ONE clear message listing every missing required var.
+   Never prints values (no secrets, no connection strings). */
+export const assertStartupEnv = () => {
+  const missing = REQUIRED_ENV_VARS.filter(
+    (name) => !String(process.env[name] || "").trim()
+  );
+  if (missing.length) {
+    throw new Error(
+      `Missing required environment variable(s): ${missing.join(", ")}. ` +
+        `Set them in the deployment environment (e.g. Render → Environment) and redeploy. ` +
+        `Required: ${REQUIRED_ENV_VARS.join(", ")}. ` +
+        `Optional (read when present): ${OPTIONAL_ENV_VARS.join(", ")}.`
+    );
+  }
+};
+
+export { REQUIRED_ENV_VARS, OPTIONAL_ENV_VARS };
 export default config;

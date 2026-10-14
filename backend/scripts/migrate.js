@@ -2,7 +2,7 @@
    DATABASE SCHEMA APPLIER
 
    The v2 design is a single authoritative schema file
-   (backend/sql/schema.sql) rather than an ordered list of
+   (backend/data/postgres/schema.sql) rather than an ordered list of
    incremental migrations. This script applies it and records the
    version in the schema_version table.
 
@@ -39,7 +39,7 @@ const envPath = fs.existsSync(path.resolve(process.cwd(), ".env"))
 dotenv.config({ path: envPath });
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SCHEMA_FILE = path.resolve(__dirname, "../sql/schema.sql");
+const SCHEMA_FILE = path.resolve(__dirname, "../data/postgres/schema.sql");
 
 /* Kept in step with the `version` written by migrate_legacy_to_v2.sql.
    v3: services gained the customer service-location columns

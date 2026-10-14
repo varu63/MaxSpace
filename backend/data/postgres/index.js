@@ -4,12 +4,13 @@
    (backend/data/index.js) and call these methods; there is no
    in-memory alternative and no seed path.
 
-   Schema: backend/sql/schema.sql  (applied via psql / docker).
-   Driver: pg (lazy-loaded by the data-source facade).
+   Schema: backend/data/postgres/schema.sql  (also applied automatically
+   at startup by the data-source facade). Driver: pg (lazy-loaded).
    ============================================================ */
 
 /* ---------- Row mappers (snake_case → camelCase) ---------- */
 
+import fs from "node:fs";
 import bcrypt from "bcryptjs";
 import { assertServiceIntegrity } from "../../utils/serviceValidation.js";
 import { buildPagination } from "../../utils/pagination.js";
@@ -606,7 +607,36 @@ export const createPostgresStore = async ({
      in the mappers below, not by the driver. */
   pg.types.setTypeParser(1700, (value) => (value === null ? null : parseFloat(value)));
 
-  const pool = new pg.Pool({ connectionString: databaseUrl });
+  /* Supabase (and most managed Postgres) require TLS. Enable it for every
+     non-local host so the same code works against a local Docker Postgres
+     (no TLS) and against Supabase's Session pooler
+     (postgres.<ref>@aws-0-<region>.pooler.supabase.com:5432) or its
+     transaction pooler (:6543). `rejectUnauthorized: false` accepts the
+     managed certificate chain; the connection is still encrypted.
+
+     Port 6543 runs pgbouncer in transaction mode, which does not support
+     NAMED prepared statements or session state. node-postgres only uses
+     unnamed statements for parameterised queries (never `{ name: ... }`),
+     and every schema/DDL statement here is sent as a plain simple query,
+     so the transaction pooler works without further configuration. */
+  const isLocalHost =
+    /(^|[@/])(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|::1)(:|\/|$)/i.test(databaseUrl);
+
+  const pool = new pg.Pool({
+    connectionString: databaseUrl,
+    ssl: isLocalHost ? false : { rejectUnauthorized: false },
+    // Fail a stuck connect instead of hanging the request/server boot.
+    connectionTimeoutMillis: Number(process.env.PG_CONNECT_TIMEOUT_MS) || 15000,
+    idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS) || 30000,
+    // Supabase's pooler caps connections, so keep the client pool modest.
+    max: Number(process.env.PG_POOL_MAX) || 10,
+  });
+
+  // A dropped idle client must never crash the process. Log it (no
+  // connection string, no credentials) and let the pool replace it.
+  pool.on("error", (error) => {
+    console.error(`[data] idle client error: ${error?.message || error}`);
+  });
 
   /* The v2 schema is authoritative and lives entirely in `public`, so there
      is no schema probing and no column-shape guessing: `batteries` is keyed
@@ -741,6 +771,75 @@ export const createPostgresStore = async ({
     async ping() {
       const { rows } = await pool.query("SELECT NOW() AS now");
       return rows[0];
+    },
+
+    /* SELECT 1 — the cheapest liveness probe used by GET /api/health. */
+    async healthCheck() {
+      const { rows } = await pool.query("SELECT 1 AS ok");
+      return rows[0];
+    },
+
+    /* Apply the authoritative schema (backend/data/postgres/schema.sql).
+       Idempotent: every statement is IF NOT EXISTS / ON CONFLICT / guarded,
+       so running it against an already-populated database is a no-op. This
+       is what provisions an empty database (e.g. a fresh Supabase project)
+       on boot.
+
+       By default it runs only when the core `users` table is absent, which
+       is the "fresh/empty database" case that caused the production 500s,
+       and skips the (harmless but wasteful) full re-apply — including the
+       trailing VACUUM ANALYZE — on every ordinary boot. Set
+       APPLY_SCHEMA_ALWAYS=true to force a full re-apply on each start.
+
+       schema.sql owns a BEGIN/COMMIT and ends with VACUUM ANALYZE, which
+       cannot run inside a transaction block. The DDL is therefore applied
+       inside an explicit transaction, and the maintenance statements are
+       run afterwards in autocommit — mirroring scripts/migrate.js. */
+    async applySchema({ force = false } = {}) {
+      const forced =
+        force || String(process.env.APPLY_SCHEMA_ALWAYS || "false").toLowerCase() === "true";
+      if (!forced) {
+        const { rows } = await pool.query("SELECT to_regclass('public.users') AS present");
+        if (rows[0]?.present) return { applied: false, reason: "schema already present" };
+      }
+
+      const schemaPath = new URL("./schema.sql", import.meta.url);
+      const sql = fs.readFileSync(schemaPath, "utf8");
+
+      const transactionControl = /^\s*(BEGIN|COMMIT|ROLLBACK|START\s+TRANSACTION)\s*;\s*$/i;
+      const maintenance = /^\s*(VACUUM|ANALYZE|REINDEX)\b/i;
+      const ddl = [];
+      const post = [];
+      for (const line of sql.split("\n")) {
+        if (transactionControl.test(line)) continue;
+        if (maintenance.test(line)) {
+          post.push(line.trim());
+          continue;
+        }
+        ddl.push(line);
+      }
+
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query(ddl.join("\n"));
+        await client.query("COMMIT");
+      } catch (error) {
+        try {
+          await client.query("ROLLBACK");
+        } catch {
+          /* the connection may already be broken; the original error wins */
+        }
+        throw error;
+      } finally {
+        client.release();
+      }
+
+      // Autocommit, outside the transaction, exactly as the file intends.
+      for (const statement of post) {
+        await pool.query(statement);
+      }
+      return { applied: true, reason: forced ? "forced" : "empty database" };
     },
 
     async close() {
